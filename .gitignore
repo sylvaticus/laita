@@ -1,0 +1,20 @@
+# Signed and packaged builds
+web-ext-artifacts/
+
+# AMO / signing credentials - never commit these
+.env
+*.pem
+web-ext-config.local.*
+
+# Node, if you ever add tooling here
+node_modules/
+package-lock.json
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Scratch
+*.log

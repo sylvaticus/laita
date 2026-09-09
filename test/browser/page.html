@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>locaispell harness</title>
+<style>
+ body{font:15px system-ui;margin:24px;max-width:760px}
+ textarea{width:100%;height:130px;font:15px/1.7 Georgia,serif;padding:12px 10px;border:3px solid #999}
+ .ce{border:3px solid #999;padding:12px 10px;font:15px/1.7 Georgia,serif}
+ input{width:100%;font:15px/1.7 Georgia,serif;padding:10px;border:3px solid #999;margin-top:10px}
+ h2{font-size:13px;color:#666;margin:20px 0 4px}
+</style></head><body>
+<h1>locaispell test harness</h1>
+
+<h2>1. textarea</h2>
+<textarea id="ta">I have recieve your email yesterday and my colleague was very interested about it. Due to the fact that we are evaluating solutions, could you send us a more detailed documentation?</textarea>
+
+<h2>2. contenteditable</h2>
+<div id="ce" class="ce" contenteditable="true"><p>I have recieve your email yesterday and my colleague was very interested about it.</p><p>Due to the fact that we are evaluating solutions, could you send us a more detailed documentation?</p></div>
+
+<h2>3. opted out with data-locaispell="off" (must never be checked)</h2>
+<div data-locaispell="off"><textarea id="off">I have recieve your email yesterday and my colleague was very interested here.</textarea></div>
+
+<h2>4. password (must never be checked)</h2>
+<input type="password" id="pw" value="I have recieve your email yesterday and this is long enough to check">
+
+<script>
+/*
+ * Drives the extension and reports what it observed back to the mock server, so the whole
+ * run can be checked from a terminal. Requires the extension to be built with
+ * attachShadow({mode:"open"}) and the paint() offset hook - see test/README.md.
+ */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const beacon = (step, data) => fetch("/api/beacon", {method:"POST",
+  headers:{"Content-Type":"application/json"}, body: JSON.stringify({step, data})}).catch(()=>{});
+const sh = () => document.querySelector("locaispell-layer")?.shadowRoot;
+const ta = () => document.getElementById("ta");
+const round = r => ({left:+r.left.toFixed(1), top:+r.top.toFixed(1), w:+r.width.toFixed(1), h:+r.height.toFixed(1)});
+const decos = () => [...(sh()?.querySelectorAll(".deco") || [])]
+  .map(d => ({...round(d.getBoundingClientRect()), color: d.style.getPropertyValue("--c")}));
+/* every issue's recorded span must still hold exactly its own text */
+const audit = () => JSON.parse(document.documentElement.dataset.lasIssues || "[]")
+  .map(i => ({o: i.o, ok: ta().value.slice(i.s, i.e) === i.o}));
+/* ground truth for the contenteditable, measured independently with a DOM Range */
+function truthCE(needle) {
+  const w = document.createTreeWalker(document.getElementById("ce"), NodeFilter.SHOW_TEXT);
+  let n; while ((n = w.nextNode())) { const i = n.data.indexOf(needle);
+    if (i !== -1) { const r = document.createRange(); r.setStart(n,i); r.setEnd(n,i+needle.length);
+      return round(r.getBoundingClientRect()); } }
+  return null;
+}
+function clickAt(el, x, y) { for (const t of ["mousedown","mouseup","click"])
+  el.dispatchEvent(new MouseEvent(t, {bubbles:true, composed:true, clientX:x, clientY:y, view:window})); }
+window.addEventListener("error", e => beacon("pageerror", String(e.message)));
+
+(async () => {
+  ta().focus(); await sleep(4500);
+  await beacon("textarea", {decos: decos(), audit: audit(), box: round(ta().getBoundingClientRect())});
+
+  const d = [...sh().querySelectorAll(".deco")];
+  const r = d[0].getBoundingClientRect();
+  clickAt(ta(), r.left + r.width/2, r.top + r.height/2); await sleep(500);
+  const card = sh().querySelector(".card");
+  await beacon("card", {open: card.classList.contains("on"), badge: card.querySelector(".badge")?.textContent,
+    del: card.querySelector("del")?.textContent, ins: card.querySelector("ins")?.textContent});
+
+  sh().querySelector("button.act.primary").dispatchEvent(new MouseEvent("click",{bubbles:true,composed:true}));
+  await sleep(900);
+  await beacon("applied", {fixed: ta().value.includes("receive") && !ta().value.includes("recieve"), audit: audit()});
+
+  document.getElementById("ce").focus(); await sleep(4500);
+  await beacon("contenteditable", {decos: decos(),
+    truth: {recieve: truthCE("recieve"), due: truthCE("Due to the fact that")}});
+
+  document.getElementById("off").focus(); await sleep(2500);
+  document.getElementById("pw").focus(); await sleep(2500);
+  await beacon("done", true);
+})();
+</script></body></html>

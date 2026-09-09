@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Local AI Spell Checker</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<div class="head">
+  <strong>Local AI Spell Checker</strong>
+  <span id="dot" class="dot"></span>
+</div>
+
+<p id="status" class="status">Checking Ollama…</p>
+
+<div class="rows">
+  <label class="toggle"><input id="enabled" type="checkbox"> <span>Enabled everywhere</span></label>
+  <label class="toggle"><input id="site" type="checkbox"> <span id="siteLabel">Enabled on this site</span></label>
+</div>
+
+<p id="field" class="field"></p>
+
+<div class="buttons">
+  <button id="check" class="btn primary">Check this field <kbd>Alt+Shift+C</kbd></button>
+  <button id="options" class="btn">Options</button>
+</div>
+<script type="module" src="popup.js"></script>
+</body>
+</html>

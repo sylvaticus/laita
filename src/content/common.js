@@ -1,0 +1,116 @@
+/**
+ * Shared state and helpers for the content scripts.
+ * All content scripts of an extension share one sandbox global, so `var LAS` declared here
+ * is visible to the files listed after this one in the manifest.
+ */
+
+var LAS = {
+  clientId: Math.random().toString(36).slice(2) + Date.now().toString(36),
+  settings: null,
+  active: false
+};
+
+LAS.send = (msg) => browser.runtime.sendMessage(msg).catch(() => null);
+
+LAS.log = (...args) => {
+  if (LAS.settings?.debug) console.log("%c[locaispell]", "color:#3b82f6", ...args);
+};
+
+LAS.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+/** Words that are cheap and reliable markers of a language, for short texts. */
+const STOPWORDS = {
+  en: "the of and to in is that it for you with was are this but not have from they will would there their which about",
+  fr: "le la les de des du et est un une que qui pour dans pas vous nous je ne sur avec plus sont cette mais tout comme être ont votre",
+  it: "il lo la le gli di che e un una per non con sono come anche piu questo della nel alla ma se ho hanno essere",
+  es: "el la los las de que y un una por para no con su se lo como mas pero este esta son tiene hay muy",
+  de: "der die das und ist ein eine nicht mit den von zu sich auf fur im dem auch aber wird sind haben kann werden",
+  pt: "de que nao um uma para com por os as do da em mais como mas seu sua estão foi ser tem",
+  nl: "de het een en van is dat in te niet op zijn met voor er maar aan die ook als wordt"
+};
+
+const STOPSETS = Object.fromEntries(
+  Object.entries(STOPWORDS).map(([k, v]) => [k, new Set(v.split(" "))])
+);
+
+/** Count how many tokens of the text belong to each language's marker list. */
+function stopwordScores(text) {
+  const tokens = text
+    .toLowerCase()
+    .normalize("NFC")
+    .split(/[^\p{L}\p{M}']+/u)
+    .filter(Boolean)
+    .slice(0, 400);
+  const scores = {};
+  for (const [lang, set] of Object.entries(STOPSETS)) {
+    let n = 0;
+    for (const t of tokens) if (set.has(t)) n++;
+    scores[lang] = n;
+  }
+  const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  return { top: ranked[0], runnerUp: ranked[1], tokens: tokens.length };
+}
+
+/**
+ * Detect the language of a field.
+ * Firefox's built-in detector is good on long text and erratic on short text, so on short
+ * text the stopword heuristic wins, and on long text it is only used as a tie-breaker.
+ */
+LAS.detectLanguage = async function (text) {
+  const sample = text.slice(0, 4000);
+  const heur = stopwordScores(sample);
+  const heurLang = heur.top?.[1] >= 2 && heur.top[1] > (heur.runnerUp?.[1] ?? 0) ? heur.top[0] : null;
+
+  let cldLang = null;
+  let cldReliable = false;
+  try {
+    const res = await browser.i18n.detectLanguage(sample);
+    const best = res?.languages?.[0];
+    if (best) {
+      cldLang = best.language.split("-")[0];
+      cldReliable = !!res.isReliable && best.percentage >= 60;
+    }
+  } catch {
+    /* detector unavailable */
+  }
+
+  if (cldLang && cldLang === heurLang) return cldLang;
+  if (sample.length < 200) return heurLang || cldLang || "en";
+  if (cldReliable) return cldLang;
+  return heurLang || cldLang || "en";
+};
+
+/**
+ * Keep issues aligned with text that may have changed while the model was thinking.
+ * An issue whose span no longer holds its original text is searched for nearby and
+ * shifted; if it cannot be found it is dropped.
+ */
+LAS.reconcile = function (issues, text) {
+  const out = [];
+  for (const issue of issues) {
+    if (text.slice(issue.start, issue.end) === issue.original) {
+      out.push(issue);
+      continue;
+    }
+    const from = Math.max(0, issue.start - 200);
+    const idx = text.indexOf(issue.original, from);
+    if (idx !== -1 && idx < issue.start + 200) {
+      out.push({ ...issue, start: idx, end: idx + issue.original.length });
+    }
+  }
+  // Drop overlaps that shifting may have created, keeping the earliest.
+  out.sort((a, b) => a.start - b.start || b.end - a.end);
+  const kept = [];
+  for (const i of out) {
+    if (kept.length && i.start < kept[kept.length - 1].end) continue;
+    kept.push(i);
+  }
+  return kept;
+};
+
+LAS.WORST = (issues) => {
+  if (issues.some((i) => i.type === "error")) return "error";
+  if (issues.some((i) => i.type === "style")) return "style";
+  if (issues.length) return "rephrase";
+  return "none";
+};
