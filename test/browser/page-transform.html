@@ -18,7 +18,10 @@
 <h2>3. proofreading pill</h2>
 <textarea id="pillfield">I have recieve your email yesterday and my colleague was very interested about it.</textarea>
 
-<h2>4. plain page text (not editable)</h2>
+<h2>4. a check that Ollama fails once (RETRYME)</h2>
+<textarea id="retryfield">RETRYME I have recieve your email yesterday and my colleague was very interested about it.</textarea>
+
+<h2>5. plain page text (not editable)</h2>
 <p class="plain" id="plain">Nothing here can be replaced, only copied.</p>
 
 <script>
@@ -224,6 +227,19 @@ async function step(name, fn) {
     document.dispatchEvent(new CustomEvent("las-test-check"));
     for (let i = 0; i < 100 && sh().querySelectorAll(".deco").length === 0; i++) await sleep(100);
     await beacon("pill-completes", { decos: sh().querySelectorAll(".deco").length });
+  });
+
+  // ---- 9. one failed model load must not surface as an error
+  await step("retry-after-500", async () => {
+    const el = $("retryfield");
+    el.focus();
+    await sleep(200);
+    document.dispatchEvent(new CustomEvent("las-test-check"));
+    for (let i = 0; i < 200 && sh().querySelectorAll(".deco").length === 0; i++) await sleep(100);
+    await beacon("retry-after-500", {
+      decos: sh().querySelectorAll(".deco").length,
+      noErrorPill: !sh()?.querySelector(".pill.err")
+    });
   });
 
   await beacon("done", {});

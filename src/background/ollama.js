@@ -188,6 +188,73 @@ export async function probe(settings) {
   return { models, hasModel: models.includes(settings.model) };
 }
 
+// ------------------------------------------------------------------ error handling
+
+/**
+ * Is this worth trying again?
+ *
+ * Ollama answers 500 when its model runner has to be started and does not come up in
+ * time - routine on a machine where the model only just fits in VRAM. The failed attempt
+ * has usually kicked the load off, so the second one tends to succeed. A refused origin,
+ * a missing model or a request we aborted ourselves will never get better by repeating.
+ */
+export function isTransient(err) {
+  if (err?.stale || err?.name === "AbortError") return false;
+  const msg = String(err?.message || err);
+  if (/HTTP (500|502|503|504)/.test(msg)) return true;
+  return /NetworkError|Failed to fetch|ECONNREFUSED|network/i.test(msg);
+}
+
+const LOAD_FAILURE = /llama-server|load failed|unable to load|out of memory|no such file|runner/i;
+
+/** Turn whatever went wrong into something the user can act on. */
+export function describeError(err) {
+  if (err?.stale) return { ok: false, stale: true };
+  const msg = String(err?.message || err);
+  if (err?.name === "AbortError") {
+    return {
+      ok: false,
+      kind: "timeout",
+      error:
+        "The request to Ollama timed out. A large model on a busy GPU can need longer - " +
+        "raise the timeout in the options, or use a smaller model."
+    };
+  }
+  if (/NetworkError|Failed to fetch|ECONNREFUSED|network/i.test(msg)) {
+    return {
+      ok: false,
+      kind: "connection",
+      error:
+        "Cannot reach Ollama. Check that `ollama serve` is running and that the endpoint " +
+        "in Local AI Spell Checker's options is correct."
+    };
+  }
+  if (/HTTP 403/.test(msg)) {
+    return {
+      ok: false,
+      kind: "cors",
+      error:
+        "Ollama refused the request because it came from a browser extension. Allow it once " +
+        "with OLLAMA_ORIGINS=\"moz-extension://*\" and restart Ollama - see the README."
+    };
+  }
+  if (/HTTP 404/.test(msg)) {
+    return { ok: false, kind: "model", error: "Ollama does not have that model. Run `ollama pull <model>`." };
+  }
+  if (/HTTP 5\d\d/.test(msg)) {
+    return {
+      ok: false,
+      kind: "server",
+      error: LOAD_FAILURE.test(msg)
+        ? "Ollama could not start the model. That usually means it does not fit in the GPU " +
+          "alongside what else is running - try a smaller model, or raise \"Keep model loaded " +
+          "for\" in the options so it reloads less often."
+        : "Ollama failed on this request. " + msg.slice(0, 200)
+    };
+  }
+  return { ok: false, kind: "other", error: msg };
+}
+
 // ------------------------------------------------------------------ transform
 
 /**

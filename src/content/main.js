@@ -123,7 +123,11 @@
 
         if (!res || !res.ok) {
           if (res?.stale) return;
-          lastError = res?.error || "Local AI Spell Checker could not reach the model.";
+          lastError =
+            res?.error ||
+            "Local AI Spell Checker's background page did not answer" +
+              (LAS.lastSendError ? ` (${LAS.lastSendError})` : "") +
+              ". Reload the page and try again.";
           showPill();
           return;
         }
@@ -170,7 +174,12 @@
   function showPill() {
     if (!adapter?.isAlive()) return;
     if (lastError) {
-      LAS.Overlay.showPill(adapter, { text: "locaispell: error", error: true, onClose: cancelCheck });
+      LAS.Overlay.showPill(adapter, {
+        text: "locaispell: error",
+        error: true,
+        onClose: cancelCheck,
+        onDetail: () => LAS.Card.showError(adapter, lastError)
+      });
       return;
     }
     if (busyChunks > 0) {

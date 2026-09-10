@@ -227,12 +227,44 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | *"Cannot reach Ollama"* | `ollama serve` is not running, or the endpoint is wrong. Try `curl http://localhost:11434/api/tags`. |
 | *"Ollama does not have that model"* | `ollama pull <model>`. |
 | *"The request to Ollama timed out"* | The model is slow to load, or too large for the machine. Raise the timeout, or use a smaller model. |
+| *"Ollama could not start the model"* | The model does not fit in the GPU next to whatever else is using it. See [errors that come and go](#errors-that-come-and-go). |
+| *"the background page did not answer"* | Firefox unloaded the extension's background page. Reload the tab. If it keeps happening, report it. |
 | Nothing happens at all | The site may be disabled (check the toolbar popup), the field may be too short, or it may look like a password field. |
 | Highlights sit slightly off | Report it — the field probably uses a layout the mirror does not yet copy. |
 | Checks feel slow | Lower *maximum chunk size*, turn off the *rephrase* category, or use a smaller model. The first check after an idle period also pays for reloading the model. |
 
+### Errors that come and go
+
+An error on a page that worked a minute ago almost always means the model had to be
+**loaded again** and the load failed. Ollama unloads a model after the *keep model loaded
+for* period, and reloading it needs the whole model to fit in the GPU at once — so a model
+that is a tight fit works while it is resident and fails when it has to come back.
+
+Local AI Spell Checker retries once automatically, which hides most of these. If you still
+see them:
+
+```bash
+nvidia-smi --query-gpu=memory.total,memory.free --format=csv   # what you have
+ollama list                                                    # what the model needs
+journalctl -u ollama -n 200 | grep -iE "load failed|llama-server"
+```
+
+If the model size is close to the card's memory, that is the answer. Three fixes, in order
+of effectiveness:
+
+1. **Use a smaller model.** A 6.6 GB model on an 8 GB card leaves nothing for the context
+   and fails as soon as anything else touches the GPU. A 3–4 GB model has room.
+2. **Raise *keep model loaded for*** (options → Model) to something long, `8h` or `-1`.
+   Every reload is a chance to fail, so the fix is to stop reloading.
+3. **Do not alternate between models.** Switching evicts one and loads the other, which
+   is a reload each way.
+
+If you stay on the large model, also raise the request timeout: a load that takes longer
+than the timeout is abandoned by the extension, which Ollama logs as a cancelled load.
+
 Turn on **Log debug output to the page console** in the options to see what Local AI Spell Checker is
-doing, then open the web console on the page (`Ctrl+Shift+K`).
+doing, then open the web console on the page (`Ctrl+Shift+K`). When the pill shows an
+error, its **?** button opens the full message.
 
 ---
 

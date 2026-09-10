@@ -265,7 +265,7 @@ LAS.Overlay = {
    * Small status pill, just outside the bottom-right of the field.
    * `onClose` gets a × that dismisses the pill and stops whatever it is reporting on.
    */
-  showPill(adapter, { text, busy, error, onClose }) {
+  showPill(adapter, { text, busy, error, onClose, onDetail }) {
     this.ensure();
     if (!text) {
       this.pill.classList.remove("on");
@@ -279,6 +279,19 @@ LAS.Overlay = {
       this.pill.appendChild(s);
     }
     this.pill.appendChild(document.createTextNode(text));
+    if (onDetail) {
+      const q = document.createElement("button");
+      q.type = "button";
+      q.className = "pillx";
+      q.textContent = "?";
+      q.title = "What went wrong";
+      q.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onDetail();
+      });
+      this.pill.appendChild(q);
+    }
     if (onClose) {
       const x = document.createElement("button");
       x.type = "button";

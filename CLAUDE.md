@@ -54,6 +54,22 @@ the selected fragment and is not cached, queued or fingerprinted. The one thing 
 is the adapter, deliberately: `transform.js` reuses the instance `main.js` is driving
 (`LAS.getAdapter()`) rather than building a second layout mirror for the same `<textarea>`.
 
+**A failed request is retried exactly once, and only when retrying can help.**
+`isTransient` in `ollama.js` says which: 5xx and dropped connections yes; 403, 404, a
+parse failure and our own aborts no. This exists because Ollama returns 500 when its model
+runner fails to start, which is routine when the model only just fits in VRAM, and the
+failed attempt is what triggers the load. Do not retry on abort: `withRetry` checks
+`signal.aborted` both before and after the delay, or a cancelled check would come back.
+
+**`describeError` lives in `ollama.js`, not in the background router**, so that it can be
+unit tested. Its job is to turn transport failures into something the user can act on -
+in particular a 500 mentioning `llama-server` becomes an explanation about VRAM rather
+than a Go error string.
+
+**`null` from `LAS.send` means the message never reached the background page**, which is a
+different failure from anything Ollama said, and must not be reported as "could not reach
+the model". The reason is kept in `LAS.lastSendError`.
+
 **A per-site override beats the allowlist/denylist.** `siteOverrides` in
 `common/settings.js` is checked first by `siteAllowed`, and is what the context menu,
 `Alt+Shift+X` and the popup all write through the single `toggleSite` handler — they must

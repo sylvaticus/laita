@@ -257,7 +257,12 @@ async function run(instruction) {
 
   state.reqId = null;
   if (!res?.ok) {
-    renderError(res?.error || "Local AI Spell Checker could not reach the model.");
+    renderError(
+      res?.error ||
+        "Local AI Spell Checker's background page did not answer" +
+          (LAS.lastSendError ? ` (${LAS.lastSendError})` : "") +
+          ". Reload the page and try again."
+    );
     return;
   }
   state.output = res.output;

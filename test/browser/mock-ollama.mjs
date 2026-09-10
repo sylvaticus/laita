@@ -25,6 +25,14 @@ const transformAnswer = (parsed) => {
   return `Here is the polished text:\n"${fragment.replace(/e/g, "E")}"`;
 };
 
+/*
+ * Text carrying this marker gets one HTTP 500 - the shape Ollama returns when its model
+ * runner fails to start - and succeeds from then on, so a harness can prove the retry
+ * turns that into an invisible hiccup rather than an error in the user's face.
+ */
+const RETRY_MARKER = "RETRYME";
+const alreadyFailed = new Set();
+
 const log = [];
 http.createServer((req, res) => {
   let body = "";
@@ -54,6 +62,12 @@ http.createServer((req, res) => {
         /* treat unparseable bodies as proofreading, as before */
       }
       const isTransform = parsed && !parsed.format;
+      const asked = parsed?.messages?.[parsed.messages.length - 1]?.content ?? "";
+      if (asked.includes(RETRY_MARKER) && !alreadyFailed.has(RETRY_MARKER)) {
+        alreadyFailed.add(RETRY_MARKER);
+        res.writeHead(500, { ...cors, "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ error: "timed out waiting for llama-server to start" }));
+      }
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
       const content = isTransform ? transformAnswer(parsed) : JSON.stringify(CANNED);
       const send = () => res.end(JSON.stringify({ message: { content } }));

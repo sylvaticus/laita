@@ -7,7 +7,9 @@
  */
 
 import { getSettings, setSettings, siteAllowed, DEFAULTS } from "../common/settings.js";
-import { requestIssues, requestTransform, probe, PROMPT_VERSION } from "./ollama.js";
+import {
+  requestIssues, requestTransform, probe, describeError, isTransient, PROMPT_VERSION
+} from "./ollama.js";
 import { anchorIssues, hash } from "./anchor.js";
 
 // ---------------------------------------------------------------- cache
@@ -97,6 +99,29 @@ function noteGeneration(clientId, gen) {
   }
 }
 
+// ---------------------------------------------------------------- retry
+
+const RETRY_DELAY_MS = 700;
+
+/**
+ * Run `attempt` again once if it failed in a way that tends to fix itself.
+ *
+ * The common case is Ollama returning 500 because the model runner did not start in
+ * time. That first attempt is what triggers the load, so the second one usually lands on
+ * a model that is now resident. Without this a routine reload shows up as an error in
+ * the middle of typing.
+ */
+async function withRetry(attempt, signal) {
+  try {
+    return await attempt();
+  } catch (err) {
+    if (signal?.aborted || !isTransient(err)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    if (signal?.aborted) throw err;
+    return await attempt();
+  }
+}
+
 // ---------------------------------------------------------------- checking
 
 async function checkChunk({ text, lang, clientId, gen }) {
@@ -120,7 +145,10 @@ async function checkChunk({ text, lang, clientId, gen }) {
       inFlight.add(req);
       const timer = setTimeout(() => controller.abort(), settings.requestTimeoutMs);
       try {
-        return await requestIssues({ text, lang, settings, signal: controller.signal });
+        return await withRetry(
+          () => requestIssues({ text, lang, settings, signal: controller.signal }),
+          controller.signal
+        );
       } finally {
         clearTimeout(timer);
         inFlight.delete(req);
@@ -130,36 +158,6 @@ async function checkChunk({ text, lang, clientId, gen }) {
 
   cacheSet(key, raw);
   return { ok: true, cached: false, issues: anchor(raw) };
-}
-
-function describeError(err) {
-  if (err?.stale) return { ok: false, stale: true };
-  const msg = String(err?.message || err);
-  if (err?.name === "AbortError") {
-    return { ok: false, error: "The request to Ollama timed out.", kind: "timeout" };
-  }
-  if (/NetworkError|Failed to fetch|ECONNREFUSED|network/i.test(msg)) {
-    return {
-      ok: false,
-      kind: "connection",
-      error:
-        "Cannot reach Ollama. Check that `ollama serve` is running and that the endpoint " +
-        "in Local AI Spell Checker's options is correct."
-    };
-  }
-  if (/HTTP 403/.test(msg)) {
-    return {
-      ok: false,
-      kind: "cors",
-      error:
-        "Ollama refused the request because it came from a browser extension. Allow it once " +
-        "with OLLAMA_ORIGINS=\"moz-extension://*\" and restart Ollama - see the README."
-    };
-  }
-  if (/HTTP 404/.test(msg)) {
-    return { ok: false, kind: "model", error: "Ollama does not have that model. Run `ollama pull <model>`." };
-  }
-  return { ok: false, kind: "other", error: msg };
 }
 
 // ---------------------------------------------------------------- transform
@@ -184,7 +182,10 @@ async function transform({ text, instruction, lang, reqId }) {
   const timer = setTimeout(() => controller.abort(), settings.requestTimeoutMs);
   try {
     await rememberInstruction(instruction);
-    const output = await requestTransform({ text, instruction, lang, settings, signal: controller.signal });
+    const output = await withRetry(
+      () => requestTransform({ text, instruction, lang, settings, signal: controller.signal }),
+      controller.signal
+    );
     return { ok: true, output };
   } finally {
     clearTimeout(timer);

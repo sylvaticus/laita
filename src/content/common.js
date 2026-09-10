@@ -10,7 +10,15 @@ var LAS = {
   active: false
 };
 
-LAS.send = (msg) => browser.runtime.sendMessage(msg).catch(() => null);
+/**
+ * null means the message never reached the background page - a different failure from
+ * anything Ollama might say, so the reason is kept for the message shown to the user.
+ */
+LAS.send = (msg) =>
+  browser.runtime.sendMessage(msg).catch((err) => {
+    LAS.lastSendError = String(err?.message || err);
+    return null;
+  });
 
 LAS.log = (...args) => {
   if (LAS.settings?.debug) console.log("%c[locaispell]", "color:#3b82f6", ...args);

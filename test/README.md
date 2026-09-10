@@ -112,6 +112,9 @@ Every beacon must report `true`:
 - `plain-text`: `offersCopyOnly` and `pageUnchanged` — a non-editable selection must never
   be written to.
 - `escape`: the panel closes; `no-selection`: it never opens.
+- `retry-after-500`: the mock fails the first request whose text contains `RETRYME` with
+  the 500 Ollama returns when its runner will not start, then succeeds. Highlights must
+  still appear and `noErrorPill` must hold: one failed model load is meant to be invisible.
 - `pill-cancel`: `clearOfTheText` is the regression guard — the pill must sit below the
   field, not on top of the words. `decosAfterCancel: 0` proves the × abandoned the check
   rather than only hiding the pill, and `pill-completes` must then report `decos: 2` for
