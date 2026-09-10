@@ -53,9 +53,14 @@ http.createServer((req, res) => {
       } catch {
         /* treat unparseable bodies as proofreading, as before */
       }
+      const isTransform = parsed && !parsed.format;
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
-      const content = parsed && !parsed.format ? transformAnswer(parsed) : JSON.stringify(CANNED);
-      return res.end(JSON.stringify({ message: { content } }));
+      const content = isTransform ? transformAnswer(parsed) : JSON.stringify(CANNED);
+      const send = () => res.end(JSON.stringify({ message: { content } }));
+      // Only proofreading is slowed down, so a harness can catch the "Checking…" pill
+      // mid-flight and cancel it while transforms stay instant.
+      const delay = isTransform ? 0 : Number(process.env.CHAT_DELAY_MS) || 0;
+      return delay ? setTimeout(send, delay) : send();
     }
     if (req.url === "/report") {
       fs.writeFileSync(process.env.REPORT, body);

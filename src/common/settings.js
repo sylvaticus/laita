@@ -37,6 +37,8 @@ export const DEFAULTS = {
   siteMode: "all",         // "all" (everywhere except disabledSites) | "allowlist"
   disabledSites: [],       // hostnames
   enabledSites: [],        // hostnames, used when siteMode === "allowlist"
+  siteOverrides: {},       // hostname -> bool; beats siteMode. Set from the context menu,
+                           // Alt+Shift+X and the popup, i.e. "off/on here, right now"
 
   // --- misc ---
   ignored: [],             // fingerprints of suggestions the user dismissed for good
@@ -47,7 +49,7 @@ export const DEFAULTS = {
 /** Deep-ish merge that only walks the one level of nested objects we actually have. */
 export function withDefaults(stored) {
   const out = { ...DEFAULTS, ...(stored || {}) };
-  for (const key of ["categories", "colors"]) {
+  for (const key of ["categories", "colors", "siteOverrides"]) {
     out[key] = { ...DEFAULTS[key], ...((stored && stored[key]) || {}) };
   }
   return out;
@@ -63,9 +65,17 @@ export async function setSettings(patch) {
   return getSettings();
 }
 
-/** Decide whether Local AI Spell Checker should run on a given hostname. */
+/**
+ * Decide whether Local AI Spell Checker should run on a given hostname.
+ *
+ * A per-site override always wins. It is what the context menu, Alt+Shift+X and the popup
+ * set, so that "pause here" means paused whatever the allowlist says; the lists stay the
+ * standing policy for every site without one.
+ */
 export function siteAllowed(settings, hostname) {
   if (!hostname) return false;
+  const override = settings.siteOverrides?.[hostname];
+  if (typeof override === "boolean") return override;
   const matches = (list) =>
     list.some((h) => {
       const n = String(h).trim().toLowerCase().replace(/^\*\./, "");

@@ -15,7 +15,10 @@
 <h2>2. contenteditable</h2>
 <div id="ce" class="ce" contenteditable="true"><p>The meeting was cancelled because nobody remembered to book the room.</p><p>We will try again next week.</p></div>
 
-<h2>3. plain page text (not editable)</h2>
+<h2>3. proofreading pill</h2>
+<textarea id="pillfield">I have recieve your email yesterday and my colleague was very interested about it.</textarea>
+
+<h2>4. plain page text (not editable)</h2>
 <p class="plain" id="plain">Nothing here can be replaced, only copied.</p>
 
 <script>
@@ -182,6 +185,45 @@ async function step(name, fn) {
     openPanel();
     await sleep(300);
     await beacon("no-selection", {panelOpened: !!panel()});
+  });
+
+  // ---- 7. the "Checking..." pill: clear of the text, and its x stops the check
+  await step("pill-cancel", async () => {
+    const el = $("pillfield");
+    el.focus();
+    await sleep(200);
+    document.dispatchEvent(new CustomEvent("las-test-check"));
+    for (let i = 0; i < 60 && !sh()?.querySelector(".pill.on"); i++) await sleep(50);
+
+    const pill = sh()?.querySelector(".pill.on");
+    const pr = pill?.getBoundingClientRect();
+    const fr = el.getBoundingClientRect();
+    const x = pill?.querySelector(".pillx");
+    const data = {
+      appeared: !!pill,
+      says: (pill?.textContent || "").replace("\u00d7", "").trim(),
+      hasClose: !!x,
+      /* the whole point: it must not sit on top of the words being typed */
+      clearOfTheText: pr ? pr.top >= fr.bottom - 1 : false,
+      translucent: pill ? Number(getComputedStyle(pill).opacity) < 1 : false,
+      clickThrough: pill ? getComputedStyle(pill).pointerEvents === "none" : false,
+      closeIsClickable: x ? getComputedStyle(x).pointerEvents === "auto" : false
+    };
+    x?.click();
+    await sleep(150);
+    data.hiddenAfterClick = !sh()?.querySelector(".pill.on");
+    await sleep(4000);                       // outlast the mock's delay
+    data.decosAfterCancel = sh().querySelectorAll(".deco").length;
+    data.stillHidden = !sh()?.querySelector(".pill.on");
+    await beacon("pill-cancel", data);
+  });
+
+  // ...and the same field does paint when the check is left alone, so the step above
+  // proves the cancel worked rather than that nothing would have happened anyway.
+  await step("pill-completes", async () => {
+    document.dispatchEvent(new CustomEvent("las-test-check"));
+    for (let i = 0; i < 100 && sh().querySelectorAll(".deco").length === 0; i++) await sleep(100);
+    await beacon("pill-completes", { decos: sh().querySelectorAll(".deco").length });
   });
 
   await beacon("done", {});

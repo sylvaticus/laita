@@ -152,24 +152,42 @@
     if (LAS.Card.isOpen()) LAS.Card.follow(adapter);
   }
 
+  /**
+   * The × on the pill. Abandons the check in flight and does not start another one for the
+   * same text, so dismissing the pill actually stops the work rather than only hiding it.
+   */
+  function cancelCheck() {
+    clearTimeout(debounceTimer);
+    generation++;
+    LAS.send({ cmd: "cancel", clientId: LAS.clientId, gen: generation });
+    busyChunks = 0;
+    lastError = null;
+    if (adapter?.isAlive()) lastCheckedText = adapter.getText();
+    LAS.Overlay.hidePill();
+    reportStatus();
+  }
+
   function showPill() {
     if (!adapter?.isAlive()) return;
     if (lastError) {
-      LAS.Overlay.showPill(adapter, { text: "locaispell: error", error: true });
+      LAS.Overlay.showPill(adapter, { text: "locaispell: error", error: true, onClose: cancelCheck });
       return;
     }
     if (busyChunks > 0) {
-      LAS.Overlay.showPill(adapter, { text: "Checking…", busy: true });
+      LAS.Overlay.showPill(adapter, { text: "Checking…", busy: true, onClose: cancelCheck });
       return;
     }
     if (issues.length) {
-      LAS.Overlay.showPill(adapter, { text: `${issues.length} suggestion${issues.length > 1 ? "s" : ""}` });
+      LAS.Overlay.showPill(adapter, {
+        text: `${issues.length} suggestion${issues.length > 1 ? "s" : ""}`,
+        onClose: cancelCheck
+      });
       setTimeout(() => {
         if (busyChunks === 0 && !lastError) LAS.Overlay.hidePill();
       }, 1800);
       return;
     }
-    LAS.Overlay.showPill(adapter, { text: "No issues" });
+    LAS.Overlay.showPill(adapter, { text: "No issues", onClose: cancelCheck });
     setTimeout(() => {
       if (busyChunks === 0 && !lastError) LAS.Overlay.hidePill();
     }, 1200);

@@ -159,6 +159,9 @@
       <textarea id="siteList" rows="4" spellcheck="false" placeholder="mail.example.com"></textarea>
     </div>
     <label class="check"><input id="enabled" type="checkbox"> Local AI Spell Checker is enabled</label>
+    <p class="note">Pausing on a site from the right-click menu, <b>Alt+Shift+X</b> or the
+    toolbar button overrides these lists for that one hostname, so a pause holds whatever the
+    policy above says. Clear those overrides under <i>Maintenance</i>.</p>
     <p class="note">Local AI Spell Checker never touches password fields, payment fields, or any field whose name suggests a secret. You can also add <code>data-locaispell="off"</code> to any element to exclude it and everything inside it.</p>
   </section>
 
@@ -167,6 +170,7 @@
     <div class="inline">
       <button id="clearCache" class="btn">Clear result cache</button>
       <button id="clearIgnored" class="btn">Forget dismissed suggestions (<span id="ignoredCount">0</span>)</button>
+      <button id="clearOverrides" class="btn">Clear per-site pauses (<span id="overrideCount">0</span>)</button>
       <button id="reset" class="btn danger">Reset all settings</button>
     </div>
     <label class="check"><input id="debug" type="checkbox"> Log debug output to the page console</label>

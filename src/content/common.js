@@ -37,6 +37,31 @@ LAS.placeNear = function (node, rect) {
 };
 
 /**
+ * Where to put the status pill, given the field's visible box.
+ *
+ * It used to sit inside the bottom-right corner, where it covered the very words being
+ * typed. It now goes just outside the field - below it by preference, above it when the
+ * field runs to the bottom of the window - and only falls back inside when the field is
+ * taller than the viewport and there is nowhere else to go.
+ */
+LAS.pillPosition = function (rect, size, view) {
+  const gap = 4;
+  const left = LAS.clamp(rect.left + rect.width - size.width - gap, gap, Math.max(gap, view.width - size.width - gap));
+
+  const below = rect.top + rect.height + gap;
+  if (below + size.height <= view.height - gap) return { left, top: below, where: "below" };
+
+  const above = rect.top - size.height - gap;
+  if (above >= gap) return { left, top: above, where: "above" };
+
+  return {
+    left,
+    top: LAS.clamp(rect.top + rect.height - size.height - gap, gap, Math.max(gap, view.height - size.height - gap)),
+    where: "inside"
+  };
+};
+
+/**
  * What to put between a fragment and something appended right after it.
  * Nothing when either side already carries the whitespace; a blank line when either side
  * spans more than one line, because a space would silently join two blocks.

@@ -35,14 +35,26 @@ const CSS = `
   -webkit-mask-image: url("${WAVE}"); -webkit-mask-repeat: repeat-x; -webkit-mask-size: 6px 3px;
 }
 
+/*
+ * The pill is deliberately see-through and click-through: it is a status readout, not a
+ * control, and it used to hide the words being typed. Only its close button takes clicks,
+ * so text under the rest of it stays selectable.
+ */
 .pill {
   position: fixed; pointer-events: none; display: none; align-items: center; gap: 6px;
   font: 500 11px/1.4 system-ui, sans-serif; color: #e5e7eb;
-  background: rgba(31,41,55,.92); border-radius: 999px; padding: 3px 9px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.3); white-space: nowrap;
+  background: rgba(31,41,55,.62); border-radius: 999px; padding: 3px 4px 3px 9px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.18); white-space: nowrap;
+  opacity: .8; transition: opacity .12s ease;
 }
 .pill.on { display: inline-flex; }
-.pill.err { background: rgba(153,27,27,.94); }
+.pill.err { background: rgba(153,27,27,.72); }
+.pill.inside { opacity: .55; }
+.pill .pillx {
+  pointer-events: auto; cursor: pointer; border: 0; background: none; padding: 0 3px;
+  color: inherit; font: 600 12px/1 system-ui, sans-serif; opacity: .75; border-radius: 999px;
+}
+.pill .pillx:hover { opacity: 1; background: rgba(255,255,255,.18); }
 .spinner {
   width: 8px; height: 8px; border-radius: 50%;
   border: 1.5px solid rgba(255,255,255,.35); border-top-color: #fff;
@@ -249,8 +261,11 @@ LAS.Overlay = {
     for (const el of this.clip.children) el.classList.toggle("hot", !!fp && el.dataset.fp === fp);
   },
 
-  /** Small status pill anchored to the bottom-right of the field. */
-  showPill(adapter, { text, busy, error }) {
+  /**
+   * Small status pill, just outside the bottom-right of the field.
+   * `onClose` gets a × that dismisses the pill and stops whatever it is reporting on.
+   */
+  showPill(adapter, { text, busy, error, onClose }) {
     this.ensure();
     if (!text) {
       this.pill.classList.remove("on");
@@ -264,11 +279,27 @@ LAS.Overlay = {
       this.pill.appendChild(s);
     }
     this.pill.appendChild(document.createTextNode(text));
+    if (onClose) {
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "pillx";
+      x.textContent = "×";
+      x.title = busy ? "Stop this check" : "Hide";
+      x.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      });
+      this.pill.appendChild(x);
+    }
     this.pill.classList.add("on");
+
     const r = adapter.clipRect();
-    const w = this.pill.offsetWidth || 90;
-    this.pill.style.left = LAS.clamp(r.left + r.width - w - 4, 4, innerWidth - w - 4) + "px";
-    this.pill.style.top = LAS.clamp(r.top + r.height - 20, 4, innerHeight - 24) + "px";
+    const size = { width: this.pill.offsetWidth || 90, height: this.pill.offsetHeight || 20 };
+    const at = LAS.pillPosition(r, size, { width: innerWidth, height: innerHeight });
+    this.pill.classList.toggle("inside", at.where === "inside");
+    this.pill.style.left = at.left + "px";
+    this.pill.style.top = at.top + "px";
   },
 
   hidePill() {

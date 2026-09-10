@@ -47,7 +47,7 @@ async function init() {
   });
 
   $("site").addEventListener("change", async () => {
-    await browser.runtime.sendMessage({ cmd: "toggleSite", hostname });
+    await browser.runtime.sendMessage({ cmd: "toggleSite", hostname, on: $("site").checked });
   });
 
   $("check").addEventListener("click", async () => {

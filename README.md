@@ -104,8 +104,8 @@ and would report success even while real checks were being refused.
 ## 3. Using it
 
 Click into any text box and type. Roughly 1.5 seconds after you stop, the text is checked
-and problems get a coloured wavy underline. A small pill in the corner of the field shows
-progress.
+and problems get a coloured wavy underline. A small translucent pill just below the field
+shows progress; click its **×** to hide it and abandon the check that is running.
 
 - **Click a highlight** to open a card with the explanation and the suggested text.
   - **Apply** — replaces just that span. Your undo history (`Ctrl+Z`) still works.
@@ -113,7 +113,9 @@ progress.
   - **Never suggest** — remembers the suggestion and never offers it again.
   - **Add to dictionary** — for a single word, adds it to your personal dictionary.
 - **Alt+Shift+C** — check the focused field immediately.
-- **Alt+Shift+X** — turn Local AI Spell Checker off (or back on) for the current site.
+- **Alt+Shift+X** — pause (or resume) proofreading on the current site. The same thing is
+  in the right-click menu as **Locaispell: pause / resume spell check on …**, and on the
+  toolbar button. See [pausing on a site](#pausing-on-a-site).
 - The **toolbar button** shows the issue count, the connection status, and per-site and
   global on/off switches.
 
@@ -160,6 +162,26 @@ Two things worth knowing:
 - Unlike proofreading, a transform is never automatic and ignores the per-site switch: you
   asked for it explicitly, so it runs wherever you ask for it.
 
+### Pausing on a site
+
+Three places do the same thing — the right-click menu, **Alt+Shift+X**, and the toolbar
+button's per-site switch. The menu entry names the site and says which way it will go, so
+you can see the current state before clicking:
+
+> Locaispell: pause spell check on **news.ycombinator.com**
+
+A pause set this way is an **override**: it wins over the allowlist/denylist in the
+options, so it holds whatever the standing policy says for that hostname. It applies to
+that exact hostname, not its subdomains, and it survives a restart until you lift it —
+either by resuming from the same menu, or with **Clear per-site pauses** under
+*Maintenance* in the options.
+
+Resuming a site while the extension is switched off globally turns the global switch back
+on too, since otherwise "resume" would appear to do nothing.
+
+Pausing only stops the automatic proofreading. **Locaispell transform…** is something you
+ask for explicitly, so it keeps working on a paused site.
+
 ### What Local AI Spell Checker will not touch
 
 Passwords, payment fields, one-time codes, and any field whose type, `autocomplete`, name,
@@ -191,7 +213,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | Categories and colours | all on | Turn off a category to stop paying for it. |
 | House style rules | empty | Free text appended to the prompt, e.g. *"Prefer British spelling."* |
 | Personal dictionary | empty | One word per line, never flagged. |
-| Sites | run everywhere | Or switch to an allowlist. |
+| Sites | run everywhere | Or switch to an allowlist. A per-site pause overrides this. |
 | Default transform instruction | `polish` | What an empty transform prompt means. |
 | Recent instructions | empty | The ↑/↓ history in the transform box; editable here. |
 

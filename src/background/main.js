@@ -294,21 +294,27 @@ const handlers = {
     return await setSettings(patch);
   },
 
-  async toggleSite({ hostname }) {
+  /**
+   * "Off/on here, right now", from the context menu, Alt+Shift+X or the popup.
+   *
+   * This writes a per-site override rather than editing the allowlist/denylist, so it
+   * takes effect whatever the standing policy says. Turning a site back on also lifts a
+   * global off-switch, because "resume here" that leaves the extension globally disabled
+   * would appear to do nothing.
+   */
+  async toggleSite({ hostname, on }) {
+    if (!hostname) return { ok: false, active: false };
     const s = await getSettings();
-    if (s.siteMode === "allowlist") {
-      const on = s.enabledSites.includes(hostname);
-      await setSettings({
-        enabledSites: on ? s.enabledSites.filter((h) => h !== hostname) : [...s.enabledSites, hostname]
-      });
-    } else {
-      const off = s.disabledSites.includes(hostname);
-      await setSettings({
-        disabledSites: off ? s.disabledSites.filter((h) => h !== hostname) : [...s.disabledSites, hostname]
-      });
-    }
-    const next = await getSettings();
-    return { ok: true, active: next.enabled && siteAllowed(next, hostname) };
+    const next = typeof on === "boolean" ? on : !(s.enabled && siteAllowed(s, hostname));
+    const patch = { siteOverrides: { ...s.siteOverrides, [hostname]: next } };
+    if (next && !s.enabled) patch.enabled = true;
+    await setSettings(patch);
+    return { ok: true, active: next };
+  },
+
+  async clearSiteOverrides() {
+    await setSettings({ siteOverrides: {} });
+    return { ok: true };
   },
 
   async clearCache() {
@@ -332,6 +338,15 @@ async function tellActiveTab(payload) {
 }
 
 const MENU_ID = "locaispell-transform";
+const TOGGLE_ID = "locaispell-toggle-site";
+
+function hostnameOf(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";                     // about:, view-source:, a blank tab
+  }
+}
 
 /**
  * Firefox keeps menu registrations across restarts of a non-persistent background page, so
@@ -346,16 +361,59 @@ async function installMenus() {
     title: "Locaispell transform\u2026",
     contexts: ["selection"]
   });
+  browser.menus.create({
+    id: TOGGLE_ID,
+    title: "Locaispell: pause spell check here",
+    contexts: ["page", "editable", "selection"]
+  });
 }
 
 installMenus();
 browser.runtime.onInstalled.addListener(installMenus);
 
+/**
+ * The pause/resume item has to say which way it will go, so its title is rewritten each
+ * time the menu opens. `menus.onShown` may resolve after the menu has already closed or
+ * been reopened, hence the instance counter: refreshing a stale menu is an error.
+ */
+let menuInstance = 0;
+
+browser.menus.onShown.addListener(async (info, tab) => {
+  if (!info.menuIds.includes(TOGGLE_ID)) return;
+  const instance = ++menuInstance;
+  const hostname = hostnameOf(tab?.url);
+  const settings = await getSettings();
+  if (instance !== menuInstance) return;
+
+  const running = !!hostname && settings.enabled && siteAllowed(settings, hostname);
+  const where = hostname || "this page";
+  await browser.menus.update(TOGGLE_ID, {
+    title: running
+      ? `Locaispell: pause spell check on ${where}`
+      : `Locaispell: resume spell check on ${where}`,
+    enabled: !!hostname
+  });
+  browser.menus.refresh();
+});
+
+browser.menus.onHidden.addListener(() => {
+  menuInstance++;
+});
+
 browser.menus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== MENU_ID || !tab) return;
-  await browser.tabs
-    .sendMessage(tab.id, { cmd: "transformSelection" }, { frameId: info.frameId ?? 0 })
-    .catch(() => {});
+  if (!tab) return;
+  if (info.menuItemId === MENU_ID) {
+    await browser.tabs
+      .sendMessage(tab.id, { cmd: "transformSelection" }, { frameId: info.frameId ?? 0 })
+      .catch(() => {});
+    return;
+  }
+  if (info.menuItemId === TOGGLE_ID) {
+    const hostname = hostnameOf(tab.url);
+    if (!hostname) return;
+    await handlers.toggleSite({ hostname });
+    await browser.tabs.sendMessage(tab.id, { cmd: "settingsChanged" }).catch(() => {});
+  }
 });
 
 browser.commands.onCommand.addListener(async (name) => {
@@ -365,14 +423,10 @@ browser.commands.onCommand.addListener(async (name) => {
     await tellActiveTab({ cmd: "transformSelection" });
   } else if (name === "toggle-site") {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.url) return;
-    try {
-      const hostname = new URL(tab.url).hostname;
-      await handlers.toggleSite({ hostname });
-      await browser.tabs.sendMessage(tab.id, { cmd: "settingsChanged" }).catch(() => {});
-    } catch {
-      /* non-http tab */
-    }
+    const hostname = hostnameOf(tab?.url);
+    if (!hostname) return;
+    await handlers.toggleSite({ hostname });
+    await browser.tabs.sendMessage(tab.id, { cmd: "settingsChanged" }).catch(() => {});
   }
 });
 

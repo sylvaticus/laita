@@ -54,6 +54,23 @@ the selected fragment and is not cached, queued or fingerprinted. The one thing 
 is the adapter, deliberately: `transform.js` reuses the instance `main.js` is driving
 (`LAS.getAdapter()`) rather than building a second layout mirror for the same `<textarea>`.
 
+**A per-site override beats the allowlist/denylist.** `siteOverrides` in
+`common/settings.js` is checked first by `siteAllowed`, and is what the context menu,
+`Alt+Shift+X` and the popup all write through the single `toggleSite` handler — they must
+not go back to editing the lists, or "pause here" stops meaning paused. Matching is exact,
+never by suffix: an override is set from one concrete tab's hostname.
+
+**The status pill is click-through; only its × is not.** `.pill` keeps
+`pointer-events: none` so that text underneath stays selectable and the caret still lands
+where the user clicked, and `.pillx` opts back in. It is also positioned *outside* the
+field by `LAS.pillPosition` - it used to cover the words being typed. Do not move it back
+inside or make the whole pill clickable.
+
+**The pill's × stops the check, it does not merely hide it.** `cancelCheck` bumps
+`generation` (which aborts the in-flight fetch in the background) and sets
+`lastCheckedText` to the current text, so the next keystroke does not immediately restart
+the work the user just stopped.
+
 **The transform panel swallows key events.** Sites bind single-letter shortcuts, and a
 closed shadow root still lets events bubble out retargeted to the host, so `panel()`
 stops `keydown`/`keyup`/`keypress` propagation. Removing that makes typing an instruction

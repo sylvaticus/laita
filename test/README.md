@@ -44,6 +44,13 @@ sed -i 's|^LAS.Transform = {|document.addEventListener("las-test-transform", () 
        $RUN/ext/src/content/transform.js
 ```
 
+The pill steps also need a way to start a check without the hotkey:
+
+```bash
+sed -i 's|^  // ---------------------------------------------------------------- boot|  document.addEventListener("las-test-check", () => runCheck(true));\n\n  // ---------------------------------------------------------------- boot|' \
+       $RUN/ext/src/content/main.js
+```
+
 and use `triggerMode: "manual"` in edit 1, so that automatic proofreading does not put its
 own requests in the log:
 
@@ -105,6 +112,12 @@ Every beacon must report `true`:
 - `plain-text`: `offersCopyOnly` and `pageUnchanged` — a non-editable selection must never
   be written to.
 - `escape`: the panel closes; `no-selection`: it never opens.
+- `pill-cancel`: `clearOfTheText` is the regression guard — the pill must sit below the
+  field, not on top of the words. `decosAfterCancel: 0` proves the × abandoned the check
+  rather than only hiding the pill, and `pill-completes` must then report `decos: 2` for
+  the same field, so that a zero above means something. Run the mock with
+  `CHAT_DELAY_MS=3000` for these two: it slows proofreading only, leaving transforms
+  instant, so there is a pill to catch mid-flight.
 - Every `/api/chat` must show `format=False`: with `triggerMode: "manual"` there should be
   no proofreading requests at all.
 

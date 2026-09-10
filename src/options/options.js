@@ -41,6 +41,7 @@ function fill() {
     settings.siteMode === "allowlist" ? settings.enabledSites : settings.disabledSites
   );
   $("ignoredCount").textContent = settings.ignored.length;
+  $("overrideCount").textContent = Object.keys(settings.siteOverrides || {}).length;
   syncSiteLabel();
 }
 
@@ -69,6 +70,7 @@ function collect() {
   patch.colors = {};
   for (const el of document.querySelectorAll("[data-color]")) patch.colors[el.dataset.color] = el.value;
   patch.dictionary = fromLines($("dictionary").value);
+  patch.siteOverrides = settings.siteOverrides;
   patch.transformHistory = fromLines($("transformHistory").value).slice(0, 20);
 
   const sites = fromLines($("siteList").value).map((h) => h.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, ""));
@@ -157,6 +159,13 @@ async function init() {
   $("clearIgnored").addEventListener("click", async () => {
     settings = await setSettings({ ignored: [] });
     $("ignoredCount").textContent = "0";
+    flashSaved();
+  });
+
+  $("clearOverrides").addEventListener("click", async () => {
+    await browser.runtime.sendMessage({ cmd: "clearSiteOverrides" });
+    settings = await getSettings();
+    $("overrideCount").textContent = "0";
     flashSaved();
   });
 
