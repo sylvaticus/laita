@@ -22,6 +22,10 @@ export const DEFAULTS = {
   // --- language ---
   language: "auto",        // "auto" or an ISO code such as "en", "fr"
 
+  // --- transform (right-click on a selection) ---
+  transformDefault: "polish",   // instruction used when the prompt is submitted empty
+  transformHistory: [],         // recent instructions, most recent first
+
   // --- what to report ---
   categories: { error: true, style: true, rephrase: true },
   colors: { error: "#e5484d", style: "#e0a02a", rephrase: "#3b82f6" },

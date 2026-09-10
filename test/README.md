@@ -36,6 +36,21 @@ sed -i 's|if (reason === "install") browser.runtime.openOptionsPage().catch(() =
        $RUN/ext/src/background/main.js
 ```
 
+If you are testing the **transform** panel, make a fourth edit — page script cannot open a
+context menu, so the harness needs a way in:
+
+```bash
+sed -i 's|^LAS.Transform = {|document.addEventListener("las-test-transform", () => LAS.Transform.open());\nLAS.Transform = {|' \
+       $RUN/ext/src/content/transform.js
+```
+
+and use `triggerMode: "manual"` in edit 1, so that automatic proofreading does not put its
+own requests in the log:
+
+```bash
+sed -i 's|triggerMode: "auto"|triggerMode: "manual"|' $RUN/ext/src/common/settings.js
+```
+
 Also add the offset hook at the top of `paint()` in `$RUN/ext/src/content/main.js`, which is
 what lets the page audit the internal anchoring:
 
@@ -65,6 +80,33 @@ for e in json.load(open('/tmp/requests.json')):
         print('REQ ', e['method'], e['url'], 'origin=', e['origin'])
 "
 ```
+
+### The transform harness
+
+Same procedure, with `page-transform.html` instead of `page.html`. The mock answers a
+transform request — recognisable because it carries no `format` — by echoing the fragment
+with every `e` turned into `E`, wrapped in a preamble and quotation marks that the
+extension is expected to strip. The page can therefore predict the exact text that should
+end up in the field.
+
+```bash
+cp $SRC/test/browser/page-transform.html $RUN/page.html
+```
+
+Every beacon must report `true`:
+
+- `textarea-replace`: `shownMatchesMock` proves the model was sent exactly the selected
+  substring, and `valueCorrect` that only that substring changed.
+- `textarea-append`: `valueCorrect` — the original is still there, the result follows it
+  after a single space.
+- `contenteditable-replace`: `sentFragmentCorrect` is the one that matters. It fails if
+  `EditableAdapter._offsetOf` maps the DOM Range to the wrong offsets, which is the way
+  this feature would silently corrupt text.
+- `plain-text`: `offersCopyOnly` and `pageUnchanged` — a non-editable selection must never
+  be written to.
+- `escape`: the panel closes; `no-selection`: it never opens.
+- Every `/api/chat` must show `format=False`: with `triggerMode: "manual"` there should be
+  no proofreading requests at all.
 
 ### What to look for
 

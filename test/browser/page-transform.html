@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>locaispell transform harness</title>
+<style>
+ body{font:15px system-ui;margin:24px;max-width:760px}
+ textarea{width:100%;height:110px;font:15px/1.7 Georgia,serif;padding:12px 10px;border:3px solid #999}
+ .ce{border:3px solid #999;padding:12px 10px;font:15px/1.7 Georgia,serif}
+ h2{font-size:13px;color:#666;margin:20px 0 4px}
+ p.plain{border:3px solid #ccc;padding:10px}
+</style></head><body>
+<h1>locaispell transform harness</h1>
+
+<h2>1. textarea</h2>
+<textarea id="ta">The meeting was cancelled because nobody remembered to book the room. We will try again next week.</textarea>
+
+<h2>2. contenteditable</h2>
+<div id="ce" class="ce" contenteditable="true"><p>The meeting was cancelled because nobody remembered to book the room.</p><p>We will try again next week.</p></div>
+
+<h2>3. plain page text (not editable)</h2>
+<p class="plain" id="plain">Nothing here can be replaced, only copied.</p>
+
+<script>
+/*
+ * Drives the transform panel and reports what it observed back to the mock server.
+ * Requires the test build described in test/README.md: an open shadow root and the
+ * `las-test-transform` hook that stands in for the context menu, which page script
+ * cannot open.
+ */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const beacon = (step, data) => fetch("/api/beacon", {method:"POST",
+  headers:{"Content-Type":"application/json"}, body: JSON.stringify({step, data})}).catch(()=>{});
+const sh = () => document.querySelector("locaispell-layer")?.shadowRoot;
+const panel = () => sh()?.querySelector(".panel.on");
+const $ = id => document.getElementById(id);
+const buttons = () => [...(panel()?.querySelectorAll("button.act") || [])].map(b => b.textContent);
+const clickAct = label => [...panel().querySelectorAll("button.act")]
+  .find(b => b.textContent === label).click();
+
+/** What the mock will make of a fragment: every e becomes E, packaging stripped. */
+const expected = s => s.replace(/e/g, "E");
+
+function openPanel() {
+  document.dispatchEvent(new CustomEvent("las-test-transform"));
+}
+
+/** Type an instruction into the panel and submit it. */
+async function ask(instruction) {
+  const input = panel().querySelector("input.ask");
+  input.value = instruction;
+  input.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter", bubbles:true}));
+  for (let i = 0; i < 60 && !panel()?.querySelector(".out"); i++) await sleep(100);
+}
+
+/** Put the document selection over the first occurrence of `needle` inside `root`. */
+function selectIn(root, needle) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n;
+  while ((n = w.nextNode())) {
+    const i = n.data.indexOf(needle);
+    if (i === -1) continue;
+    const r = document.createRange();
+    r.setStart(n, i); r.setEnd(n, i + needle.length);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(r);
+    return true;
+  }
+  return false;
+}
+
+window.addEventListener("error", e => beacon("pageerror", String(e.message)));
+window.addEventListener("unhandledrejection", e => beacon("pageerror", String(e.reason)));
+
+/** One broken step must not hide the steps after it. */
+async function step(name, fn) {
+  try { await fn(); } catch (err) { await beacon(name + "-THREW", String(err)); }
+  try { sh()?.querySelector(".panel")?.classList.remove("on"); } catch {}
+}
+
+(async () => {
+  await sleep(1500);
+
+  // ---- 1. textarea, accept & replace -------------------------------------
+  await step("textarea-replace", async () => {
+    const frag = "nobody remembered to book the room";
+    const before = $("ta").value;
+    const at = before.indexOf(frag);
+    $("ta").focus();
+    $("ta").setSelectionRange(at, at + frag.length);
+    openPanel();
+    await sleep(300);
+    const opened = !!panel();
+    const acts = buttons();
+    await ask("polish");
+    const shown = panel()?.querySelector(".out")?.textContent;
+    const resultActs = buttons();
+    clickAct("Accept & replace");
+    await sleep(400);
+    await beacon("textarea-replace", {
+      opened, askActions: acts, resultActions: resultActs,
+      shownMatchesMock: shown === expected(frag),
+      value: $("ta").value,
+      valueCorrect: $("ta").value === before.replace(frag, expected(frag)),
+      panelClosed: !panel()
+    });
+  });
+
+  // ---- 2. textarea, accept & append --------------------------------------
+  await step("textarea-append", async () => {
+    const before = $("ta").value;
+    const frag = "We will try again next week.";
+    const at = before.indexOf(frag);
+    $("ta").focus();
+    $("ta").setSelectionRange(at, at + frag.length);
+    openPanel();
+    await sleep(300);
+    await ask("shorten it");
+    clickAct("Accept & append");
+    await sleep(400);
+    await beacon("textarea-append", {
+      value: $("ta").value,
+      valueCorrect: $("ta").value === before.replace(frag, frag + " " + expected(frag))
+    });
+  });
+
+  // ---- 3. contenteditable, accept & replace ------------------------------
+  await step("contenteditable-replace", async () => {
+    const frag = "nobody remembered to book the room";
+    $("ce").focus();
+    const selected = selectIn($("ce"), frag);
+    openPanel();
+    await sleep(300);
+    const opened = !!panel();
+    await ask("polish");
+    const shown = panel()?.querySelector(".out")?.textContent;
+    clickAct("Accept & replace");
+    await sleep(400);
+    await beacon("contenteditable-replace", {
+      selected, opened,
+      /* the offsets the adapter derived from the DOM Range must have covered exactly
+         the selected words, which is only true if the model saw them verbatim */
+      sentFragmentCorrect: shown === expected(frag),
+      text: $("ce").innerText.replace(/\s+/g, " ").trim(),
+      containsResult: $("ce").innerText.includes(expected(frag)),
+      originalGone: !$("ce").innerText.includes(frag)
+    });
+  });
+
+  // ---- 4. escape cancels --------------------------------------------------
+  await step("escape", async () => {
+    $("ta").focus();
+    $("ta").setSelectionRange(0, 11);
+    openPanel();
+    await sleep(200);
+    const opened = !!panel();
+    document.dispatchEvent(new KeyboardEvent("keydown", {key:"Escape", bubbles:true}));
+    await sleep(200);
+    await beacon("escape", {opened, closed: !panel()});
+  });
+
+  // ---- 5. plain page text: offered for copy, never for replacement -------
+  await step("plain-text", async () => {
+    document.activeElement?.blur();
+    const selected = selectIn($("plain"), "only copied");
+    openPanel();
+    await sleep(300);
+    const opened = !!panel();
+    await ask("translate to French");
+    const acts = buttons();
+    clickAct("Close");
+    await sleep(200);
+    await beacon("plain-text", {
+      selected, opened, actions: acts,
+      offersCopyOnly: acts.includes("Copy") && !acts.includes("Accept & replace"),
+      pageUnchanged: $("plain").textContent === "Nothing here can be replaced, only copied."
+    });
+  });
+
+  // ---- 6. no selection at all --------------------------------------------
+  await step("no-selection", async () => {
+    window.getSelection().removeAllRanges();
+    $("ta").focus();
+    $("ta").setSelectionRange(4, 4);
+    openPanel();
+    await sleep(300);
+    await beacon("no-selection", {panelOpened: !!panel()});
+  });
+
+  await beacon("done", {});
+})();
+</script>
+</body></html>

@@ -99,6 +99,22 @@
   </section>
 
   <section>
+    <h2>Transform selected text</h2>
+    <p class="note">Select text on any page, right-click and choose <b>Locaispell transform…</b>
+    (or press <b>Alt+Shift+T</b>), then type what you want done with it — <code>polish</code>,
+    <code>translate to French</code>, <code>shorten it</code>. The result can replace the
+    selection or be inserted after it.</p>
+    <div class="row">
+      <label for="transformDefault">Default instruction <small>(used when you just press Enter)</small></label>
+      <input id="transformDefault" type="text" placeholder="polish">
+    </div>
+    <div class="row">
+      <label for="transformHistory">Recent instructions <small>(one per line, recalled with ↑ and ↓ in the panel)</small></label>
+      <textarea id="transformHistory" rows="4" spellcheck="false"></textarea>
+    </div>
+  </section>
+
+  <section>
     <h2>What to report</h2>
     <div class="cats">
       <div class="cat">

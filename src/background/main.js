@@ -7,7 +7,7 @@
  */
 
 import { getSettings, setSettings, siteAllowed, DEFAULTS } from "../common/settings.js";
-import { requestIssues, probe, PROMPT_VERSION } from "./ollama.js";
+import { requestIssues, requestTransform, probe, PROMPT_VERSION } from "./ollama.js";
 import { anchorIssues, hash } from "./anchor.js";
 
 // ---------------------------------------------------------------- cache
@@ -162,6 +162,36 @@ function describeError(err) {
   return { ok: false, kind: "other", error: msg };
 }
 
+// ---------------------------------------------------------------- transform
+
+/** Transforms are user-initiated and never queued: they start the moment they are asked
+ *  for. Each carries an id from the content script so that closing the panel can abort it. */
+const transforms = new Map();
+
+const HISTORY_MAX = 20;
+
+async function rememberInstruction(instruction) {
+  const s = await getSettings();
+  const next = [instruction, ...s.transformHistory.filter((i) => i !== instruction)].slice(0, HISTORY_MAX);
+  if (next.join("\u0000") === s.transformHistory.join("\u0000")) return;
+  await setSettings({ transformHistory: next });
+}
+
+async function transform({ text, instruction, lang, reqId }) {
+  const settings = await getSettings();
+  const controller = new AbortController();
+  if (reqId != null) transforms.set(reqId, controller);
+  const timer = setTimeout(() => controller.abort(), settings.requestTimeoutMs);
+  try {
+    await rememberInstruction(instruction);
+    const output = await requestTransform({ text, instruction, lang, settings, signal: controller.signal });
+    return { ok: true, output };
+  } finally {
+    clearTimeout(timer);
+    if (reqId != null) transforms.delete(reqId);
+  }
+}
+
 // ---------------------------------------------------------------- badge
 
 const BADGE_COLOR = { error: "#e5484d", style: "#e0a02a", rephrase: "#3b82f6", none: "#6b7280" };
@@ -237,6 +267,20 @@ const handlers = {
     return { ok: true };
   },
 
+  async transformText(msg) {
+    try {
+      return await transform(msg);
+    } catch (err) {
+      return describeError(err);
+    }
+  },
+
+  async cancelTransform({ reqId }) {
+    transforms.get(reqId)?.abort();
+    transforms.delete(reqId);
+    return { ok: true };
+  },
+
   async probe() {
     try {
       const s = await getSettings();
@@ -287,9 +331,38 @@ async function tellActiveTab(payload) {
   await browser.tabs.sendMessage(tab.id, payload).catch(() => {});
 }
 
+const MENU_ID = "locaispell-transform";
+
+/**
+ * Firefox keeps menu registrations across restarts of a non-persistent background page, so
+ * creating them again on every wake-up would throw on the duplicate id. Clearing first
+ * makes this safe to call unconditionally, which in turn means the item exists even when
+ * neither onInstalled nor onStartup has fired in this browsing session.
+ */
+async function installMenus() {
+  await browser.menus.removeAll().catch(() => {});
+  browser.menus.create({
+    id: MENU_ID,
+    title: "Locaispell transform\u2026",
+    contexts: ["selection"]
+  });
+}
+
+installMenus();
+browser.runtime.onInstalled.addListener(installMenus);
+
+browser.menus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== MENU_ID || !tab) return;
+  await browser.tabs
+    .sendMessage(tab.id, { cmd: "transformSelection" }, { frameId: info.frameId ?? 0 })
+    .catch(() => {});
+});
+
 browser.commands.onCommand.addListener(async (name) => {
   if (name === "check-now") {
     await tellActiveTab({ cmd: "checkNow" });
+  } else if (name === "transform-selection") {
+    await tellActiveTab({ cmd: "transformSelection" });
   } else if (name === "toggle-site") {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (!tab?.url) return;

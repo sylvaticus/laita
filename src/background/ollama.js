@@ -187,3 +187,123 @@ export async function probe(settings) {
 
   return { models, hasModel: models.includes(settings.model) };
 }
+
+// ------------------------------------------------------------------ transform
+
+/**
+ * Free-form transformation of a selected fragment ("polish", "translate to French",
+ * "shorten it"). Unlike proofreading this returns prose, not JSON: the model is asked for
+ * the rewritten fragment and nothing else, and `cleanTransformOutput` undoes the wrappers
+ * it adds anyway.
+ */
+export function buildTransformSystemPrompt(settings, lang, instruction) {
+  const L = languageName(lang);
+  const lines = [
+    `You rewrite a fragment of text that a user has selected in a web page.`,
+    ``,
+    `The user's instruction is:`,
+    instruction,
+    ``,
+    `Hard rules:`,
+    `- Return ONLY the rewritten fragment. No preamble, no explanation, no commentary, no`,
+    `  quotation marks around it and no markdown code fence.`,
+    `- Carry out the instruction and nothing else. Never add facts, opinions or content of`,
+    `  your own, and never answer the fragment as if it were a question addressed to you.`,
+    `- Keep the fragment in ${L} unless the instruction asks for another language.`,
+    `- Preserve its formatting: line breaks, list markers, indentation, and any markup,`,
+    `  code or placeholders it contains.`,
+    `- It may start or end mid-sentence because it was cut out of a longer text. Leave it`,
+    `  that way: do not complete it and do not add a full stop of your own.`,
+    `- If the instruction cannot sensibly be applied, return the fragment unchanged.`
+  ];
+  if (settings.extraInstructions?.trim()) {
+    lines.push(``, `Additional house rules:`, settings.extraInstructions.trim());
+  }
+  return lines.join("\n");
+}
+
+export function buildTransformUserPrompt(text) {
+  return `<<<TEXT\n${text}\nTEXT>>>`;
+}
+
+/**
+ * A transform emits roughly as much text as it consumes, and both have to fit next to the
+ * prompt. The proofreading context window is sized for a single paragraph, so widen it for
+ * long selections rather than letting the model silently truncate its own answer.
+ */
+export function transformNumCtx(textLength, configured) {
+  const base = Number(configured) || 4096;
+  const needed = Math.ceil((textLength / 3) * 2) + 800;
+  return Math.max(base, Math.min(needed, 32768));
+}
+
+const QUOTE_PAIRS = { '"': '"', "'": "'", "«": "»", "“": "”" };
+
+/** The quote character a string is wrapped in, if the whole string is wrapped in one. */
+function wrapper(s) {
+  const open = s[0];
+  const close = s[s.length - 1];
+  if (s.length <= 2 || QUOTE_PAIRS[open] !== close) return null;
+  return s.slice(1, -1).includes(close) ? null : open;
+}
+
+/**
+ * Strip the packaging models put around a plain-text answer.
+ * `original` is the fragment that was sent: anything it already had (a code fence, its own
+ * surrounding quotes) is left alone, so a legitimately quoted selection survives.
+ */
+export function cleanTransformOutput(content, original = "") {
+  let out = String(content ?? "")
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^[\s\S]*?<\/think>/i, (m) => (/<think>/i.test(m) ? m : ""))
+    .trim();
+
+  const fence = out.match(/^```[a-zA-Z0-9_+-]*[ \t]*\n([\s\S]*?)\n?```$/);
+  if (fence && !original.includes("```")) out = fence[1].trim();
+
+  out = out.replace(
+    /^(?:sure|certainly|of course|here(?:'s| is| are)[^\n:]*|the (?:rewritten|transformed|revised|polished|corrected|shortened|translated)[^\n:]*)\s*:[ \t]*\n+/i,
+    ""
+  );
+
+  const quote = wrapper(out);
+  if (quote && wrapper(original) !== quote) out = out.slice(1, -1).trim();
+
+  return out;
+}
+
+/** Ask the model to transform one fragment. Returns the cleaned text, or throws. */
+export async function requestTransform({ text, instruction, lang, settings, signal }) {
+  const url = settings.endpoint.replace(/\/+$/, "") + "/api/chat";
+  const body = {
+    model: settings.model,
+    stream: false,
+    think: settings.think ? undefined : false,
+    keep_alive: settings.keepAlive,
+    options: {
+      temperature: Number(settings.temperature) || 0,
+      num_ctx: transformNumCtx(text.length, settings.numCtx)
+    },
+    messages: [
+      { role: "system", content: buildTransformSystemPrompt(settings, lang, instruction) },
+      { role: "user", content: buildTransformUserPrompt(text) }
+    ]
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal
+  });
+
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 300);
+    throw new Error(`Ollama returned HTTP ${res.status}. ${detail}`);
+  }
+
+  const json = await res.json();
+  const output = cleanTransformOutput(json?.message?.content ?? "", text);
+  if (!output) throw new Error("The model returned an empty answer.");
+  return output;
+}

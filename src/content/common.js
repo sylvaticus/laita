@@ -18,6 +18,35 @@ LAS.log = (...args) => {
 
 LAS.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+/**
+ * Place a fixed-position box just under `rect`, flipping above it when there is no room
+ * below and clamping to the viewport either way.
+ */
+LAS.placeNear = function (node, rect) {
+  const w = node.offsetWidth;
+  const h = node.offsetHeight;
+  const gap = 6;
+  const left = LAS.clamp(rect.left, 8, Math.max(8, innerWidth - w - 8));
+  let top = rect.top + rect.height + gap;
+  if (top + h > innerHeight - 8) {
+    const above = rect.top - h - gap;
+    top = above >= 8 ? above : LAS.clamp(innerHeight - h - 8, 8, innerHeight);
+  }
+  node.style.left = left + "px";
+  node.style.top = top + "px";
+};
+
+/**
+ * What to put between a fragment and something appended right after it.
+ * Nothing when either side already carries the whitespace; a blank line when either side
+ * spans more than one line, because a space would silently join two blocks.
+ */
+LAS.appendSeparator = function (selected, addition) {
+  if (!addition) return "";
+  if (/\s$/.test(selected) || /^\s/.test(addition)) return "";
+  return /\n/.test(selected) || /\n/.test(addition) ? "\n\n" : " ";
+};
+
 /** Words that are cheap and reliable markers of a language, for short texts. */
 const STOPWORDS = {
   en: "the of and to in is that it for you with was are this but not have from they will would there their which about",

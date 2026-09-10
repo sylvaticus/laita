@@ -60,6 +60,10 @@
     if (LAS.settings.triggerMode === "auto") schedule(0);
   }
 
+  /** The field main.js is currently driving, so transform.js can reuse its adapter
+   *  instead of building a second layout mirror for the same element. */
+  LAS.getAdapter = () => adapter;
+
   function schedule(delay) {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => runCheck(false), delay ?? LAS.settings.debounceMs);
@@ -183,6 +187,7 @@
     repositionQueued = true;
     requestAnimationFrame(() => {
       repositionQueued = false;
+      LAS.Transform.reposition();
       if (!adapter?.isAlive()) return;
       if (!issues.length && !LAS.Card.isOpen()) return;
       paint();
@@ -292,6 +297,11 @@
   );
 
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && LAS.Transform.isOpen()) {
+      LAS.Transform.close();
+      e.stopPropagation();
+      return;
+    }
     if (e.key === "Escape" && LAS.Card.isOpen()) {
       LAS.Card.hide();
       e.stopPropagation();
@@ -319,6 +329,9 @@
       if (!adapter) return { ok: false, reason: "no-field" };
       await runCheck(true);
       return { ok: true };
+    }
+    if (msg.cmd === "transformSelection") {
+      return LAS.Transform.open();
     }
     if (msg.cmd === "settingsChanged") {
       const wasActive = LAS.active;

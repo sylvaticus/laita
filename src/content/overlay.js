@@ -50,7 +50,7 @@ const CSS = `
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.card {
+.card, .panel {
   position: fixed; display: none; pointer-events: auto;
   width: max-content; max-width: min(380px, calc(100vw - 24px));
   background: #ffffff; color: #111827;
@@ -59,7 +59,8 @@ const CSS = `
   font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   overflow: hidden;
 }
-.card.on { display: block; }
+.card.on, .panel.on { display: block; }
+.panel { width: min(460px, calc(100vw - 24px)); max-width: min(460px, calc(100vw - 24px)); }
 .head {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border-bottom: 1px solid #f0f1f3; background: #fafafa;
@@ -69,6 +70,10 @@ const CSS = `
   color: #fff; background: var(--c); border-radius: 4px; padding: 2px 6px;
 }
 .lang { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .05em; }
+.what {
+  font-size: 11px; color: #9ca3af; max-width: 230px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .spacer { flex: 1; }
 .x {
   border: 0; background: none; cursor: pointer; color: #9ca3af;
@@ -97,8 +102,35 @@ button.act.primary:hover { background: #374151; }
 .hint { padding: 0 10px 9px; font-size: 11px; color: #9ca3af; }
 .errbox { padding: 10px; color: #991b1b; font-size: 12px; }
 
+/* --- transform panel --- */
+.ask {
+  width: 100%; box-sizing: border-box;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #111827; background: #fff;
+  border: 1px solid #d1d5db; border-radius: 6px; padding: 7px 9px;
+}
+.ask:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
+.busy { display: flex; align-items: center; gap: 8px; color: #6b7280; }
+.busy .spinner { border-color: rgba(0,0,0,.18); border-top-color: #6b7280; }
+.out {
+  white-space: pre-wrap; word-break: break-word;
+  background: #f7f8f9; border-radius: 6px; padding: 8px 10px;
+  max-height: 40vh; overflow: auto;
+}
+.was {
+  white-space: pre-wrap; word-break: break-word; color: #9ca3af;
+  max-height: 12vh; overflow: auto; margin-bottom: 8px;
+  border-left: 2px solid #e5e7eb; padding-left: 8px; font-size: 12px;
+}
+button.act:focus-visible { outline: 2px solid #3b82f6; outline-offset: 1px; }
+
 @media (prefers-color-scheme: dark) {
-  .card { background: #1f2430; color: #e5e7eb; border-color: #374151; }
+  .card, .panel { background: #1f2430; color: #e5e7eb; border-color: #374151; }
+  .ask { background: #151922; color: #e5e7eb; border-color: #3b4354; }
+  .out { background: #151922; }
+  .was { color: #6b7280; border-left-color: #374151; }
+  .busy { color: #9ca3af; }
+  .busy .spinner { border-color: rgba(255,255,255,.2); border-top-color: #9ca3af; }
   .head { background: #191d27; border-bottom-color: #2b3240; }
   .msg { color: #cbd5e1; }
   .diff { background: #151922; }
@@ -133,7 +165,9 @@ LAS.Overlay = {
     this.pill.className = "pill";
     this.card = document.createElement("div");
     this.card.className = "card";
-    this.layer.append(this.clip, this.pill, this.card);
+    this.panel = document.createElement("div");
+    this.panel.className = "panel";
+    this.layer.append(this.clip, this.pill, this.card, this.panel);
     this.shadow.append(style, this.layer);
     document.documentElement.appendChild(this.host);
   },

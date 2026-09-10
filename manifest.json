@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local AI Spell Checker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local AI proofreading for any web form, powered by your own Ollama models. Nothing leaves your machine.",
   "author": "Antonello Lobianco",
   "homepage_url": "https://github.com/sylvaticus/locaispell",
@@ -17,7 +17,8 @@
     }
   },
   "permissions": [
-    "storage"
+    "storage",
+    "menus"
   ],
   "host_permissions": [
     "http://localhost/*",
@@ -43,6 +44,7 @@
         "src/content/textmap.js",
         "src/content/overlay.js",
         "src/content/card.js",
+        "src/content/transform.js",
         "src/content/main.js"
       ]
     }
@@ -77,6 +79,12 @@
         "default": "Alt+Shift+X"
       },
       "description": "Enable / disable Local AI Spell Checker on this site"
+    },
+    "transform-selection": {
+      "suggested_key": {
+        "default": "Alt+Shift+T"
+      },
+      "description": "Transform the selected text with an instruction"
     }
   }
 }

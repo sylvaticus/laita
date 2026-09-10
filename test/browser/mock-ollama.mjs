@@ -12,6 +12,19 @@ const CANNED = {
   ]
 };
 
+/*
+ * A transform asks for prose, not JSON, and is recognisable by the absence of `format`.
+ * The canned answer wraps the fragment in a preamble and quotes that the extension is
+ * supposed to strip, so the round trip exercises cleanTransformOutput as well: the page
+ * can predict the final text as simply "every e becomes E".
+ */
+const transformAnswer = (parsed) => {
+  const user = parsed.messages?.[parsed.messages.length - 1]?.content ?? "";
+  const m = user.match(/<<<TEXT\n([\s\S]*)\nTEXT>>>/);
+  const fragment = m ? m[1] : "";
+  return `Here is the polished text:\n"${fragment.replace(/e/g, "E")}"`;
+};
+
 const log = [];
 http.createServer((req, res) => {
   let body = "";
@@ -34,8 +47,15 @@ http.createServer((req, res) => {
       return res.end(JSON.stringify({ models: [{ name: "mock:test" }] }));
     }
     if (req.url === "/api/chat") {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        /* treat unparseable bodies as proofreading, as before */
+      }
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
-      return res.end(JSON.stringify({ message: { content: JSON.stringify(CANNED) } }));
+      const content = parsed && !parsed.format ? transformAnswer(parsed) : JSON.stringify(CANNED);
+      return res.end(JSON.stringify({ message: { content } }));
     }
     if (req.url === "/report") {
       fs.writeFileSync(process.env.REPORT, body);

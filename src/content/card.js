@@ -82,17 +82,7 @@ LAS.Card = {
   position(rect) {
     const card = LAS.Overlay.card;
     if (!card?.classList.contains("on")) return;
-    const w = card.offsetWidth;
-    const h = card.offsetHeight;
-    const gap = 6;
-    let left = LAS.clamp(rect.left, 8, Math.max(8, innerWidth - w - 8));
-    let top = rect.top + rect.height + gap;
-    if (top + h > innerHeight - 8) {
-      const above = rect.top - h - gap;
-      top = above >= 8 ? above : LAS.clamp(innerHeight - h - 8, 8, innerHeight);
-    }
-    card.style.left = left + "px";
-    card.style.top = top + "px";
+    LAS.placeNear(card, rect);
   },
 
   /** Reposition against the live geometry of the issue we are anchored to. */

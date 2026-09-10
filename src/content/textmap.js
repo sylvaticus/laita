@@ -7,7 +7,8 @@
  *   - contenteditable hosts, where the text is real DOM. Here we build a plain-text
  *     projection plus a map back to the text nodes it came from.
  *
- * Both expose: getText(), rects(start,end), clipRect(), applyFix(start,end,text), caretIn().
+ * Both expose: getText(), rects(start,end), clipRect(), applyFix(start,end,text), caretIn(),
+ * selection().
  */
 
 const SENSITIVE_TYPES = new Set([
@@ -94,6 +95,17 @@ class InputAdapter extends BaseAdapter {
       return this.el.selectionStart;
     } catch {
       return null;
+    }
+  }
+
+  /** The highlighted range as text offsets, or null when nothing is selected. */
+  selection() {
+    try {
+      const { selectionStart: start, selectionEnd: end } = this.el;
+      if (start == null || end == null || end <= start) return null;
+      return { start, end };
+    } catch {
+      return null;                 // inputs that do not expose a selection
     }
   }
 
@@ -281,6 +293,51 @@ class EditableAdapter extends BaseAdapter {
     this._build();
     const part = this._parts.find((p) => p.node === sel.focusNode);
     return part ? part.textStart + sel.focusOffset : null;
+  }
+
+  /**
+   * (text node, offset within it) -> text offset. The inverse of `_point`.
+   * A boundary that is not in a mapped run - an element boundary, or a node the
+   * projection skipped - collapses to the start of the next run, the same way `_point`
+   * clamps a synthetic newline to the nearest real position.
+   */
+  _offsetOf(node, offset) {
+    this._build();
+    const parts = this._parts;
+    if (!parts.length) return null;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const part = parts.find((p) => p.node === node);
+      if (part) return part.textStart + LAS.clamp(offset, 0, part.len);
+    }
+
+    let probe;
+    try {
+      probe = document.createRange();
+      probe.setStart(node, offset);
+      probe.collapse(true);
+    } catch {
+      return null;
+    }
+    for (const p of parts) {
+      const r = document.createRange();
+      r.setStart(p.node, 0);
+      r.setEnd(p.node, p.len);
+      if (probe.compareBoundaryPoints(Range.START_TO_START, r) <= 0) return p.textStart;
+    }
+    const last = parts[parts.length - 1];
+    return last.textStart + last.len;
+  }
+
+  selection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+    const range = sel.getRangeAt(0);
+    if (!this.el.contains(range.commonAncestorContainer)) return null;
+    const start = this._offsetOf(range.startContainer, range.startOffset);
+    const end = this._offsetOf(range.endContainer, range.endOffset);
+    if (start == null || end == null || end <= start) return null;
+    return { start, end };
   }
 
   /** Text offset -> (text node, offset within it). */

@@ -14,6 +14,10 @@ Three kinds of problem are reported, each with its own colour:
 | 🟡 yellow | **style** | Not wrong, but weak: wordiness, redundancy, needless passive, repetition. |
 | 🔵 blue | **rephrase** | A better word or a more natural formulation. |
 
+Alongside the proofreader there is a second, deliberately manual tool: select any text,
+right-click, and **Locaispell transform…** rewrites it however you ask — *polish*,
+*translate to French*, *shorten it*. See [§3](#transforming-a-selection).
+
 The language of each field is detected automatically (English and French are the tuned
 cases; Italian, Spanish, German, Portuguese and Dutch are also recognised), or you can pin
 one language in the options.
@@ -116,6 +120,46 @@ progress.
 Both plain `<textarea>` / `<input>` fields and rich `contenteditable` editors (webmail,
 wikis, most WYSIWYG editors) are supported.
 
+### Transforming a selection
+
+Proofreading suggests small fixes and never rewrites wholesale. When you *want* a rewrite,
+select the text, right-click and choose **Locaispell transform…** (or press
+**Alt+Shift+T**).
+
+A one-line box opens. Type what you want done and press Enter:
+
+| You type | You get |
+| --- | --- |
+| *(nothing)* | the default instruction, `polish` — change it in the options |
+| `translate to French` | the same passage in French |
+| `shorten it` | a tighter version |
+| `make it more formal` | register changed, meaning kept |
+| `turn into bullet points` | the passage restructured |
+
+`↑` and `↓` recall your recent instructions. `Esc` cancels — including while the model is
+still working, which aborts the request.
+
+The result appears in a panel with three choices:
+
+- **Accept & replace** — the selection becomes the new text. This is the default: the
+  button already has focus, so Enter takes it.
+- **Reject** — nothing changes.
+- **Accept & append** — the new text is inserted *after* the selection, which keeps the
+  original. A space is added between them, or a blank line if either side spans more than
+  one line.
+
+`Ctrl+Z` undoes an accepted transform like any other edit.
+
+Selecting text that is **not** in an editable field still works — a paragraph of an
+article, say — but since there is nothing to replace, the panel offers **Copy** instead.
+
+Two things worth knowing:
+
+- The instruction is free text sent to the model as-is, so anything the model understands
+  works. The prompt forbids commentary, so you get the rewritten passage and nothing else.
+- Unlike proofreading, a transform is never automatic and ignores the per-site switch: you
+  asked for it explicitly, so it runs wherever you ask for it.
+
 ### What Local AI Spell Checker will not touch
 
 Passwords, payment fields, one-time codes, and any field whose type, `autocomplete`, name,
@@ -148,6 +192,8 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | House style rules | empty | Free text appended to the prompt, e.g. *"Prefer British spelling."* |
 | Personal dictionary | empty | One word per line, never flagged. |
 | Sites | run everywhere | Or switch to an allowlist. |
+| Default transform instruction | `polish` | What an empty transform prompt means. |
+| Recent instructions | empty | The ↑/↓ history in the transform box; editable here. |
 
 ---
 
@@ -316,12 +362,14 @@ manifest.json
 src/common/settings.js       defaults, storage, per-site rules
 src/background/main.js       message router, cache, queue, cancellation, badge
 src/background/ollama.js     prompt construction, transport, response parsing
+                             (both the proofreading and the transform prompt)
 src/background/anchor.js     quotes → exact offsets; the correctness-critical part
 src/content/common.js        shared state, language detection, re-anchoring
 src/content/segment.js       paragraph and sentence chunking
 src/content/textmap.js       field adapters (mirror geometry, text-node mapping)
 src/content/overlay.js       shadow-DOM layer, wavy underlines, hit-testing
 src/content/card.js          the suggestion card
+src/content/transform.js     "Locaispell transform…": the instruction box and its panel
 src/content/main.js          orchestration
 src/options/, src/popup/     UI
 test/                        unit tests + browser harness (see test/README.md)

@@ -9,7 +9,8 @@ const SCALARS = [
   ["triggerMode", "text"], ["debounceMs", "number"], ["minChars", "number"],
   ["chunkMaxChars", "number"], ["maxChars", "number"], ["language", "text"],
   ["tint", "bool"], ["showBadge", "bool"], ["siteMode", "text"],
-  ["enabled", "bool"], ["debug", "bool"], ["extraInstructions", "text"]
+  ["enabled", "bool"], ["debug", "bool"], ["extraInstructions", "text"],
+  ["transformDefault", "text"]
 ];
 
 let settings = null;
@@ -35,6 +36,7 @@ function fill() {
     el.value = settings.colors[el.dataset.color];
   }
   $("dictionary").value = toLines(settings.dictionary);
+  $("transformHistory").value = toLines(settings.transformHistory);
   $("siteList").value = toLines(
     settings.siteMode === "allowlist" ? settings.enabledSites : settings.disabledSites
   );
@@ -67,6 +69,7 @@ function collect() {
   patch.colors = {};
   for (const el of document.querySelectorAll("[data-color]")) patch.colors[el.dataset.color] = el.value;
   patch.dictionary = fromLines($("dictionary").value);
+  patch.transformHistory = fromLines($("transformHistory").value).slice(0, 20);
 
   const sites = fromLines($("siteList").value).map((h) => h.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, ""));
   if (patch.siteMode === "allowlist") {
@@ -132,6 +135,7 @@ async function init() {
     el.addEventListener("change", scheduleSave);
   }
   $("dictionary").addEventListener("input", scheduleSave);
+  $("transformHistory").addEventListener("input", scheduleSave);
   $("siteList").addEventListener("input", scheduleSave);
 
   $("siteMode").addEventListener("change", async () => {

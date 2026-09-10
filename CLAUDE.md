@@ -1,6 +1,7 @@
 # locaispell — notes for future sessions
 
-Firefox MV3 extension: proofreads web form fields with a local Ollama model.
+Firefox MV3 extension: proofreads web form fields with a local Ollama model, and rewrites
+a selection on demand ("Locaispell transform…", context menu / Alt+Shift+T).
 Display name "Local AI Spell Checker", single-token name `locaispell`, ID
 `locaispell@lobianco.org` (permanent — never change it, AMO ties versions to it).
 
@@ -14,10 +15,11 @@ reading the code.
 web-ext lint --source-dir . --self-hosted        # must stay 0 errors / 0 warnings
 ```
 
-`test/README.md` has a browser harness (real extension, headless Firefox, fake Ollama) that
-checks highlight geometry against independently measured DOM Ranges. Use it for any change
-to `overlay.js`, `textmap.js` or the event handling in `content/main.js` — unit tests cannot
-see those bugs.
+`test/README.md` has two browser harnesses (real extension, headless Firefox, fake Ollama).
+`page.html` checks highlight geometry against independently measured DOM Ranges;
+`page-transform.html` drives the transform panel and checks the text that actually lands in
+the field. Use them for any change to `overlay.js`, `textmap.js`, `transform.js` or the
+event handling in `content/main.js` — unit tests cannot see those bugs.
 
 ## Non-obvious constraints
 
@@ -38,6 +40,24 @@ it matches the shell running it and kills the session. Kill by port (`fuser -k -
 by PID instead.
 
 ## Design invariants — breaking these causes silent corruption
+
+**A transform captures the selection as text offsets before its panel opens.** Focusing the
+panel's input blurs the field: `selectionStart/End` survive that, a live DOM Range does not.
+`EditableAdapter._offsetOf` is the inverse of `_point` and exists only for this. Before
+applying, `accept()` re-checks that those offsets still hold the fragment the model was
+given, and searches for it again if the page moved it — the same defence `anchor.js` gives
+proofreading.
+
+**Proofreading and transforming must not share a code path.** Proofreading is automatic,
+returns anchored spans and never rewrites wholesale; a transform is explicit, covers exactly
+the selected fragment and is not cached, queued or fingerprinted. The one thing they share
+is the adapter, deliberately: `transform.js` reuses the instance `main.js` is driving
+(`LAS.getAdapter()`) rather than building a second layout mirror for the same `<textarea>`.
+
+**The transform panel swallows key events.** Sites bind single-letter shortcuts, and a
+closed shadow root still lets events bubble out retargeted to the host, so `panel()`
+stops `keydown`/`keyup`/`keypress` propagation. Removing that makes typing an instruction
+trigger the page underneath.
 
 **The model quotes, it never counts.** The prompt asks for a verbatim substring, never an
 offset. `background/anchor.js` locates the quote, tolerating curly quotes, collapsed
@@ -91,5 +111,9 @@ cache stores *raw* responses so that changing the ignore list needs no invalidat
   listed after it in the manifest. They are classic scripts, not modules.
 - Background, options and popup are ES modules and import `common/settings.js`.
 - Settings live in exactly one place: `DEFAULTS` in `src/common/settings.js`.
-- Bump `PROMPT_VERSION` in `background/ollama.js` whenever the prompt changes; it is part of
-  the cache key, so stale entries are discarded automatically.
+- Bump `PROMPT_VERSION` in `background/ollama.js` whenever the *proofreading* prompt
+  changes; it is part of the cache key, so stale entries are discarded automatically. The
+  transform prompt needs no version: transform results are never cached.
+- Content scripts reach the transform only through `main.js`'s single
+  `runtime.onMessage` listener. Do not add a second listener: an `async` listener always
+  returns a promise, and a second one would answer for messages meant for the first.
