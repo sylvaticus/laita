@@ -163,7 +163,7 @@ means Ollama was not restarted.
 
 **From Firefox Add-ons** — the normal way, and it updates itself:
 
-> **[Local AI Text Assistant on addons.mozilla.org](https://addons.mozilla.org/firefox/addon/0c79ab30ae2841e295ef/)**
+> **[Local AI Text Assistant on addons.mozilla.org](https://addons.mozilla.org/firefox/addon/local-ai-text-assistant/)**
 >
 > The listing is awaiting Mozilla's review. Until it is approved that link will not
 > resolve — use the direct download below in the meantime.
