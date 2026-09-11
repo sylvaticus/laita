@@ -51,7 +51,9 @@
       <div class="row">
         <label for="keepAlive">Keep model loaded for</label>
         <input id="keepAlive" type="text" spellcheck="false" placeholder="10m">
-        <small>Avoids a slow reload on every check.</small>
+        <small>Avoids a slow reload on every check. Needs a unit — <code>30m</code>,
+        <code>8h</code>. Use <code>-1m</code>, or any negative value, to keep the model
+        loaded indefinitely; a bare <code>-1</code> is rejected by Ollama.</small>
       </div>
     </div>
     <label class="check"><input id="think" type="checkbox"> Allow the model to "think" before answering <small>(much slower; off is recommended)</small></label>

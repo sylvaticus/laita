@@ -203,7 +203,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | Temperature | `0` | Keep at 0 for repeatable corrections. |
 | Context window (tokens) | `0` | `0` follows Ollama's own setting. Pinning a different number makes Ollama unload another app's model and load a second copy of the same weights. See [sharing Ollama](#sharing-ollama-with-other-apps). |
 | Parallel requests | `1` | Raise only if you have set `OLLAMA_NUM_PARALLEL` higher. Ollama serves one request at a time by default, so extra ones just queue — and a queued request's timeout is already running. |
-| Keep model loaded for | `10m` | Avoids a slow reload on every check. |
+| Keep model loaded for | `10m` | Avoids a slow reload on every check. Needs a unit (`30m`, `8h`); `-1m` — or any negative value — keeps it loaded indefinitely, while a bare `-1` is rejected by Ollama. Sent with every request, so it overrides the server's `OLLAMA_KEEP_ALIVE`. |
 | Allow the model to "think" | off | Reasoning traces make checks several times slower. |
 | Trigger | automatic | Or manual only, via `Alt+Shift+C`. |
 | Typing pause | `1500 ms` | |
