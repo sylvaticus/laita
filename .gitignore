@@ -1,9 +1,14 @@
 # Signed and packaged builds
 web-ext-artifacts/
 
-# AMO / signing credentials - never commit these
+# AMO / signing credentials - never commit these.
+# The JWT issuer and secret from addons.mozilla.org belong outside the repository
+# entirely; a sibling ../secrets/ directory, your shell profile or a password manager.
 .env
+.env.*
 *.pem
+*.key
+secrets/
 web-ext-config.local.*
 
 # Node, if you ever add tooling here

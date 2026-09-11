@@ -50,7 +50,7 @@ function syncSiteLabel() {
   const hint = document.createElement("small");
   hint.textContent = "(one hostname per line)";
   $("siteListLabel").replaceChildren(
-    document.createTextNode(allow ? "Sites where Local AI Spell Checker runs " : "Sites where Local AI Spell Checker stays quiet "),
+    document.createTextNode(allow ? "Sites where Local AI Text Assistant runs " : "Sites where Local AI Text Assistant stays quiet "),
     hint
   );
 }
@@ -170,7 +170,7 @@ async function init() {
   });
 
   $("reset").addEventListener("click", async () => {
-    if (!confirm("Reset every Local AI Spell Checker setting to its default?")) return;
+    if (!confirm("Reset every Local AI Text Assistant setting to its default?")) return;
     await browser.storage.local.clear();
     settings = await getSettings();
     fill();

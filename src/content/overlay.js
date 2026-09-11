@@ -1,7 +1,7 @@
 /**
  * The visual layer.
  *
- * Everything Local AI Spell Checker draws lives in one shadow root attached to <html>, so page CSS can
+ * Everything Local AI Text Assistant draws lives in one shadow root attached to <html>, so page CSS can
  * neither restyle it nor be disturbed by it. The layer is pointer-events:none: clicks go
  * straight through to the field, and we work out which highlight was hit by testing the
  * click against the rectangles we drew. That keeps caret placement and text selection

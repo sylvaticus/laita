@@ -50,9 +50,9 @@ LAS.sendFailureKind = function (message, orphaned) {
  */
 LAS.sendFailure = function () {
   return LAS.isOrphaned()
-    ? "Local AI Spell Checker was reloaded or updated, so this page is still running the old copy. " +
+    ? "Local AI Text Assistant was reloaded or updated, so this page is still running the old copy. " +
       "Reload the page to reconnect it."
-    : "Local AI Spell Checker's background page did not answer" +
+    : "Local AI Text Assistant's background page did not answer" +
       (LAS.lastSendError ? ` (${LAS.lastSendError})` : "") +
       ". Reload the page and try again.";
 };

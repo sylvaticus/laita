@@ -82,7 +82,7 @@ export async function setSettings(patch) {
 }
 
 /**
- * Decide whether Local AI Spell Checker should run on a given hostname.
+ * Decide whether Local AI Text Assistant should run on a given hostname.
  *
  * A per-site override always wins. It is what the context menu, Alt+Shift+X and the popup
  * set, so that "pause here" means paused whatever the allowlist says; the lists stay the

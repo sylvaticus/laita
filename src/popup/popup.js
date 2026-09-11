@@ -12,7 +12,7 @@ async function refreshField(tab) {
   if (!tab) return;
   const res = await browser.tabs.sendMessage(tab.id, { cmd: "getFieldState" }).catch(() => null);
   if (!res) {
-    $("field").textContent = "Local AI Spell Checker is not running on this page.";
+    $("field").textContent = "Local AI Text Assistant is not running on this page.";
     return;
   }
   if (!res.hasField) {

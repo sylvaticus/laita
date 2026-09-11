@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Local AI Spell Checker",
+  "name": "Local AI Text Assistant",
   "version": "0.2.0",
-  "description": "Local AI proofreading for any web form, powered by your own Ollama models. Nothing leaves your machine.",
+  "description": "Local AI proofreading and rewriting for any web form, powered by your own Ollama models. Nothing leaves your machine.",
   "author": "Antonello Lobianco",
   "homepage_url": "https://github.com/sylvaticus/locaispell",
   "browser_specific_settings": {
@@ -54,7 +54,7 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "Local AI Spell Checker",
+    "default_title": "Local AI Text Assistant",
     "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "icons/icon.svg",
@@ -78,7 +78,7 @@
       "suggested_key": {
         "default": "Alt+Shift+X"
       },
-      "description": "Enable / disable Local AI Spell Checker on this site"
+      "description": "Enable / disable Local AI Text Assistant on this site"
     },
     "transform-selection": {
       "suggested_key": {

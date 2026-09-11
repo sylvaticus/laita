@@ -1,8 +1,8 @@
 # locaispell — notes for future sessions
 
 Firefox MV3 extension: proofreads web form fields with a local Ollama model, and rewrites
-a selection on demand ("Locaispell transform…", context menu / Alt+Shift+T).
-Display name "Local AI Spell Checker", single-token name `locaispell`, ID
+a selection on demand (context menu / Alt+Shift+T).
+Display name "Local AI Text Assistant", single-token name `locaispell`, ID
 `locaispell@lobianco.org` (permanent — never change it, AMO ties versions to it).
 
 User-facing docs are in `README.md`. This file is the things that are **not** obvious from
@@ -25,7 +25,7 @@ event handling in `content/main.js` — unit tests cannot see those bugs.
 
 **Ollama blocks browser extensions.** Firefox sends `Origin: moz-extension://<uuid>` and
 Ollama answers 403 unless `OLLAMA_ORIGINS` allows it. Already configured on this machine via
-`/etc/systemd/system/ollama.service.d/inkwell.conf` (old filename, works fine). A plain
+`/etc/systemd/system/ollama.service.d/locaispell.conf`. A plain
 `GET` carries no Origin and succeeds regardless — that is why `probe()` in
 `background/ollama.js` deliberately ends with a POST to `/api/show`. Do not "simplify" it
 back to a GET; it would report a healthy connection while every real check failed.
@@ -127,6 +127,11 @@ inside or make the whole pill clickable.
 `generation` (which aborts the in-flight fetch in the background) and sets
 `lastCheckedText` to the current text, so the next keystroke does not immediately restart
 the work the user just stopped.
+
+**Context menu titles must not repeat the extension name.** Firefox groups an extension's
+items under a submenu named after the extension, so a title of "Locaispell transform…"
+reads as "Local AI Text Assistant > Locaispell transform…". They are bare verbs for that
+reason.
 
 **The transform panel swallows key events.** Sites bind single-letter shortcuts, and a
 closed shadow root still lets events bubble out retargeted to the host, so `panel()`

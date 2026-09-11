@@ -246,7 +246,7 @@ export function describeError(err) {
       kind: "connection",
       error:
         "Cannot reach Ollama. Check that `ollama serve` is running and that the endpoint " +
-        "in Local AI Spell Checker's options is correct."
+        "in Local AI Text Assistant's options is correct."
     };
   }
   if (/HTTP 403/.test(msg)) {

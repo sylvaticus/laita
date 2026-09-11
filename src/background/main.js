@@ -416,12 +416,12 @@ async function installMenus() {
   await browser.menus.removeAll().catch(() => {});
   browser.menus.create({
     id: MENU_ID,
-    title: "Locaispell transform\u2026",
+    title: "Transform\u2026",
     contexts: ["selection"]
   });
   browser.menus.create({
     id: TOGGLE_ID,
-    title: "Locaispell: pause spell check here",
+    title: "Pause spell check here",
     contexts: ["page", "editable", "selection"]
   });
 }
@@ -430,6 +430,9 @@ installMenus();
 browser.runtime.onInstalled.addListener(installMenus);
 
 /**
+ * Firefox groups an extension's menu items under a submenu named after the extension, so
+ * these titles must not repeat it: the user reads "Local AI Text Assistant > Transform".
+ *
  * The pause/resume item has to say which way it will go, so its title is rewritten each
  * time the menu opens. `menus.onShown` may resolve after the menu has already closed or
  * been reopened, hence the instance counter: refreshing a stale menu is an error.
@@ -446,9 +449,7 @@ browser.menus.onShown.addListener(async (info, tab) => {
   const running = !!hostname && settings.enabled && siteAllowed(settings, hostname);
   const where = hostname || "this page";
   await browser.menus.update(TOGGLE_ID, {
-    title: running
-      ? `Locaispell: pause spell check on ${where}`
-      : `Locaispell: resume spell check on ${where}`,
+    title: running ? `Pause spell check on ${where}` : `Resume spell check on ${where}`,
     enabled: !!hostname
   });
   browser.menus.refresh();

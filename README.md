@@ -1,12 +1,25 @@
-# Local AI Spell Checker
+# Local AI Text Assistant
 
-A Firefox extension that proofreads what you type into web forms, using a model running
-locally in **Ollama**. It works like [Harper](https://writewithharper.com/) or
-LanguageTool, but the judgement comes from an LLM rather than from hand-written rules, so
-it handles style and phrasing as well as hard grammar errors, and it works in any language
-the model knows.
+A Firefox extension that **proofreads what you type** into any web form and **rewrites
+text you select**, using a model running locally in [Ollama](https://ollama.com).
 
-Three kinds of problem are reported, each with its own colour:
+It works like [Harper](https://writewithharper.com/) or LanguageTool, but the judgement
+comes from an LLM rather than hand-written rules, so it handles style and phrasing as well
+as hard grammar errors, and it works in any language the model knows.
+
+**Nothing leaves your machine.** The only network destination is your own Ollama endpoint.
+
+---
+
+## 1. What it does
+
+### Catches mistakes as you type
+
+Problems get a coloured wavy underline. Click one for the explanation and the fix.
+
+![An error highlight: the card explains "Use 'I' instead of 'me' as the subject" and offers to replace "me" with "I"](assets/imgs/screenshot_locaispell_firefox5.png)
+
+Three kinds of problem, each with its own colour:
 
 | Colour | Category | What it means |
 | --- | --- | --- |
@@ -14,82 +27,155 @@ Three kinds of problem are reported, each with its own colour:
 | 🟡 yellow | **style** | Not wrong, but weak: wordiness, redundancy, needless passive, repetition. |
 | 🔵 blue | **rephrase** | A better word or a more natural formulation. |
 
-Alongside the proofreader there is a second, deliberately manual tool: select any text,
-right-click, and **Locaispell transform…** rewrites it however you ask — *polish*,
-*translate to French*, *shorten it*. See [§3](#transforming-a-selection).
+![A rephrase suggestion: "too well english" becomes "very well English"](assets/imgs/screenshot_locaispell_firefox4.png)
+
+Each card offers **Apply**, **Dismiss**, **Never suggest** — and **Add to dictionary** when
+the text is a single word.
+
+### Rewrites a selection however you ask
+
+Select text, right-click, and pick **Transform…**:
+
+![The Firefox context menu showing the Local AI Text Assistant submenu with "Transform…" and "Pause spell check on this site"](assets/imgs/screenshot_locaispell_firefox3.png)
+
+Type what you want done with it. Press Enter on an empty box for the default, `polish`:
+
+![The transform box, a single line containing the word "polish", with the hint "Enter to run · Esc to cancel · ↑ ↓ for recent"](assets/imgs/screenshot_locaispell_firefox2.png)
+
+The result can replace the selection, be inserted after it, or be thrown away:
+
+![The transform result: "Sorry, me don't speak too well english." rewritten as "Sorry, I don't speak English very well.", with buttons Accept & replace, Reject, Accept & append](assets/imgs/screenshot_locaispell_firefox1.png)
+
+`translate to French`, `shorten it`, `make it more formal`, `turn into bullet points` — the
+instruction is free text, so anything the model understands works.
 
 The language of each field is detected automatically (English and French are the tuned
 cases; Italian, Spanish, German, Portuguese and Dutch are also recognised), or you can pin
 one language in the options.
 
-**Nothing leaves your machine.** The only network destination is your own Ollama endpoint.
-
 ---
 
-## 1. Requirements
+## 2. Requirements
 
-- Firefox 142 or newer
-- [Ollama](https://ollama.com) running locally, with a model pulled:
+- **Firefox 142** or newer
+- **[Ollama](https://ollama.com)** running locally, with a model pulled:
   ```bash
   ollama pull qwen3.5:9b
   ```
 
-A 7–9B instruction model is the sweet spot. `qwen3.5:9b` was used to develop this and
-gives good results in both English and French. Smaller models are faster but miss more and
-invent more.
+A 7–9B instruction model is the sweet spot. `qwen3.5:9b` was used to develop this and gives
+good results in both English and French. Smaller models are faster but miss more and invent
+more; `qwen3.5:4b` is a reasonable choice on a GPU with less than 8 GB.
 
-**Expect roughly 10–30 seconds per paragraph** on a mid-range GPU, and considerably longer
-if something else is already using the GPU. That is why Local AI Spell Checker checks paragraph by
-paragraph, caches every result, and only re-sends paragraphs you actually changed: a long
-message is checked once, and editing its last line re-checks one paragraph, not the whole
-thing. If it still feels slow, lower *maximum chunk size*, turn off the *rephrase*
-category, or move to a smaller model.
+**A paragraph takes a few seconds** on a mid-range GPU. That is why the extension checks
+only the paragraph you are working in, caches every result, and re-sends only what you
+changed. If it feels much slower than that, something is wrong outside the extension —
+see [everything is slow](#everything-is-slow), which on a laptop is usually the power
+profile.
 
 ---
 
-## 2. Install
+## 3. Install
 
 ### Step 1 — let Ollama accept requests from the extension  ⚠️ required
 
-Ollama rejects requests whose `Origin` is a browser extension unless you allow it
-explicitly. Firefox **does** send `Origin: moz-extension://…`, so without this step every
-check fails with an error. Add a systemd drop-in:
+Ollama refuses requests whose `Origin` is a browser extension unless you allow it.
+Firefox **does** send `Origin: moz-extension://…`, so without this step every check fails.
+
+You need to set the environment variable `OLLAMA_ORIGINS` to `moz-extension://*` **for the
+Ollama server process**, then restart Ollama. How you do that depends on the platform.
+
+<details open>
+<summary><b>Linux</b> (systemd — the only platform this has been tested on)</summary>
 
 ```bash
 sudo mkdir -p /etc/systemd/system/ollama.service.d
 printf '[Service]\nEnvironment="OLLAMA_ORIGINS=moz-extension://*"\n' \
   | sudo tee /etc/systemd/system/ollama.service.d/locaispell.conf
-sudo systemctl daemon-reload
-sudo systemctl restart ollama
+sudo systemctl daemon-reload && sudo systemctl restart ollama
 ```
 
-This is a separate file, so it will not disturb any drop-in you already have.
-
-Check it worked — you want anything except `403`:
+A *drop-in* is a small file that adds settings to a service without editing the file the
+package manager owns. Verify it took effect:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:11434/api/show \
-  -H 'Origin: moz-extension://test' -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3.5:9b"}'
+systemctl show ollama -p Environment | tr ' ' '\n' | grep ORIGINS
+```
+</details>
+
+<details>
+<summary><b>macOS</b> (not tested — please report whether it works)</summary>
+
+For the menu-bar app, set the variable for your login session and restart Ollama:
+
+```bash
+launchctl setenv OLLAMA_ORIGINS "moz-extension://*"
 ```
 
-> **On the wildcard.** `moz-extension://*` lets *any* Firefox extension you have installed
-> reach Ollama. To be stricter, install Local AI Spell Checker first, open `about:debugging` and copy its
-> internal UUID, then use `OLLAMA_ORIGINS=moz-extension://<that-uuid>` instead. Note that a
-> temporarily-loaded extension gets a fresh UUID every time Firefox restarts, so the
-> wildcard is the practical choice until you install Local AI Spell Checker permanently (§6).
+Then quit Ollama from the menu bar and start it again. `launchctl setenv` does not survive
+a reboot; to make it permanent, add it to a LaunchAgent.
 
-If you do not use systemd, set `OLLAMA_ORIGINS="moz-extension://*"` in the environment of
-whatever starts `ollama serve`.
+If you run `ollama serve` yourself from a terminal instead, just export the variable in
+that shell:
 
-### Step 2 — load the extension
+```bash
+export OLLAMA_ORIGINS="moz-extension://*"
+ollama serve
+```
+</details>
 
-1. Open `about:debugging#/runtime/this-firefox`
-2. Click **Load Temporary Add-on…**
-3. Pick the `manifest.json` file in this folder
+<details>
+<summary><b>Windows</b> (not tested — please report whether it works)</summary>
 
-Local AI Spell Checker's options page opens automatically the first time. A temporary add-on is removed
-when Firefox restarts — see §6 to make it permanent.
+Ollama reads user environment variables at startup.
+
+1. Quit Ollama from the system tray.
+2. Press `Win`, type *environment variables*, open **Edit the system environment
+   variables** → **Environment Variables…**
+3. Under **User variables**, add `OLLAMA_ORIGINS` with the value `moz-extension://*`
+4. Start Ollama again.
+
+Or from PowerShell, then restart Ollama:
+
+```powershell
+setx OLLAMA_ORIGINS "moz-extension://*"
+```
+</details>
+
+> **Only the Linux instructions above have been tested.** The macOS and Windows steps
+> follow Ollama's documented behaviour but have not been verified on those platforms. If
+> you try one, [an issue](https://github.com/sylvaticus/locaispell/issues) saying whether
+> it worked would be welcome.
+
+Whatever your platform, this check should return something other than `403`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  -H "Origin: moz-extension://11111111-2222-3333-4444-555555555555" \
+  -H "Content-Type: application/json" -d '{"model":"qwen3.5:9b"}' \
+  http://localhost:11434/api/show
+```
+
+`200` means you are set. `403` means Ollama did not pick up the variable — it almost always
+means Ollama was not restarted.
+
+### Step 2 — install the extension
+
+This add-on is **not yet in the Firefox add-ons directory**, so install it from the signed
+file:
+
+1. Download the latest `.xpi` from the
+   [releases page](https://github.com/sylvaticus/locaispell/releases).
+2. Open `about:addons`
+3. Click the **gear icon** → **Install Add-on From File…**
+4. Choose the `.xpi` you downloaded
+
+It is signed by Mozilla, so it installs permanently and survives restarts. The options page
+opens the first time.
+
+> Building it yourself, or working on the code? See
+> [`doc/dev_doc.md`](doc/dev_doc.md) — a development build loads straight from
+> `manifest.json` via `about:debugging`, with no signing.
 
 ### Step 3 — check the connection
 
@@ -101,7 +187,7 @@ and would report success even while real checks were being refused.
 
 ---
 
-## 3. Using it
+## 4. Using it
 
 Click into any text box and type. Roughly 1.5 seconds after you stop, **the paragraph you
 are working in** is checked and problems get a coloured wavy underline. Paragraphs you
@@ -129,7 +215,7 @@ wikis, most WYSIWYG editors) are supported.
 ### Transforming a selection
 
 Proofreading suggests small fixes and never rewrites wholesale. When you *want* a rewrite,
-select the text, right-click and choose **Locaispell transform…** (or press
+select the text, right-click and choose **Local AI Text Assistant → Transform…** (or press
 **Alt+Shift+T**).
 
 A one-line box opens. Type what you want done and press Enter:
@@ -183,10 +269,10 @@ either by resuming from the same menu, or with **Clear per-site pauses** under
 Resuming a site while the extension is switched off globally turns the global switch back
 on too, since otherwise "resume" would appear to do nothing.
 
-Pausing only stops the automatic proofreading. **Locaispell transform…** is something you
+Pausing only stops the automatic proofreading. **Local AI Text Assistant → Transform…** is something you
 ask for explicitly, so it keeps working on a paused site.
 
-### What Local AI Spell Checker will not touch
+### What Local AI Text Assistant will not touch
 
 Passwords, payment fields, one-time codes, and any field whose type, `autocomplete`, name,
 id, placeholder or class hints at a secret are skipped outright — they are never read and
@@ -196,9 +282,9 @@ To exclude anything else, add `data-locaispell="off"` to it or to any ancestor.
 
 ---
 
-## 4. Options
+## 5. Options
 
-Open them from the toolbar popup, or from `about:addons` → Local AI Spell Checker → Preferences.
+Open them from the toolbar popup, or from `about:addons` → Local AI Text Assistant → Preferences.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
@@ -224,7 +310,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 
 ---
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 | Symptom | Cause and fix |
 | --- | --- |
@@ -315,7 +401,7 @@ An error on a page that worked a minute ago almost always means the model had to
 for* period, and reloading it needs the whole model to fit in the GPU at once — so a model
 that is a tight fit works while it is resident and fails when it has to come back.
 
-Local AI Spell Checker retries once automatically, which hides most of these. If you still
+Local AI Text Assistant retries once automatically, which hides most of these. If you still
 see them:
 
 ```bash
@@ -337,187 +423,31 @@ of effectiveness:
 If you stay on the large model, also raise the request timeout: a load that takes longer
 than the timeout is abandoned by the extension, which Ollama logs as a cancelled load.
 
-Turn on **Log debug output to the page console** in the options to see what Local AI Spell Checker is
+Turn on **Log debug output to the page console** in the options to see what Local AI Text Assistant is
 doing, then open the web console on the page (`Ctrl+Shift+K`). When the pill shows an
 error, its **?** button opens the full message.
 
 ---
+---
 
-## 6. Signing, and the two different "IDs"
+## 7. Privacy
 
-### The extension ID is already permanent
+The extension talks to exactly one place: the Ollama endpoint in its options, which
+defaults to `http://localhost:11434`. There is no telemetry, no analytics and no remote
+service. `manifest.json` declares `data_collection_permissions: { "required": ["none"] }`,
+and that is accurate.
 
-`browser_specific_settings.gecko.id` in `manifest.json` is `locaispell@lobianco.org`.
-**That is the permanent ID, and signing does not change it.** It is what addons.mozilla.org
-(AMO) ties every future version to, so never change it once you have uploaded anything —
-changing it would create a second, unrelated add-on.
+It does read what you type, which is what proofreading is — but only in fields it is
+allowed to touch, and only to send to your own machine. Password fields, payment fields,
+one-time codes and anything whose name suggests a secret are excluded in code and never
+read at all.
 
-Do not confuse it with the **internal UUID**, the `moz-extension://<uuid>` part that Ollama
-sees. That one is generated randomly *per Firefox profile* and is not something you choose.
-It is stable once the add-on is permanently installed in a profile, but it differs on every
-machine and profile, so it is not usable as a public identifier. It matters only if you want
-to tighten `OLLAMA_ORIGINS` (below).
+---
 
-### Sign an unlisted build
+## 8. Development
 
-Unlisted means self-distribution: Mozilla signs it so Firefox will install it permanently,
-but it is not published in the add-ons directory and gets only automated review, usually
-within a few minutes.
-
-```bash
-npm install --global web-ext
-```
-
-1. Sign in at <https://addons.mozilla.org/developers/> with a Firefox Account.
-2. Create API credentials at
-   <https://addons.mozilla.org/developers/addon/api/key/>. You get a JWT **issuer** and a
-   **secret**. Treat the secret like a password — never commit it.
-3. Bump `version` in `manifest.json`. **Every upload needs a version that has never been
-   used before**, or AMO rejects it.
-4. Sign:
-
-```bash
-export WEB_EXT_API_KEY='user:12345678:123'      # the issuer
-export WEB_EXT_API_SECRET='...'                 # the secret
-web-ext sign --channel=unlisted
-```
-
-The signed file lands in `web-ext-artifacts/`. Install it permanently with
-`about:addons` → gear icon → **Install Add-on From File…**. It now survives restarts.
-
-`web-ext-config.cjs` keeps `test/`, the README and other development files out of the
-package, so what you sign is only what the extension actually needs.
-
-Unlisted add-ons do **not** update themselves. If you want that later, host an update
-manifest and point `browser_specific_settings.gecko.update_url` at it; until then, signing a
-new version and installing the new `.xpi` is the upgrade path.
-
-### Optional: restrict Ollama to just this extension
-
-With the add-on permanently installed, its UUID stops changing, so you can replace the
-wildcard from §2 with the exact origin:
-
-1. Open `about:config`, search for `extensions.webextensions.uuids`.
-2. Find `locaispell@lobianco.org` in the JSON and copy its UUID.
-3. Put `OLLAMA_ORIGINS=moz-extension://<that-uuid>` in the drop-in file and restart Ollama.
-
-Now no other extension can reach Ollama. Remember it is per profile: a second Firefox
-profile, or another machine, will have a different UUID and will need its own entry (the
-variable accepts a comma-separated list).
-
-### When you want to make it public
-
-The same ID carries over — a listed version is just another version of the same add-on, so
-nothing you sign now is wasted. Before submitting to the listed channel:
-
-- [ ] Fill in `author` and `homepage_url` in `manifest.json`.
-- [ ] Choose a licence and add a `LICENSE` file.
-- [ ] Prepare listing assets: a PNG icon (128px or larger — the current icon is an SVG,
-      which Firefox accepts but the AMO listing page wants a raster version), one or two
-      screenshots, a summary and a description.
-- [ ] Re-read the permission story. A listed add-on gets **human** review, and this one asks
-      for `<all_urls>` and reads what the user types, so expect scrutiny. In your favour:
-      everything stays on the user's machine, the manifest already declares
-      `data_collection_permissions: { "required": ["none"] }`, and password and payment
-      fields are excluded in code. Keep all three statements true.
-- [ ] Decide what happens for users without Ollama — right now the extension simply reports
-      that it cannot connect, which is honest but abrupt for someone who installed it from a
-      directory listing.
-
-Submit with `web-ext sign --channel=listed`, or upload the same `.xpi` through the AMO web
-interface, which is easier the first time because it walks you through the listing fields.
-
-### Testing without signing at all
-
-`about:debugging` → **Load Temporary Add-on…** installs an unsigned build instantly, and it
-disappears when Firefox restarts. That is the fastest loop while developing, and it is what
-§2 describes. Firefox Developer Edition, Nightly and ESR can also install unsigned builds
-permanently after setting `xpinstall.signatures.required` to `false` in `about:config`;
-release Firefox ignores that setting.
-
-## 7. How it works
-
-```
-content scripts (per page)                  background page              Ollama
-──────────────────────────                  ───────────────              ──────
-focused field
-  └─ adapter  ── plain text ──┐
-       textarea → hidden      │
-         mirror div for       │
-         geometry             │
-       contenteditable →      │
-         text-node map        │
-                              ▼
-                    split into paragraphs
-                    (long ones split on
-                     sentence boundaries)
-                              │
-                       one message per chunk ──▶  cache lookup
-                                                  (LRU, 600 chunks)
-                                                       │ miss
-                                                  bounded queue  ──▶  POST /api/chat
-                                                                      JSON schema,
-                                                                      think: false
-                                                       ◀── issues quoted as substrings
-                                                  anchor: locate each
-                                                  quote, drop the
-                                                  unfindable, resolve
-                                                  overlaps by priority
-                              ◀── issues with exact offsets ──┘
-  shadow-DOM overlay
-  draws wavy underlines,
-  hit-tests clicks
-```
-
-A few decisions worth knowing about:
-
-- **The model quotes, it does not count.** LLMs are bad at character offsets, so the prompt
-  asks for the *verbatim substring* to change. `src/background/anchor.js` locates that
-  quote in the text (tolerating curly quotes, collapsed whitespace and, as a last resort,
-  case), discards anything it cannot find, and resolves overlapping suggestions by priority.
-  This is what stops a hallucinated quote from corrupting your text.
-- **The overlay never intercepts input.** It is `pointer-events: none`, and clicks are
-  matched against the rectangles it drew. Caret placement and text selection stay exactly
-  as the page intended.
-- **Only changed paragraphs are re-checked.** Results are cached per chunk, so editing the
-  last paragraph of a long message does not re-check the whole thing.
-- **Highlights follow your edits.** After every keystroke the spans are re-anchored against
-  the current text, so they shift with the text instead of drifting until the next check.
-
-### Layout
-
-```
-manifest.json
-src/common/settings.js       defaults, storage, per-site rules
-src/background/main.js       message router, cache, queue, cancellation, badge
-src/background/ollama.js     prompt construction, transport, response parsing
-                             (both the proofreading and the transform prompt)
-src/background/anchor.js     quotes → exact offsets; the correctness-critical part
-src/content/common.js        shared state, language detection, re-anchoring
-src/content/segment.js       paragraph and sentence chunking
-src/content/textmap.js       field adapters (mirror geometry, text-node mapping)
-src/content/overlay.js       shadow-DOM layer, wavy underlines, hit-testing
-src/content/card.js          the suggestion card
-src/content/transform.js     "Locaispell transform…": the instruction box and its panel
-src/content/main.js          orchestration
-src/options/, src/popup/     UI
-test/                        unit tests + browser harness (see test/README.md)
-web-ext-config.cjs           keeps development files out of the signed package
-```
-
-### Development
-
-```bash
-./test/run.sh           # unit tests, node only, no dependencies
-npm install --global web-ext
-web-ext lint            # 0 errors, 0 warnings expected
-web-ext run             # launches a scratch Firefox with the extension loaded
-```
-
-`test/README.md` also describes a browser harness that runs the real extension in headless
-Firefox against a fake Ollama and checks the highlight geometry against independently
-measured positions. It is more setup than the unit tests, but it is the only thing that
-catches overlay and event-handling bugs.
+Building, testing, signing and how the internals fit together:
+[`doc/dev_doc.md`](doc/dev_doc.md).
 
 ---
 

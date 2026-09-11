@@ -428,7 +428,7 @@ class EditableAdapter extends BaseAdapter {
 
 // ------------------------------------------------------------------ detection
 
-/** Should Local AI Spell Checker ever look at this element? */
+/** Should Local AI Text Assistant ever look at this element? */
 LAS.isCheckable = function (el) {
   if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
   if (el.closest("[data-locaispell='off']")) return false;
