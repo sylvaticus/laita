@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local AI Text Assistant",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Local AI proofreading and rewriting for any web form, powered by your own Ollama models. Nothing leaves your machine.",
   "author": "Antonello Lobianco",
   "homepage_url": "https://github.com/sylvaticus/locaispell",

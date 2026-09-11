@@ -154,22 +154,47 @@ Unlisted add-ons do **not** update themselves. To change that, host an update ma
 and point `browser_specific_settings.gecko.update_url` at it; until then, the upgrade
 path is signing a new version and installing the new `.xpi`.
 
-### Publishing publicly, later
+### Submitting to the listed channel
 
-The same ID carries over, so nothing signed now is wasted — a listed version is just
-another version of the same add-on. Before submitting to the listed channel:
+**Listed** means published in the Firefox add-ons directory: anyone can find and install
+it, it updates itself, and it gets a **human** review rather than only an automated one.
+**Unlisted** means self-distribution — signed so Firefox will install it, but not
+published and not self-updating.
 
-- [ ] Prepare listing assets: a PNG icon (128px or larger — the current icon is an SVG,
-      which Firefox accepts but the AMO listing page wants a raster version), screenshots
-      (`assets/imgs/` has some), a summary and a description.
-- [ ] Re-read the permission story. A listed add-on gets **human** review, and this one
-      asks for `<all_urls>` and reads what the user types, so expect scrutiny. In its
-      favour: everything stays on the user's machine, the manifest declares
+The same extension ID carries over, so nothing signed as unlisted is wasted: a listed
+version is simply another version of the same add-on. Switching channel does not reset
+anything, but **the version number still has to be one that has never been uploaded**.
+
+Submit at <https://addons.mozilla.org/developers/> → *Upload New Version*, choosing
+**"On this site"** where the unlisted flow chose "On your own". Or
+`npx web-ext sign --channel=listed`.
+
+Before submitting:
+
+- [ ] **Set a readable URL slug.** *Edit Product Page* → *Describe Add-on* → **Add-on
+      URL**. It defaults to a random string like `0c79ab30ae2841e295ef`, which becomes
+      the public address. Changing it later breaks every link already published,
+      including the one in `README.md`.
+- [ ] **Check the listing name and summary.** AMO stores these separately from
+      `manifest.json` once the add-on exists, so renaming the extension does not update
+      them — they have to be edited by hand on that page.
+- [ ] **A PNG icon, 128px or larger.** `icons/icon.svg` is fine for Firefox itself, but
+      the listing page wants a raster version.
+- [ ] **Screenshots and a description.** `assets/imgs/` has five screenshots; the
+      description field is empty by default and is what a stranger reads first.
+- [ ] **Re-read the permission story.** This add-on asks for `<all_urls>` and reads what
+      the user types, so expect scrutiny. In its favour: everything stays on the user's
+      machine, the manifest declares
       `data_collection_permissions: { "required": ["none"] }`, and password and payment
-      fields are excluded in code. Keep all three statements true.
-- [ ] Decide what happens for users without Ollama. Right now the extension reports that
-      it cannot connect, which is honest but abrupt for someone who installed it from a
-      directory listing.
+      fields are excluded in code. Keep all three statements true, and say so in the
+      notes to the reviewer.
+- [ ] **Tell the reviewer how to test it.** A reviewer without Ollama sees an extension
+      that cannot connect to anything. Give them the two commands that make it work
+      (`ollama pull`, and the `OLLAMA_ORIGINS` drop-in from the README) in the *Notes to
+      Reviewer* field, or the review will stall.
+- [ ] **Decide what a user without Ollama sees.** Right now the extension reports that it
+      cannot connect — honest, but abrupt for someone who installed it from a directory
+      listing and has never heard of Ollama.
 
 ### Installing unsigned builds permanently
 

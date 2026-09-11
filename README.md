@@ -1,7 +1,7 @@
 # Local AI Text Assistant
 
 A Firefox extension that **proofreads what you type** into any web form and **rewrites
-text you select**, using a model running locally in [Ollama](https://ollama.com).
+text you select**, using a model running locally on your machine (via [Ollama](https://ollama.com)).
 
 It works like [Harper](https://writewithharper.com/) or LanguageTool, but the judgement
 comes from an LLM rather than hand-written rules, so it handles style and phrasing as well
@@ -161,8 +161,14 @@ means Ollama was not restarted.
 
 ### Step 2 — install the extension
 
-This add-on is **not yet in the Firefox add-ons directory**, so install it from the signed
-file:
+**From Firefox Add-ons** — the normal way, and it updates itself:
+
+> **[Local AI Text Assistant on addons.mozilla.org](https://addons.mozilla.org/firefox/addon/0c79ab30ae2841e295ef/)**
+>
+> The listing is awaiting Mozilla's review. Until it is approved that link will not
+> resolve — use the direct download below in the meantime.
+
+**Or install the signed file directly**, which works today and needs no listing:
 
 1. Download the latest `.xpi` from the
    [releases page](https://github.com/sylvaticus/locaispell/releases).
@@ -170,8 +176,10 @@ file:
 3. Click the **gear icon** → **Install Add-on From File…**
 4. Choose the `.xpi` you downloaded
 
-It is signed by Mozilla, so it installs permanently and survives restarts. The options page
-opens the first time.
+Either way the file is signed by Mozilla, so it installs permanently and survives
+restarts. The options page opens the first time. The one difference is updates: a copy
+installed from the directory updates itself, a `.xpi` installed by hand does not, so you
+would download a newer one when you want it.
 
 > Building it yourself, or working on the code? See
 > [`doc/dev_doc.md`](doc/dev_doc.md) — a development build loads straight from
@@ -458,7 +466,7 @@ MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgements
 
-The development of this software at the Bureau d'Economie Théorique et Appliquée (BETA, Nancy) was supported by the French National Research Agency through the ARTEMIS (Advanced Research and Education on the biology, the Ecology, the Management and the biomonitoring of forest ecosystems in a changing world) interdisciplinair program.
+The development of this software at the Bureau d'Economie Théorique et Appliquée (BETA, Nancy) was supported by the French National Research Agency through the ARTEMIS (Advanced Research and Education on the biology, the Ecology, the Management and the biomonitoring of forest ecosystems in a changing world) interdisciplinary program.
 
 ![BETA, Université de Strasbourg, CNRS, Université de Lorraine, INRAE, AgroParisTech](assets/imgs/logos_betaumr.png)
 
