@@ -454,3 +454,10 @@ Building, testing, signing and how the internals fit together:
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
+
+
+## Acknowledgements
+
+The development of this software at the Bureau d'Economie Théorique et Appliquée (BETA, Nancy) was supported by the French National Research Agency through the ARTEMIS (Advanced Research and Education on the biology, the Ecology, the Management and the biomonitoring of forest ecosystems in a changing world) interdisciplinair program.
+
+![BETA, Université de Strasbourg, CNRS, Université de Lorraine, INRAE, AgroParisTech](assets/imgs/logos_betaumr.png)
