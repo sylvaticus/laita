@@ -44,10 +44,13 @@ sed -i 's|^LAS.Transform = {|document.addEventListener("las-test-transform", () 
        $RUN/ext/src/content/transform.js
 ```
 
-The pill steps also need a way to start a check without the hotkey:
+The pill steps also need a way to start a check without the hotkey, and the page needs to
+know the content script is actually there - Firefox reloads the tab once while shutting
+down, by which point the extension is gone, and without the marker that second run throws
+its way through every step and buries the real results:
 
 ```bash
-sed -i 's|^  // ---------------------------------------------------------------- boot|  document.addEventListener("las-test-check", () => runCheck(true));\n\n  // ---------------------------------------------------------------- boot|' \
+sed -i 's|^  // ---------------------------------------------------------------- boot|  document.documentElement.dataset.lasAlive = "1";\n  document.addEventListener("las-test-check", () => runCheck(true));\n  document.addEventListener("las-test-clear", () => LAS.send({ cmd: "clearSiteOverrides" }));\n\n  // ---------------------------------------------------------------- boot|' \
        $RUN/ext/src/content/main.js
 ```
 
@@ -124,6 +127,12 @@ Every beacon must report `true`:
 
   Neither reproduced the "Receiving end does not exist" seen in the wild; they are kept
   because they pin down two things that plausibly could have caused it and do not.
+- `slow-request`: the one that matters most. The mock takes 45 seconds over any text
+  containing `SLOWME`, longer than Firefox's 30 second background idle timeout, so the
+  step fails unless something is holding the background page open. Run this against the
+  real timeout - do not lower `extensions.background.idle.timeout` for it - and give
+  web-ext a generous `timeout`, since this step plus `idle-background` wait 80 seconds
+  between them.
 - `retry-after-500`: the mock fails the first request whose text contains `RETRYME` with
   the 500 Ollama returns when its runner will not start, then succeeds. Highlights must
   still appear and `noErrorPill` must hold: one failed model load is meant to be invisible.

@@ -64,6 +64,17 @@ a per-request context size, however well meant, defeats the whole point. An earl
 `transformNumCtx` widened the window for long selections and was removed for exactly that
 reason; an oversized transform against a pinned window is now refused instead.
 
+**The background page has to be held open while a request is outstanding.** Firefox
+unloads an MV3 background page after about 30 seconds without extension activity, and a
+pending `fetch()` does not count. A model slower than that gets its request killed along
+with the page, and the content script's waiting message is refused with "Receiving end
+does not exist" - so the symptom is a connection error that only ever appears on long
+text or a busy GPU, and never in a quick test. `holdOpen`/`releaseHold` in
+`background/main.js` touch an extension API every 20 seconds while anything is in
+flight, which resets that idle clock; `withRetry` is the single choke point that calls
+them. An idle extension is still allowed to be unloaded, which is the point of the
+counter. The `slow-request` harness step fails without this.
+
 **A failed request is retried exactly once, and only when retrying can help.**
 `isTransient` in `ollama.js` says which: 5xx and dropped connections yes; 403, 404, a
 parse failure and our own aborts no. This exists because Ollama returns 500 when its model

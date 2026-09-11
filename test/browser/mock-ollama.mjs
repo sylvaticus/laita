@@ -31,6 +31,9 @@ const transformAnswer = (parsed) => {
  * turns that into an invisible hiccup rather than an error in the user's face.
  */
 const RETRY_MARKER = "RETRYME";
+/* Text carrying this one gets a reply slower than Firefox's event-page idle timeout, to
+ * catch the background being unloaded while its fetch is still outstanding. */
+const SLOW_MARKER = "SLOWME";
 const alreadyFailed = new Set();
 
 const log = [];
@@ -73,7 +76,9 @@ http.createServer((req, res) => {
       const send = () => res.end(JSON.stringify({ message: { content } }));
       // Only proofreading is slowed down, so a harness can catch the "Checking…" pill
       // mid-flight and cancel it while transforms stay instant.
-      const delay = isTransform ? 0 : Number(process.env.CHAT_DELAY_MS) || 0;
+      const delay = asked.includes(SLOW_MARKER)
+        ? Number(process.env.SLOW_DELAY_MS) || 45000
+        : isTransform ? 0 : Number(process.env.CHAT_DELAY_MS) || 0;
       return delay ? setTimeout(send, delay) : send();
     }
     if (req.url === "/report") {

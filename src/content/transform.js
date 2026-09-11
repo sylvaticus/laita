@@ -346,7 +346,17 @@ LAS.Transform = {
   },
 
   /** Called from main.js for both the context menu and Alt+Shift+T. */
-  open() {
+  async open() {
+    // A transform can be asked for before the page has finished booting - the menu item
+    // and the hotkey are live immediately - so fetch the settings rather than doing
+    // nothing at all, which is indistinguishable from the feature being broken.
+    if (!LAS.settings) {
+      const res = await LAS.send({ cmd: "getConfigFor", hostname: location.hostname });
+      if (res?.settings) {
+        LAS.settings = res.settings;
+        LAS.active = res.active;
+      }
+    }
     if (!LAS.settings) return { ok: false, reason: "not-ready" };
     close({ refocus: false });
 

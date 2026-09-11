@@ -100,6 +100,40 @@ function noteGeneration(clientId, gen) {
   }
 }
 
+// ---------------------------------------------------------------- staying alive
+
+/**
+ * Firefox unloads an MV3 background page after about 30 seconds without extension
+ * activity, and a pending `fetch()` does not count as activity. A model that takes
+ * longer than that to answer therefore has its request killed along with the page, and
+ * the content script's waiting message is refused with "Receiving end does not exist" -
+ * which is exactly what a slow proofread looked like in the wild, and why it only ever
+ * happened on long text or a loaded GPU.
+ *
+ * Touching an extension API on a timer resets that idle clock. The interval has to be
+ * comfortably under the timeout, and is only running while something is outstanding, so
+ * an idle extension is still allowed to be unloaded.
+ */
+const KEEPALIVE_MS = 20000;
+
+let outstanding = 0;
+let keepalive = null;
+
+function holdOpen() {
+  outstanding++;
+  if (keepalive) return;
+  keepalive = setInterval(() => {
+    browser.runtime.getPlatformInfo().catch(() => {});
+  }, KEEPALIVE_MS);
+}
+
+function releaseHold() {
+  outstanding = Math.max(0, outstanding - 1);
+  if (outstanding > 0 || !keepalive) return;
+  clearInterval(keepalive);
+  keepalive = null;
+}
+
 // ---------------------------------------------------------------- retry
 
 const RETRY_DELAY_MS = 700;
@@ -113,13 +147,20 @@ const RETRY_DELAY_MS = 700;
  * the middle of typing.
  */
 async function withRetry(attempt, signal) {
+  // Every request the extension makes goes through here, so this is the one place that
+  // has to keep the background page from being unloaded underneath it.
+  holdOpen();
   try {
-    return await attempt();
-  } catch (err) {
-    if (signal?.aborted || !isTransient(err)) throw err;
-    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-    if (signal?.aborted) throw err;
-    return await attempt();
+    try {
+      return await attempt();
+    } catch (err) {
+      if (signal?.aborted || !isTransient(err)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      if (signal?.aborted) throw err;
+      return await attempt();
+    }
+  } finally {
+    releaseHold();
   }
 }
 
