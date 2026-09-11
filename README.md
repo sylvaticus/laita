@@ -237,7 +237,41 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | *"the background page did not answer"* | Firefox unloaded the extension's background page. Long requests hold it open, so if you see this, reload the tab and report it. |
 | Nothing happens at all | The site may be disabled (check the toolbar popup), the field may be too short, or it may look like a password field. |
 | Highlights sit slightly off | Report it — the field probably uses a layout the mirror does not yet copy. |
-| Checks feel slow | Lower *maximum chunk size*, turn off the *rephrase* category, or use a smaller model. The first check after an idle period also pays for reloading the model. |
+| Checks feel slow | **Check your laptop's power profile first** — see [everything is slow](#everything-is-slow). Otherwise: lower *maximum chunk size*, turn off the *rephrase* category, or use a smaller model. The first check after an idle period also pays for reloading the model. |
+
+### Everything is slow
+
+On a laptop, check the power profile before anything else. Measured on one machine with
+an RTX 2000 Ada, the same model and the same 149-word request:
+
+| Profile | GPU clock under load | Power | Generation | Request |
+| --- | --- | --- | --- | --- |
+| `power-saver` | 210 MHz | 1.9 W | 1.8 tok/s | 86 s |
+| `balanced` | 480–615 MHz | 30 W | 20.1 tok/s | 8.2 s |
+| `performance` | 930–1155 MHz | 35 W | 30.2 tok/s | 5.3 s |
+
+Seventeen times, from one setting. `power-saver` pins the dGPU to its floor even on mains
+power, and the symptom is not "a bit slow" — it is checks that run for a minute and time
+out, which looks like a broken extension.
+
+```bash
+powerprofilesctl get                 # what you are on
+powerprofilesctl set performance
+nvidia-smi --query-gpu=utilization.gpu,clocks.sm,power.draw --format=csv -l 1
+```
+
+Run that last one *while a check is happening*. At idle every GPU sits at its floor, so an
+idle reading tells you nothing. If the clock stays near the floor at 100% utilisation, the
+GPU is being clamped. `nvidia-smi -q -d PERFORMANCE` names the reason; `SW Power Cap`
+while power draw sits exactly at the limit is normal and just means the card is at its
+designed TGP.
+
+Anything else competing for the machine matters too, because a laptop shares a power and
+thermal budget between CPU and GPU. A runaway process pinning a couple of cores costs GPU
+clocks directly.
+
+Rough guide once the GPU is running properly: **a paragraph is a few seconds.** If a
+paragraph takes half a minute, something is wrong outside the extension.
 
 ### Sharing Ollama with other apps
 
