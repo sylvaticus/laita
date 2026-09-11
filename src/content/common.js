@@ -10,15 +10,65 @@ var LAS = {
   active: false
 };
 
+/** Failures that mean "nobody was listening", rather than "the handler said no". */
+const NO_RECEIVER =
+  /Receiving end does not exist|Could not establish connection|Message manager disconnected|Extension context invalidated|dead object/i;
+
+/**
+ * Has this content script outlived the extension that injected it?
+ *
+ * Reloading the extension - in about:debugging, or on an update - leaves the scripts
+ * already running in open tabs attached to an extension context that no longer exists.
+ * They look alive but can never reach a background page again, and the only cure is
+ * reloading the page.
+ */
+LAS.isOrphaned = function () {
+  try {
+    return !browser.runtime?.id;
+  } catch {
+    return true;                 // the whole `browser` object died with its context
+  }
+};
+
+/**
+ * Why a message could not be delivered: "orphaned" is terminal, "starting" is worth one
+ * more try, anything else is a real failure in the handler.
+ */
+LAS.sendFailureKind = function (message, orphaned) {
+  if (orphaned) return "orphaned";
+  return NO_RECEIVER.test(String(message)) ? "starting" : "other";
+};
+
 /**
  * null means the message never reached the background page - a different failure from
  * anything Ollama might say, so the reason is kept for the message shown to the user.
+ *
+ * The background is an event page, so it may be asleep when a message arrives. Firefox
+ * normally wakes it, but a message landing in the middle of that can still be refused,
+ * and a single short retry covers it. An orphaned script is not retried: it will never
+ * succeed, and waiting only delays telling the user to reload the page.
  */
-LAS.send = (msg) =>
-  browser.runtime.sendMessage(msg).catch((err) => {
-    LAS.lastSendError = String(err?.message || err);
-    return null;
-  });
+LAS.sendFailure = function () {
+  return LAS.isOrphaned()
+    ? "Local AI Spell Checker was reloaded or updated, so this page is still running the old copy. " +
+      "Reload the page to reconnect it."
+    : "Local AI Spell Checker's background page did not answer" +
+      (LAS.lastSendError ? ` (${LAS.lastSendError})` : "") +
+      ". Reload the page and try again.";
+};
+
+LAS.send = async function (msg) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await browser.runtime.sendMessage(msg);
+    } catch (err) {
+      LAS.lastSendError = String(err?.message || err);
+      const kind = LAS.sendFailureKind(LAS.lastSendError, LAS.isOrphaned());
+      if (attempt > 0 || kind !== "starting") return null;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+};
 
 LAS.log = (...args) => {
   if (LAS.settings?.debug) console.log("%c[locaispell]", "color:#3b82f6", ...args);

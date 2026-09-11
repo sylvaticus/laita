@@ -68,7 +68,12 @@ than a Go error string.
 
 **`null` from `LAS.send` means the message never reached the background page**, which is a
 different failure from anything Ollama said, and must not be reported as "could not reach
-the model". The reason is kept in `LAS.lastSendError`.
+the model". Two causes hide behind the same "Receiving end does not exist", and
+`sendFailureKind` separates them: the background is an event page that may still be
+waking, which one 250 ms retry covers; or the content script is *orphaned*, left behind in
+an open tab by reloading the extension, in which case no retry will ever work and the user
+must be told to reload the page. `LAS.isOrphaned` reads `browser.runtime.id`, which is
+gone in an orphan. Never retry an orphan - it only delays the one instruction that helps.
 
 **A per-site override beats the allowlist/denylist.** `siteOverrides` in
 `common/settings.js` is checked first by `siteAllowed`, and is what the context menu,

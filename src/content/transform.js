@@ -257,12 +257,7 @@ async function run(instruction) {
 
   state.reqId = null;
   if (!res?.ok) {
-    renderError(
-      res?.error ||
-        "Local AI Spell Checker's background page did not answer" +
-          (LAS.lastSendError ? ` (${LAS.lastSendError})` : "") +
-          ". Reload the page and try again."
-    );
+    renderError(res?.error || LAS.sendFailure());
     return;
   }
   state.output = res.output;
