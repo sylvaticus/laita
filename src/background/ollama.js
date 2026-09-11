@@ -90,6 +90,29 @@ export function buildSystemPrompt(settings, lang) {
   return lines.join("\n");
 }
 
+/**
+ * The options sent with every request.
+ *
+ * `num_ctx` is deliberately omitted unless the user pinned one: it is a *runner* option,
+ * so Ollama treats the same model at two context sizes as two things to load. Leaving it
+ * out means sharing whatever runner is already resident instead of evicting it. Whatever
+ * this returns must be identical for proofreading and transforming, or the extension
+ * would fight itself the same way.
+ */
+export function runnerOptions(settings) {
+  const options = { temperature: Number(settings.temperature) || 0 };
+  const pinned = Number(settings.numCtx) || 0;
+  if (pinned > 0) options.num_ctx = pinned;
+  return options;
+}
+
+/** Rough token cost of transforming `textLength` characters: the fragment, then its
+ *  rewrite, plus the prompt. Only used to refuse a transform that cannot fit a pinned
+ *  context, rather than let the model silently truncate it. */
+export function estimateTransformTokens(textLength) {
+  return Math.ceil((textLength / 3) * 2) + 400;
+}
+
 export function buildUserPrompt(text, lang) {
   return (
     `Proofread this ${languageName(lang)} text:\n` +
@@ -109,10 +132,7 @@ export async function requestIssues({ text, lang, settings, signal }) {
     think: settings.think ? undefined : false,
     format: RESPONSE_SCHEMA,
     keep_alive: settings.keepAlive,
-    options: {
-      temperature: Number(settings.temperature) || 0,
-      num_ctx: Number(settings.numCtx) || 4096
-    },
+    options: runnerOptions(settings),
     messages: [
       { role: "system", content: buildSystemPrompt(settings, lang) },
       { role: "user", content: buildUserPrompt(text, lang) }
@@ -293,17 +313,6 @@ export function buildTransformUserPrompt(text) {
   return `<<<TEXT\n${text}\nTEXT>>>`;
 }
 
-/**
- * A transform emits roughly as much text as it consumes, and both have to fit next to the
- * prompt. The proofreading context window is sized for a single paragraph, so widen it for
- * long selections rather than letting the model silently truncate its own answer.
- */
-export function transformNumCtx(textLength, configured) {
-  const base = Number(configured) || 4096;
-  const needed = Math.ceil((textLength / 3) * 2) + 800;
-  return Math.max(base, Math.min(needed, 32768));
-}
-
 const QUOTE_PAIRS = { '"': '"', "'": "'", "«": "»", "“": "”" };
 
 /** The quote character a string is wrapped in, if the whole string is wrapped in one. */
@@ -347,10 +356,7 @@ export async function requestTransform({ text, instruction, lang, settings, sign
     stream: false,
     think: settings.think ? undefined : false,
     keep_alive: settings.keepAlive,
-    options: {
-      temperature: Number(settings.temperature) || 0,
-      num_ctx: transformNumCtx(text.length, settings.numCtx)
-    },
+    options: runnerOptions(settings),
     messages: [
       { role: "system", content: buildTransformSystemPrompt(settings, lang, instruction) },
       { role: "user", content: buildTransformUserPrompt(text) }

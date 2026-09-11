@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import {
   cleanTransformOutput,
-  transformNumCtx,
+  runnerOptions,
+  estimateTransformTokens,
   buildTransformSystemPrompt
 } from "../../src/background/ollama.js";
 
@@ -36,13 +37,25 @@ eq("preserves internal newlines", cleanTransformOutput("- one\n- two"), "- one\n
 eq("empty stays empty", cleanTransformOutput(""), "");
 eq("null stays empty", cleanTransformOutput(null), "");
 
-// ---------------------------------------------------------------- transformNumCtx
+// ---------------------------------------------------------------- runnerOptions
+// num_ctx is a *runner* option: naming one makes Ollama load a separate copy of the
+// model rather than reuse the resident one. So it must be absent unless asked for, and
+// identical between proofreading and transforming.
 
-eq("short text keeps the configured window", transformNumCtx(200, 4096), 4096);
-eq("long text widens it", transformNumCtx(30000, 4096), 20800);
-eq("never past the cap", transformNumCtx(500000, 4096), 32768);
-eq("never below the configured value", transformNumCtx(10, 8192), 8192);
-eq("bad config falls back", transformNumCtx(10, undefined), 4096);
+eq("no context pinned means none is sent", runnerOptions({ temperature: 0, numCtx: 0 }), { temperature: 0 });
+eq("missing setting means none is sent", runnerOptions({ temperature: 0 }), { temperature: 0 });
+eq("a pinned context is sent", runnerOptions({ temperature: 0, numCtx: 8192 }), { temperature: 0, num_ctx: 8192 });
+eq("a pinned string is honoured", runnerOptions({ temperature: 0, numCtx: "8192" }), { temperature: 0, num_ctx: 8192 });
+eq("nonsense is treated as unpinned", runnerOptions({ temperature: 0, numCtx: "auto" }), { temperature: 0 });
+eq("a negative context is treated as unpinned", runnerOptions({ temperature: 0, numCtx: -5 }), { temperature: 0 });
+eq("temperature still travels", runnerOptions({ temperature: 0.7, numCtx: 0 }), { temperature: 0.7 });
+
+// ---------------------------------------------------------------- estimateTransformTokens
+
+eq("a short selection is cheap", estimateTransformTokens(300) < 1000, true);
+eq("the estimate counts the rewrite too", estimateTransformTokens(3000) > 2 * (3000 / 3), true);
+eq("a maximum-size selection needs a real window", estimateTransformTokens(12000) > 8000, true);
+eq("it fits a 16k window", estimateTransformTokens(12000) < 16384, true);
 
 // ---------------------------------------------------------------- the prompt
 

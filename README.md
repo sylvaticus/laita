@@ -201,7 +201,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | Ollama endpoint | `http://localhost:11434` | |
 | Model | `qwen3.5:9b` | The field autocompletes from your installed models. |
 | Temperature | `0` | Keep at 0 for repeatable corrections. |
-| Context window | `4096` | Per request; raise only for very long chunks. |
+| Context window (tokens) | `0` | `0` follows Ollama's own setting. Pinning a different number makes Ollama unload another app's model and load a second copy of the same weights. See [sharing Ollama](#sharing-ollama-with-other-apps). |
 | Parallel requests | `1` | Raise only if you have set `OLLAMA_NUM_PARALLEL` higher. Ollama serves one request at a time by default, so extra ones just queue — and a queued request's timeout is already running. |
 | Keep model loaded for | `10m` | Avoids a slow reload on every check. |
 | Allow the model to "think" | off | Reasoning traces make checks several times slower. |
@@ -233,6 +233,41 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | Nothing happens at all | The site may be disabled (check the toolbar popup), the field may be too short, or it may look like a password field. |
 | Highlights sit slightly off | Report it — the field probably uses a layout the mirror does not yet copy. |
 | Checks feel slow | Lower *maximum chunk size*, turn off the *rephrase* category, or use a smaller model. The first check after an idle period also pays for reloading the model. |
+
+### Sharing Ollama with other apps
+
+Ollama identifies a loaded model by its weights **and its runtime options**. Ask for the
+same model with a different `num_ctx` and it does not reuse what is resident: it unloads
+that runner and starts a second one. On a machine where the model only just fits, that
+unload-and-reload is where load failures come from.
+
+So if you also use Open WebUI, or anything else on the same Ollama, the context window
+must agree everywhere. The extension therefore sends **no** context size by default and
+inherits whatever the server is set to. Set it once, on the server:
+
+```bash
+# /etc/systemd/system/ollama.service.d/override.conf
+Environment="OLLAMA_CONTEXT_LENGTH=16384"
+```
+
+and leave *Context window* at `0` here. `ollama ps` should then stay put when you switch
+between apps — if the `CONTEXT` column changes, or `UNTIL` says `Stopping...`, something
+is still asking for its own size.
+
+Pin a number only to override the server deliberately. If you do, a transform bigger than
+that window is refused rather than silently truncated.
+
+Two related settings work the same way — a mismatch costs a reload:
+
+| | Where to set it |
+| --- | --- |
+| Context length | `OLLAMA_CONTEXT_LENGTH` on the server |
+| How long the model stays loaded | `OLLAMA_KEEP_ALIVE=-1`, plus *keep model loaded for* here, since a value sent with a request overrides the server's |
+| Only one model resident | `OLLAMA_MAX_LOADED_MODELS=1` |
+
+`think` and `temperature` are *request* options, not runner options, so those never cause
+a reload. A model made with `ollama create` is a different model and does get its own
+runner, even when the weights on disk are shared.
 
 ### Errors that come and go
 

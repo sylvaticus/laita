@@ -5,7 +5,12 @@ export const DEFAULTS = {
   endpoint: "http://localhost:11434",
   model: "qwen3.5:9b",
   temperature: 0,
-  numCtx: 4096,
+  // 0 = send no num_ctx and inherit whatever Ollama is configured for. Ollama keys a
+  // loaded model by its runtime options, so naming a context size here that differs from
+  // another client's evicts that client's runner and loads a second copy of the same
+  // weights - which on a card that only just fits the model is where load failures come
+  // from. Pin a number only to deliberately override the server.
+  numCtx: 0,
   think: false,            // disable "thinking" on reasoning models: much faster
   keepAlive: "10m",        // keep the model resident between checks
   requestTimeoutMs: 90000,

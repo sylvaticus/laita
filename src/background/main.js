@@ -8,7 +8,8 @@
 
 import { getSettings, setSettings, siteAllowed, DEFAULTS } from "../common/settings.js";
 import {
-  requestIssues, requestTransform, probe, describeError, isTransient, PROMPT_VERSION
+  requestIssues, requestTransform, probe, describeError, isTransient,
+  estimateTransformTokens, PROMPT_VERSION
 } from "./ollama.js";
 import { anchorIssues, hash } from "./anchor.js";
 
@@ -179,6 +180,21 @@ async function transform({ text, instruction, lang, reqId }) {
   const settings = await getSettings();
   const controller = new AbortController();
   if (reqId != null) transforms.set(reqId, controller);
+  const pinned = Number(settings.numCtx) || 0;
+  const needed = estimateTransformTokens(text.length);
+  if (pinned > 0 && needed > pinned) {
+    // Widening the window for this one request would load a second copy of the model, so
+    // say so rather than quietly returning a truncated rewrite.
+    return {
+      ok: false,
+      kind: "context",
+      error:
+        `This selection needs roughly ${needed} tokens to rewrite, more than the ${pinned} ` +
+        `context window pinned in the options. Select less, raise the context window, or ` +
+        `set it to 0 to follow Ollama's own setting.`
+    };
+  }
+
   const timer = setTimeout(() => controller.abort(), settings.requestTimeoutMs);
   try {
     await rememberInstruction(instruction);

@@ -54,6 +54,16 @@ the selected fragment and is not cached, queued or fingerprinted. The one thing 
 is the adapter, deliberately: `transform.js` reuses the instance `main.js` is driving
 (`LAS.getAdapter()`) rather than building a second layout mirror for the same `<textarea>`.
 
+**The extension never names a `num_ctx` unless the user pinned one.** Ollama keys a
+loaded model by its runtime options, so asking for the same model at a different context
+size evicts whatever runner is resident and loads a second copy of the same weights -
+which on a card that only just fits the model is a load failure waiting to happen, and
+makes the extension impossible to run alongside Open WebUI or anything else. `runnerOptions`
+is the single place that decides this, and proofreading and transforming must both use it:
+a per-request context size, however well meant, defeats the whole point. An earlier
+`transformNumCtx` widened the window for long selections and was removed for exactly that
+reason; an oversized transform against a pinned window is now refused instead.
+
 **A failed request is retried exactly once, and only when retrying can help.**
 `isTransient` in `ollama.js` says which: 5xx and dropped connections yes; 403, 404, a
 parse failure and our own aborts no. This exists because Ollama returns 500 when its model

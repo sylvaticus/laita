@@ -35,7 +35,11 @@
       </div>
       <div class="row">
         <label for="numCtx">Context window (tokens)</label>
-        <input id="numCtx" type="number" min="1024" max="131072" step="512">
+        <input id="numCtx" type="number" min="0" max="131072" step="512" placeholder="0">
+        <small><b>0</b> follows Ollama's own setting, and is what you want: naming a
+        different size here makes Ollama unload whatever another app (Open WebUI, say) has
+        running and load a second copy of the same model. Pin a number only to override
+        the server on purpose.</small>
       </div>
       <div class="row">
         <label for="concurrency">Parallel requests</label>
