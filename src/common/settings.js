@@ -9,7 +9,12 @@ export const DEFAULTS = {
   think: false,            // disable "thinking" on reasoning models: much faster
   keepAlive: "10m",        // keep the model resident between checks
   requestTimeoutMs: 90000,
-  concurrency: 2,          // parallel requests to Ollama
+  // Ollama serialises requests unless OLLAMA_NUM_PARALLEL is raised, and its own default
+  // is 1. Sending a second chunk early therefore gains nothing and costs something: the
+  // request timeout starts when a chunk is sent, so one waiting in Ollama's queue spends
+  // the first chunk's whole duration burning its own budget. Only worth raising to match
+  // a server actually configured for more.
+  concurrency: 1,          // chunks in flight at once
 
   // --- when to check ---
   enabled: true,

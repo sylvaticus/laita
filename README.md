@@ -202,7 +202,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | Model | `qwen3.5:9b` | The field autocompletes from your installed models. |
 | Temperature | `0` | Keep at 0 for repeatable corrections. |
 | Context window | `4096` | Per request; raise only for very long chunks. |
-| Parallel requests | `2` | How many paragraphs are checked at once. |
+| Parallel requests | `1` | Raise only if you have set `OLLAMA_NUM_PARALLEL` higher. Ollama serves one request at a time by default, so extra ones just queue — and a queued request's timeout is already running. |
 | Keep model loaded for | `10m` | Avoids a slow reload on every check. |
 | Allow the model to "think" | off | Reasoning traces make checks several times slower. |
 | Trigger | automatic | Or manual only, via `Alt+Shift+C`. |

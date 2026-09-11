@@ -40,7 +40,9 @@
       <div class="row">
         <label for="concurrency">Parallel requests</label>
         <input id="concurrency" type="number" min="1" max="8" step="1">
-        <small>How many paragraphs are checked at once.</small>
+        <small>How many paragraphs are sent at once. Leave at 1 unless you have raised
+        <code>OLLAMA_NUM_PARALLEL</code>: Ollama handles one request at a time by default,
+        so the rest only sit in its queue while their timeout runs down.</small>
       </div>
       <div class="row">
         <label for="keepAlive">Keep model loaded for</label>
