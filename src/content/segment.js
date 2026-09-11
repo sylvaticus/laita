@@ -86,3 +86,23 @@ LAS.chunkText = function (text, maxChars, lang) {
   }
   return chunks;
 };
+
+/**
+ * Which chunk holds the caret, or -1 when there is no caret to work from.
+ *
+ * A caret exactly on a boundary belongs to the chunk that ends there, so typing at the
+ * end of a paragraph re-checks the paragraph being typed. A caret that lands between
+ * chunks - a blank line, the gap the paragraph splitter skipped - falls back to the
+ * nearest one before it, because clicking into the space above a paragraph should not
+ * be a dead zone where nothing is ever checked.
+ */
+LAS.chunkAtCaret = function (chunks, caret) {
+  if (caret == null || caret < 0 || !chunks.length) return -1;
+  let before = -1;
+  for (let i = 0; i < chunks.length; i++) {
+    const start = chunks[i].start;
+    if (caret >= start && caret <= start + chunks[i].text.length) return i;
+    if (start <= caret) before = i;
+  }
+  return before === -1 ? 0 : before;
+};

@@ -13,6 +13,9 @@
   let generation = 0;
   let debounceTimer = null;
   let lastCheckedText = null;
+  /** Which part of `lastCheckedText` was checked; ALL means "no need to look again". */
+  let lastCheckedRange = null;
+  const ALL = "*";
   let busyChunks = 0;
   let lastError = null;
   let currentLang = null;
@@ -91,26 +94,57 @@
       showPill();
       return;
     }
-    if (!force && text === lastCheckedText) return;
+    // Language and scope are worked out before anything is sent, because whether this
+    // check is a duplicate now depends on *which* paragraph it would look at, not just
+    // on the text. Nothing is cancelled until we know there is work to do.
+    const lang =
+      LAS.settings.language === "auto" ? await LAS.detectLanguage(text) : LAS.settings.language;
+    if (!adapter?.isAlive()) return;
 
+    const chunks = LAS.chunkText(text, LAS.settings.chunkMaxChars, lang);
+    if (!chunks.length) return;
+
+    // Scope. Opening a long document should not fire a request per paragraph before the
+    // user has touched anything, so by default only the paragraph holding the caret is
+    // checked and the rest is left until they work on it. An explicit check - the hotkey
+    // or the toolbar button - always sweeps the whole field.
+    let todo = chunks;
+    let keep = [];
+    if (!force && LAS.settings.checkScope === "caret" && chunks.length > 1) {
+      const at = LAS.chunkAtCaret(chunks, adapter.caretIn());
+      if (at === -1) {
+        // No caret to work from yet. Checking something arbitrary would be worse than
+        // waiting for the user to click or type.
+        busyChunks = 0;
+        showPill();
+        return;
+      }
+      todo = [chunks[at]];
+      // Everything already found elsewhere in the field stays on screen.
+      keep = LAS.issuesOutside(issues, todo[0].start, todo[0].start + todo[0].text.length);
+    }
+
+    const rangeKey = todo.map((c) => c.start + "+" + c.text.length).join(",");
+    const alreadyDone =
+      text === lastCheckedText && (lastCheckedRange === ALL || lastCheckedRange === rangeKey);
+    if (!force && alreadyDone) return;
+
+    currentLang = lang;
     lastCheckedText = text;
+    lastCheckedRange = force ? ALL : rangeKey;
     lastError = null;
     const gen = ++generation;
 
-    currentLang =
-      LAS.settings.language === "auto" ? await LAS.detectLanguage(text) : LAS.settings.language;
-    if (gen !== generation) return;
-
-    const chunks = LAS.chunkText(text, LAS.settings.chunkMaxChars, currentLang);
-    if (!chunks.length) return;
-
-    LAS.log("checking", chunks.length, "chunk(s), language:", currentLang, "field:", adapter.kind);
-    busyChunks = chunks.length;
-    const collected = [];
+    LAS.log(
+      "checking", todo.length, "of", chunks.length, "chunk(s), language:", currentLang,
+      "field:", adapter.kind, "scope:", force ? "forced" : LAS.settings.checkScope
+    );
+    busyChunks = todo.length;
+    const collected = [...keep];
     showPill();
 
     await Promise.all(
-      chunks.map(async (chunk) => {
+      todo.map(async (chunk) => {
         const res = await LAS.send({
           cmd: "checkChunk",
           text: chunk.text,
@@ -162,7 +196,10 @@
     LAS.send({ cmd: "cancel", clientId: LAS.clientId, gen: generation });
     busyChunks = 0;
     lastError = null;
-    if (adapter?.isAlive()) lastCheckedText = adapter.getText();
+    if (adapter?.isAlive()) {
+      lastCheckedText = adapter.getText();
+      lastCheckedRange = ALL;
+    }
     LAS.Overlay.hidePill();
     reportStatus();
   }
@@ -239,6 +276,7 @@
 
     adapter.invalidate();
     lastCheckedText = adapter.getText();
+    lastCheckedRange = ALL;
     issues = LAS.reconcile(issues, lastCheckedText);
     paint();
     reportStatus();

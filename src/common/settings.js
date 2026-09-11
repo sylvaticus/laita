@@ -28,6 +28,12 @@ export const DEFAULTS = {
   minChars: 12,            // do not touch fields shorter than this
   maxChars: 12000,         // safety cap on a single field
   chunkMaxChars: 700,      // a paragraph longer than this is split into sentence groups
+  // "caret"  - only the paragraph the caret is in, leaving the rest of a long document
+  //            alone until you work on it. Opening a 2000-word post should not queue up
+  //            twenty requests before you have typed anything.
+  // "field"  - everything, the way a spell checker sweeps a document.
+  // Alt+Shift+C and the toolbar button always sweep the whole field regardless.
+  checkScope: "caret",
 
   // --- language ---
   language: "auto",        // "auto" or an ISO code such as "en", "fr"

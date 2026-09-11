@@ -27,7 +27,16 @@
 <h2>6. a check slower than the background page's idle timeout (SLOWME)</h2>
 <textarea id="slowfield">SLOWME I have recieve your email yesterday and my colleague was very interested about it.</textarea>
 
-<h2>7. plain page text (not editable)</h2>
+<h2>7. a long document: only the paragraph under the caret is checked</h2>
+<textarea id="longfield" style="height:150px">Para one has recieve nothing of interest and is only here to take up room in the field.
+
+Para two has recieve your email yesterday and my colleague was very interested about it.
+
+Para three has recieve nothing either and exists purely to pad this document out.
+
+Para four has recieve nothing at all and is the last of the padding paragraphs here.</textarea>
+
+<h2>8. plain page text (not editable)</h2>
 <p class="plain" id="plain">Nothing here can be replaced, only copied.</p>
 
 <script>
@@ -320,6 +329,24 @@ async function step(name, fn) {
       await sleep(100);
     }
     await beacon("slow-request", {
+      decos: sh().querySelectorAll(".deco").length,
+      errorPill: !!sh()?.querySelector(".pill.err")
+    });
+  });
+
+  // ---- 13. opening a long document must not fire a request per paragraph
+  await step("caret-scope", async () => {
+    const el = $("longfield");
+    const at = el.value.indexOf("Para two") + 4;
+    el.focus();
+    el.setSelectionRange(at, at);
+    await sleep(200);
+    // the automatic path, not the forced one: Alt+Shift+C is meant to sweep everything
+    document.dispatchEvent(new CustomEvent("las-test-check-auto"));
+    for (let i = 0; i < 250 && sh().querySelectorAll(".deco").length === 0; i++) await sleep(100);
+    await sleep(2500);                        // let any further requests show up
+    await beacon("caret-scope", {
+      paragraphs: el.value.split(/\n\s*\n/).length,
       decos: sh().querySelectorAll(".deco").length,
       errorPill: !!sh()?.querySelector(".pill.err")
     });

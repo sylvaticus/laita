@@ -50,7 +50,7 @@ down, by which point the extension is gone, and without the marker that second r
 its way through every step and buries the real results:
 
 ```bash
-sed -i 's|^  // ---------------------------------------------------------------- boot|  document.documentElement.dataset.lasAlive = "1";\n  document.addEventListener("las-test-check", () => runCheck(true));\n  document.addEventListener("las-test-clear", () => LAS.send({ cmd: "clearSiteOverrides" }));\n\n  // ---------------------------------------------------------------- boot|' \
+sed -i 's|^  // ---------------------------------------------------------------- boot|  document.documentElement.dataset.lasAlive = "1";\n  document.addEventListener("las-test-check", () => runCheck(true));\n  document.addEventListener("las-test-check-auto", () => runCheck(false));\n  document.addEventListener("las-test-clear", () => LAS.send({ cmd: "clearSiteOverrides" }));\n\n  // ---------------------------------------------------------------- boot|' \
        $RUN/ext/src/content/main.js
 ```
 
@@ -127,6 +127,10 @@ Every beacon must report `true`:
 
   Neither reproduced the "Receiving end does not exist" seen in the wild; they are kept
   because they pin down two things that plausibly could have caused it and do not.
+- `caret-scope`: a four-paragraph field with the caret in the second. Exactly one
+  `/api/chat` must go out and it must contain that paragraph. Drive it with
+  `las-test-check-auto`, not `las-test-check` - the latter forces a check, and a forced
+  check is supposed to sweep the whole field.
 - `slow-request`: the one that matters most. The mock takes 45 seconds over any text
   containing `SLOWME`, longer than Firefox's 30 second background idle timeout, so the
   step fails unless something is holding the background page open. Run this against the

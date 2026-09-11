@@ -103,8 +103,12 @@ and would report success even while real checks were being refused.
 
 ## 3. Using it
 
-Click into any text box and type. Roughly 1.5 seconds after you stop, the text is checked
-and problems get a coloured wavy underline. A small translucent pill just below the field
+Click into any text box and type. Roughly 1.5 seconds after you stop, **the paragraph you
+are working in** is checked and problems get a coloured wavy underline. Paragraphs you
+visit later are checked as you reach them, and each one keeps its highlights once found —
+so opening a long post does not set off a request per paragraph before you have typed
+anything. Press **Alt+Shift+C** to check the whole field at once, or change *How much to
+check* in the options. A small translucent pill just below the field
 shows progress; click its **×** to hide it and abandon the check that is running.
 
 - **Click a highlight** to open a card with the explanation and the suggested text.
@@ -206,6 +210,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Spell Chec
 | Keep model loaded for | `10m` | Avoids a slow reload on every check. Needs a unit (`30m`, `8h`); `-1m` — or any negative value — keeps it loaded indefinitely, while a bare `-1` is rejected by Ollama. Sent with every request, so it overrides the server's `OLLAMA_KEEP_ALIVE`. |
 | Allow the model to "think" | off | Reasoning traces make checks several times slower. |
 | Trigger | automatic | Or manual only, via `Alt+Shift+C`. |
+| How much to check | the paragraph I am working in | `The whole field` checks every paragraph as soon as you focus it — one request each, which is slow on a long document. `Alt+Shift+C` and the toolbar button sweep everything either way. |
 | Typing pause | `1500 ms` | |
 | Ignore fields shorter than | `12` characters | |
 | Maximum chunk size | `700` characters | Longer paragraphs are split on sentence boundaries. |

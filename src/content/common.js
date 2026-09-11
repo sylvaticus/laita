@@ -220,6 +220,11 @@ LAS.reconcile = function (issues, text) {
   return kept;
 };
 
+/** Issues that fall entirely outside [from, to): what a scoped re-check must not discard. */
+LAS.issuesOutside = function (issues, from, to) {
+  return issues.filter((i) => i.end <= from || i.start >= to);
+};
+
 LAS.WORST = (issues) => {
   if (issues.some((i) => i.type === "error")) return "error";
   if (issues.some((i) => i.type === "style")) return "style";

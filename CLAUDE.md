@@ -64,6 +64,21 @@ a per-request context size, however well meant, defeats the whole point. An earl
 `transformNumCtx` widened the window for long selections and was removed for exactly that
 reason; an oversized transform against a pinned window is now refused instead.
 
+**An automatic check looks at one paragraph, an explicit one at the whole field.**
+`checkScope` defaults to `"caret"`, and `runCheck` then sends only the chunk
+`LAS.chunkAtCaret` points at, keeping the issues found elsewhere via `LAS.issuesOutside`.
+Without this, focusing a long document queues one request per paragraph before the user
+has typed a character, which is what made the extension unusable on a blog post. `force`
+- the hotkey and the toolbar button - deliberately ignores the scope.
+
+**The "already checked this" guard is keyed on text *and* range.** With a scoped check,
+`lastCheckedText` alone would mean clicking into a second paragraph never checks it: the
+text has not changed. `lastCheckedRange` holds the chunks that were looked at, or `ALL`
+after a full sweep and after the two places that deliberately suppress a re-check
+(`cancelCheck`, `applyIssue`). The guard also has to run *after* the scope is worked out
+and *before* `generation` is bumped, or a duplicate check would cancel the one already in
+flight.
+
 **The background page has to be held open while a request is outstanding.** Firefox
 unloads an MV3 background page after about 30 seconds without extension activity, and a
 pending `fetch()` does not count. A model slower than that gets its request killed along

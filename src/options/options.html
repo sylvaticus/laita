@@ -68,6 +68,17 @@
         <option value="manual">Only when I ask (Alt+Shift+C or the toolbar button)</option>
       </select>
     </div>
+    <div class="row">
+      <label for="checkScope">How much to check</label>
+      <select id="checkScope">
+        <option value="caret">Only the paragraph I am working in</option>
+        <option value="field">The whole field</option>
+      </select>
+      <small>Opening a long document with <i>the whole field</i> sends one request per
+      paragraph before you have typed anything — slow, and hard on the model. Paragraphs
+      you have already visited keep their highlights either way, and
+      <b>Alt+Shift+C</b> or the toolbar button always checks everything.</small>
+    </div>
     <div class="grid">
       <div class="row">
         <label for="debounceMs">Typing pause before checking (ms)</label>
