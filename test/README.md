@@ -112,6 +112,18 @@ Every beacon must report `true`:
 - `plain-text`: `offersCopyOnly` and `pageUnchanged` — a non-editable selection must never
   be written to.
 - `escape`: the panel closes; `no-selection`: it never opens.
+- `clear-overrides-then-check` and `idle-background`: both send a check into a moment
+  when the background might not answer - straight after a storage write that broadcasts
+  to every tab, and after Firefox has unloaded the event page. Both must paint highlights
+  with no error pill. The second needs the idle timeout lowered, or the wait would be
+  minutes:
+
+  ```
+  --pref extensions.background.idle.timeout=4000
+  ```
+
+  Neither reproduced the "Receiving end does not exist" seen in the wild; they are kept
+  because they pin down two things that plausibly could have caused it and do not.
 - `retry-after-500`: the mock fails the first request whose text contains `RETRYME` with
   the 500 Ollama returns when its runner will not start, then succeeds. Highlights must
   still appear and `noErrorPill` must hold: one failed model load is meant to be invisible.

@@ -21,7 +21,10 @@
 <h2>4. a check that Ollama fails once (RETRYME)</h2>
 <textarea id="retryfield">RETRYME I have recieve your email yesterday and my colleague was very interested about it.</textarea>
 
-<h2>5. plain page text (not editable)</h2>
+<h2>5. a check after the background page has gone to sleep</h2>
+<textarea id="idlefield">I have recieve your email yesterday and my colleague was very interested about it.</textarea>
+
+<h2>6. plain page text (not editable)</h2>
 <p class="plain" id="plain">Nothing here can be replaced, only copied.</p>
 
 <script>
@@ -206,8 +209,12 @@ async function step(name, fn) {
       appeared: !!pill,
       says: (pill?.textContent || "").replace("\u00d7", "").trim(),
       hasClose: !!x,
-      /* the whole point: it must not sit on top of the words being typed */
-      clearOfTheText: pr ? pr.top >= fr.bottom - 1 : false,
+      /* the whole point: it must not sit on top of the words being typed. Below the
+         field is the usual answer, above it when the field runs to the bottom of the
+         window - so the test is non-overlap, not "below". */
+      clearOfTheText: pr
+        ? !(pr.left < fr.right && pr.right > fr.left && pr.top < fr.bottom && pr.bottom > fr.top)
+        : false,
       translucent: pill ? Number(getComputedStyle(pill).opacity) < 1 : false,
       clickThrough: pill ? getComputedStyle(pill).pointerEvents === "none" : false,
       closeIsClickable: x ? getComputedStyle(x).pointerEvents === "auto" : false
@@ -239,6 +246,49 @@ async function step(name, fn) {
     await beacon("retry-after-500", {
       decos: sh().querySelectorAll(".deco").length,
       noErrorPill: !sh()?.querySelector(".pill.err")
+    });
+  });
+
+  // ---- 10. reproduce: "Clear per-site pauses" then a check
+  // The button writes storage, which makes the background broadcast settingsChanged to
+  // every tab; each content script answers by asking for its config again. The question
+  // is whether a check sent into that churn still gets through.
+  await step("clear-overrides-then-check", async () => {
+    const el = $("pillfield");
+    el.focus();
+    await sleep(300);
+    document.dispatchEvent(new CustomEvent("las-test-clear"));
+    await sleep(250);
+    document.dispatchEvent(new CustomEvent("las-test-check"));
+    for (let i = 0; i < 200; i++) {
+      if (sh().querySelectorAll(".deco").length || sh()?.querySelector(".pill.err")) break;
+      await sleep(100);
+    }
+    await beacon("clear-overrides-then-check", {
+      decos: sh().querySelectorAll(".deco").length,
+      errorPill: !!sh()?.querySelector(".pill.err"),
+      pillSays: (sh()?.querySelector(".pill.on")?.textContent || "").replace(/[\u00d7?]/g, "").trim()
+    });
+  });
+
+  // ---- 11. the background is an event page: Firefox unloads it when idle. A check sent
+  // after that has to wake it, and must not surface as an error. Run with
+  // extensions.background.idle.timeout lowered so the wait is seconds, not minutes.
+  await step("idle-background", async () => {
+    const el = $("idlefield");
+    el.focus();
+    await sleep(8000);                       // outlast the profile's idle timeout
+    const before = sh().querySelectorAll(".deco").length;
+    document.dispatchEvent(new CustomEvent("las-test-check"));
+    for (let i = 0; i < 250; i++) {
+      if (sh().querySelectorAll(".deco").length > before || sh()?.querySelector(".pill.err")) break;
+      await sleep(100);
+    }
+    await beacon("idle-background", {
+      decosBefore: before,
+      decos: sh().querySelectorAll(".deco").length,
+      errorPill: !!sh()?.querySelector(".pill.err"),
+      pillSays: (sh()?.querySelector(".pill.on")?.textContent || "").replace(/[\u00d7?]/g, "").trim()
     });
   });
 
