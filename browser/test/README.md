@@ -131,6 +131,12 @@ Every beacon must report `true`:
   `/api/chat` must go out and it must contain that paragraph. Drive it with
   `laita-test-check-auto`, not `laita-test-check` - the latter forces a check, and a forced
   check is supposed to sweep the whole field.
+- `over-cap-field` and `over-cap-forced`: a field of ~16800 characters, well past the
+  12000 `maxChars` default. With the caret in a paragraph it must still be checked, with
+  no error pill - the cap counts what a check *sends*, not how long the document is. The
+  same field swept explicitly must be refused, with a message that says a paragraph still
+  works. This regressed once: the cap was tested against the whole field before the scope
+  was decided, so a long post was rejected outright.
 - `slow-request`: the one that matters most. The mock takes 45 seconds over any text
   containing `SLOWME`, longer than Firefox's 30 second background idle timeout, so the
   step fails unless something is holding the background page open. Run this against the

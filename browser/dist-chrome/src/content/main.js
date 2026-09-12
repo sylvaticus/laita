@@ -89,11 +89,6 @@
       reportStatus();
       return;
     }
-    if (text.length > LAITA.settings.maxChars) {
-      lastError = `This field holds ${text.length} characters, over the ${LAITA.settings.maxChars} limit.`;
-      showPill();
-      return;
-    }
     // Language and scope are worked out before anything is sent, because whether this
     // check is a duplicate now depends on *which* paragraph it would look at, not just
     // on the text. Nothing is cancelled until we know there is work to do.
@@ -122,6 +117,20 @@
       todo = [chunks[at]];
       // Everything already found elsewhere in the field stays on screen.
       keep = LAITA.issuesOutside(issues, todo[0].start, todo[0].start + todo[0].text.length);
+    }
+
+    // The cap is on what this check would send, not on how long the document is. A
+    // 20-page post is fine when only the paragraph under the caret goes out; it is a
+    // whole-field sweep of one that is not.
+    const sending = todo.reduce((n, c) => n + c.text.length, 0);
+    if (sending > LAITA.settings.maxChars) {
+      lastError =
+        `Checking all of this field would send ${sending} characters, over the ` +
+        `${LAITA.settings.maxChars} limit in the options. Typing in a paragraph still ` +
+        `checks that paragraph.`;
+      busyChunks = 0;
+      showPill();
+      return;
     }
 
     const rangeKey = todo.map((c) => c.start + "+" + c.text.length).join(",");

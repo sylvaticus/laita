@@ -26,7 +26,10 @@ export const DEFAULTS = {
   triggerMode: "auto",     // "auto" (debounced while typing) | "manual" (hotkey / button only)
   debounceMs: 1500,
   minChars: 12,            // do not touch fields shorter than this
-  maxChars: 12000,         // safety cap on a single field
+  // Cap on how much one check may send, not on how long a field may be: with the
+  // default caret scope a single paragraph goes out, so a long document is fine and only
+  // an explicit whole-field sweep can exceed this. Also caps a single transform.
+  maxChars: 12000,
   chunkMaxChars: 700,      // a paragraph longer than this is split into sentence groups
   // "caret"  - only the paragraph the caret is in, leaving the rest of a long document
   //            alone until you work on it. Opening a 2000-word post should not queue up

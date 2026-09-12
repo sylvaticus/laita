@@ -36,7 +36,19 @@ Para three has recieve nothing either and exists purely to pad this document out
 
 Para four has recieve nothing at all and is the last of the padding paragraphs here.</textarea>
 
-<h2>8. plain page text (not editable)</h2>
+<h2>8. a field longer than the maxChars cap</h2>
+<textarea id="hugefield" style="height:80px"></textarea>
+<script>
+(function () {
+  const filler = "This sentence is padding so that the field comfortably exceeds the twelve " +
+                 "thousand character cap that used to reject the whole document outright. ";
+  let t = "I have recieve your email yesterday and my colleague was very interested about it.\n\n";
+  while (t.length < 16800) t += filler.repeat(3) + "\n\n";
+  document.getElementById("hugefield").value = t;
+})();
+</script>
+
+<h2>9. plain page text (not editable)</h2>
 <p class="plain" id="plain">Nothing here can be replaced, only copied.</p>
 
 <script>
@@ -350,6 +362,43 @@ async function step(name, fn) {
       decos: sh().querySelectorAll(".deco").length,
       errorPill: !!sh()?.querySelector(".pill.err")
     });
+  });
+
+  // ---- 14. a document over the cap must still check the paragraph you are in.
+  // The cap used to be measured against the whole field before the scope was worked
+  // out, so a long post was refused outright even though one paragraph would be sent.
+  await step("over-cap-field", async () => {
+    const el = $("hugefield");
+    const at = el.value.indexOf("recieve");
+    el.focus();
+    el.setSelectionRange(at, at);
+    await sleep(200);
+    const before = sh().querySelectorAll(".deco").length;
+    document.dispatchEvent(new CustomEvent("laita-test-check-auto"));
+    for (let i = 0; i < 250; i++) {
+      if (sh().querySelectorAll(".deco").length > before || sh()?.querySelector(".pill.err")) break;
+      await sleep(100);
+    }
+    await beacon("over-cap-field", {
+      fieldChars: el.value.length,
+      decos: sh().querySelectorAll(".deco").length,
+      errorPill: !!sh()?.querySelector(".pill.err")
+    });
+  });
+
+  // ...but an explicit whole-field sweep of the same field must still refuse, and say so.
+  await step("over-cap-forced", async () => {
+    const el = $("hugefield");
+    el.focus();
+    await sleep(200);
+    document.dispatchEvent(new CustomEvent("laita-test-check"));
+    for (let i = 0; i < 60 && !sh()?.querySelector(".pill.err"); i++) await sleep(100);
+    const pill = sh()?.querySelector(".pill.err");
+    let detail = "";
+    if (pill) { pill.querySelector(".pillx")?.previousSibling; pill.querySelectorAll("button")[0]?.click(); }
+    await sleep(200);
+    detail = (sh()?.querySelector(".card.on")?.textContent || "").replace(/\s+/g, " ").trim();
+    await beacon("over-cap-forced", { refused: !!pill, saysWhy: detail.slice(0, 120) });
   });
 
   await beacon("done", {});
