@@ -61,8 +61,9 @@ background module, but the service-worker *lifetime* is the open question: Chrom
 terminates an idle worker after 30 seconds, and whether a 20-second `setInterval` keeps
 it alive the way it does a Firefox event page needs a human to check with a slow model.
 If it does not, `chrome.alarms` (30-second minimum) or a port held open from the content
-script are the alternatives. The `alarms` permission is already in the Chrome manifest so
-that fix needs no permission change.
+script are the alternatives. `alarms` was declared in the Chrome manifest in advance and
+has been removed again: an unused permission is one more thing to justify to a reviewer,
+and adding it back later is a one-line change.
 
 ### VS Code — shares the core, rebuilds the surface
 
