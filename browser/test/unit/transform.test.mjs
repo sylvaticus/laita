@@ -3,7 +3,8 @@ import {
   cleanTransformOutput,
   runnerOptions,
   estimateTransformTokens,
-  buildTransformSystemPrompt
+  buildTransformSystemPrompt,
+  transformTimeoutMs
 } from "../../src/background/ollama.js";
 
 // common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
@@ -79,6 +80,21 @@ eq("nothing when the fragment ends in a newline", LAITA.appendSeparator("hello\n
 eq("blank line for a multi-line fragment", LAITA.appendSeparator("a\nb", "c"), "\n\n");
 eq("blank line for a multi-line addition", LAITA.appendSeparator("a", "b\nc"), "\n\n");
 eq("nothing to append", LAITA.appendSeparator("hello", ""), "");
+
+// ---------------------------------------------------------------- transformTimeoutMs
+// A flat timeout is right for a paragraph and unreachable for ten pages: measured, a
+// 10269-character selection needed 205s against a 90s default and could never succeed.
+
+const S = { requestTimeoutMs: 90000 };
+const secs = (chars) => transformTimeoutMs(chars, S) / 1000;
+
+eq("a paragraph gets about the configured floor", secs(400) <= 110, true);
+eq("never below the configured timeout", transformTimeoutMs(0, S) >= 90000, true);
+eq("the measured ten-page case now fits", secs(10269) > 205, true);
+eq("and is not absurdly generous either", secs(10269) < 900, true);
+eq("grows with the selection", secs(8000) > secs(2000), true);
+eq("respects a raised floor", transformTimeoutMs(400, { requestTimeoutMs: 300000 }) >= 300000, true);
+eq("copes with a missing setting", transformTimeoutMs(1000, undefined) > 0, true);
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

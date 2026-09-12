@@ -106,6 +106,27 @@ export function runnerOptions(settings) {
   return options;
 }
 
+/**
+ * How long to allow a transform, in milliseconds.
+ *
+ * A transform emits roughly as much text as it consumes, so the work scales with the
+ * selection while a flat timeout does not: measured on one machine, a paragraph took 4
+ * seconds and ten pages took 205, against a 90 second default that could never be met
+ * however many times the user retried. Generation also slows as the output grows - 31
+ * tokens/second for a short answer, 10 for a long one - so the allowance is per expected
+ * output token, at a rate pessimistic enough to cover a slower machine.
+ *
+ * The configured timeout stays the floor: it is what covers loading the model and
+ * processing the prompt, neither of which scales the same way.
+ */
+const TRANSFORM_TOKENS_PER_SEC = 5;
+
+export function transformTimeoutMs(textLength, settings) {
+  const floor = Number(settings?.requestTimeoutMs) || 90000;
+  const outputTokens = Math.ceil(Number(textLength) / 4);   // English averages ~4 chars/token
+  return floor + Math.ceil(outputTokens / TRANSFORM_TOKENS_PER_SEC) * 1000;
+}
+
 /** Rough token cost of transforming `textLength` characters: the fragment, then its
  *  rewrite, plus the prompt. Only used to refuse a transform that cannot fit a pinned
  *  context, rather than let the model silently truncate it. */

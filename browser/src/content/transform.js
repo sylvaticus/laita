@@ -167,6 +167,19 @@ function renderAsk() {
   input.focus();
 }
 
+/**
+ * A rewrite emits about as much text as it consumes, so a long selection takes minutes,
+ * not seconds. Saying so beats a bare spinner that looks indistinguishable from a hang -
+ * measured on one machine, a paragraph took 4 seconds and ten pages took over three
+ * minutes.
+ */
+function busyHint(chars) {
+  if (chars < 1500) return null;
+  const minutes = Math.max(1, Math.round(chars / 4 / 10 / 60));   // ~10 tokens/s on a long answer
+  return `A selection this long takes a few minutes — roughly ${minutes} ` +
+         `${minutes === 1 ? "minute" : "minutes"} on a typical GPU. Cancel is safe.`;
+}
+
 function renderBusy() {
   const p = panel();
   p.replaceChildren();
@@ -177,7 +190,9 @@ function renderBusy() {
   body.appendChild(busy);
   const actions = el("div", "actions");
   actions.appendChild(button("Cancel", "", () => close()));
+  const hint = busyHint(state.selected.length);
   p.append(head(state.instruction), body, actions);
+  if (hint) p.appendChild(el("div", "hint", hint));
   show(p);
 }
 

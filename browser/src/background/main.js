@@ -11,7 +11,7 @@ import { menus, canRefreshMenus } from "../common/compat.js";
 import { getSettings, setSettings, siteAllowed, DEFAULTS } from "../common/settings.js";
 import {
   requestIssues, requestTransform, probe, describeError, isTransient,
-  estimateTransformTokens, PROMPT_VERSION
+  estimateTransformTokens, transformTimeoutMs, PROMPT_VERSION
 } from "./ollama.js";
 import { anchorIssues, hash } from "./anchor.js";
 
@@ -238,7 +238,9 @@ async function transform({ text, instruction, lang, reqId }) {
     };
   }
 
-  const timer = setTimeout(() => controller.abort(), settings.requestTimeoutMs);
+  // Not settings.requestTimeoutMs: that is sized for a paragraph, and a transform's
+  // work scales with the selection.
+  const timer = setTimeout(() => controller.abort(), transformTimeoutMs(text.length, settings));
   try {
     await rememberInstruction(instruction);
     const output = await withRetry(
