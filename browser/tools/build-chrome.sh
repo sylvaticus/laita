@@ -12,7 +12,6 @@ OUT=dist-chrome
 rm -rf "$OUT"
 mkdir -p "$OUT"
 cp -r src icons LICENSE "$OUT/"
-rm -f "$OUT/icons/icon.svg"          # Chrome does not accept SVG icons
 cp manifest.chrome.json "$OUT/manifest.json"
 
 # Fail loudly rather than shipping a manifest that points at a missing file.

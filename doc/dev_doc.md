@@ -73,6 +73,18 @@ manifest be named `manifest.json`, and that name is taken by the Firefox one. Th
 copies files and swaps the manifest; it transforms no code, so the JavaScript Chrome runs
 is byte-identical to `src/`.
 
+**`dist-chrome/` is committed**, so users can download the repository and *Load unpacked*
+without running anything — Chrome refuses `.crx` files from outside the Web Store, so a
+folder is the only way to distribute before a listing exists. The usual objection to
+committing build output is drift, which `test/unit/dist-chrome.test.mjs` catches: it
+fails if any file differs from `src/`, if a source file is missing from the build, or if
+the two manifests disagree on the version. **Re-run the build script and commit the
+result whenever you change `src/` or a manifest.**
+
+The icons are generated too: `python3 tools/make-icons.py` rebuilds `icons/icon-*.png`
+from `assets/imgs/laita_logo.png`. They are committed so that a build needs neither
+Python nor Pillow.
+
 **Chrome cannot be driven from a script any more.** Since Chrome 137 the
 `--load-extension` switch is refused, and
 `--disable-features=DisableLoadExtensionCommandLineSwitch` no longer revives it on 152 —

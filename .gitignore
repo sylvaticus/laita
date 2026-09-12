@@ -1,6 +1,10 @@
 # Signed and packaged builds
 web-ext-artifacts/
-browser/dist-chrome/
+
+# browser/dist-chrome/ is deliberately NOT ignored: it is committed so that Chrome users
+# can download the repository and "Load unpacked" without running anything. It is a pure
+# copy of src/ with the Chrome manifest, and test/unit/dist-chrome.test.mjs fails if it
+# drifts out of step.
 
 # AMO / signing credentials - never commit these.
 # The JWT issuer and secret from addons.mozilla.org belong outside the repository

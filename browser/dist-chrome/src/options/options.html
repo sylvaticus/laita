@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Local AI Text Assistant — Options</title>
+<link rel="stylesheet" href="options.css">
+</head>
+<body>
+<header>
+  <h1>Local AI Text Assistant</h1>
+  <p class="sub">Local AI proofreading, powered by your own Ollama instance. No text ever leaves this machine.</p>
+</header>
+
+<main>
+  <section>
+    <h2>Model</h2>
+    <div class="row">
+      <label for="endpoint">Ollama endpoint</label>
+      <input id="endpoint" type="text" spellcheck="false" placeholder="http://localhost:11434">
+    </div>
+    <div class="row">
+      <label for="model">Model</label>
+      <div class="inline">
+        <input id="model" type="text" list="model-list" spellcheck="false" placeholder="qwen3.5:9b">
+        <datalist id="model-list"></datalist>
+        <button id="test" class="btn">Test connection</button>
+      </div>
+    </div>
+    <p id="probe" class="status"></p>
+    <div class="grid">
+      <div class="row">
+        <label for="temperature">Temperature</label>
+        <input id="temperature" type="number" min="0" max="1" step="0.1">
+        <small>0 gives the most repeatable corrections.</small>
+      </div>
+      <div class="row">
+        <label for="numCtx">Context window (tokens)</label>
+        <input id="numCtx" type="number" min="0" max="131072" step="512" placeholder="0">
+        <small><b>0</b> follows Ollama's own setting, and is what you want: naming a
+        different size here makes Ollama unload whatever another app (Open WebUI, say) has
+        running and load a second copy of the same model. Pin a number only to override
+        the server on purpose.</small>
+      </div>
+      <div class="row">
+        <label for="concurrency">Parallel requests</label>
+        <input id="concurrency" type="number" min="1" max="8" step="1">
+        <small>How many paragraphs are sent at once. Leave at 1 unless you have raised
+        <code>OLLAMA_NUM_PARALLEL</code>: Ollama handles one request at a time by default,
+        so the rest only sit in its queue while their timeout runs down.</small>
+      </div>
+      <div class="row">
+        <label for="keepAlive">Keep model loaded for</label>
+        <input id="keepAlive" type="text" spellcheck="false" placeholder="10m">
+        <small>Avoids a slow reload on every check. Needs a unit — <code>30m</code>,
+        <code>8h</code>. Use <code>-1m</code>, or any negative value, to keep the model
+        loaded indefinitely; a bare <code>-1</code> is rejected by Ollama.</small>
+      </div>
+    </div>
+    <label class="check"><input id="think" type="checkbox"> Allow the model to "think" before answering <small>(much slower; off is recommended)</small></label>
+  </section>
+
+  <section>
+    <h2>When to check</h2>
+    <div class="row">
+      <label for="triggerMode">Trigger</label>
+      <select id="triggerMode">
+        <option value="auto">Automatically, shortly after I stop typing</option>
+        <option value="manual">Only when I ask (Alt+Shift+C or the toolbar button)</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="checkScope">How much to check</label>
+      <select id="checkScope">
+        <option value="caret">Only the paragraph I am working in</option>
+        <option value="field">The whole field</option>
+      </select>
+      <small>Opening a long document with <i>the whole field</i> sends one request per
+      paragraph before you have typed anything — slow, and hard on the model. Paragraphs
+      you have already visited keep their highlights either way, and
+      <b>Alt+Shift+C</b> or the toolbar button always checks everything.</small>
+    </div>
+    <div class="grid">
+      <div class="row">
+        <label for="debounceMs">Typing pause before checking (ms)</label>
+        <input id="debounceMs" type="number" min="300" max="20000" step="100">
+      </div>
+      <div class="row">
+        <label for="minChars">Ignore fields shorter than (characters)</label>
+        <input id="minChars" type="number" min="1" max="500" step="1">
+      </div>
+      <div class="row">
+        <label for="chunkMaxChars">Maximum chunk size (characters)</label>
+        <input id="chunkMaxChars" type="number" min="120" max="4000" step="50">
+        <small>Longer paragraphs are split on sentence boundaries.</small>
+      </div>
+      <div class="row">
+        <label for="maxChars">Skip fields longer than (characters)</label>
+        <input id="maxChars" type="number" min="500" max="200000" step="500">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Language</h2>
+    <div class="row">
+      <label for="language">Text language</label>
+      <select id="language">
+        <option value="auto">Detect automatically</option>
+        <option value="en">English</option>
+        <option value="fr">French</option>
+        <option value="it">Italian</option>
+        <option value="es">Spanish</option>
+        <option value="de">German</option>
+        <option value="pt">Portuguese</option>
+        <option value="nl">Dutch</option>
+      </select>
+    </div>
+  </section>
+
+  <section>
+    <h2>Transform selected text</h2>
+    <p class="note">Select text on any page, right-click and choose <b>LAITA transform…</b>
+    (or press <b>Alt+Shift+T</b>), then type what you want done with it — <code>polish</code>,
+    <code>translate to French</code>, <code>shorten it</code>. The result can replace the
+    selection or be inserted after it.</p>
+    <div class="row">
+      <label for="transformDefault">Default instruction <small>(used when you just press Enter)</small></label>
+      <input id="transformDefault" type="text" placeholder="polish">
+    </div>
+    <div class="row">
+      <label for="transformHistory">Recent instructions <small>(one per line, recalled with ↑ and ↓ in the panel)</small></label>
+      <textarea id="transformHistory" rows="4" spellcheck="false"></textarea>
+    </div>
+  </section>
+
+  <section>
+    <h2>What to report</h2>
+    <div class="cats">
+      <div class="cat">
+        <label class="check"><input type="checkbox" data-cat="error"> <b>Errors</b></label>
+        <input type="color" data-color="error">
+        <small>Spelling, agreement, conjugation, punctuation.</small>
+      </div>
+      <div class="cat">
+        <label class="check"><input type="checkbox" data-cat="style"> <b>Style</b></label>
+        <input type="color" data-color="style">
+        <small>Wordiness, redundancy, register, repetition.</small>
+      </div>
+      <div class="cat">
+        <label class="check"><input type="checkbox" data-cat="rephrase"> <b>Rephrasing</b></label>
+        <input type="color" data-color="rephrase">
+        <small>Better words, more natural formulations.</small>
+      </div>
+    </div>
+    <label class="check"><input id="tint" type="checkbox"> Tint the background of a highlight, not just the underline</label>
+    <label class="check"><input id="showBadge" type="checkbox"> Show the issue count on the toolbar icon</label>
+    <div class="row">
+      <label for="extraInstructions">House style rules <small>(added to the prompt, free text)</small></label>
+      <textarea id="extraInstructions" rows="3" placeholder="e.g. Prefer British spelling. Never suggest contractions."></textarea>
+    </div>
+    <div class="row">
+      <label for="dictionary">Personal dictionary <small>(one word per line, never flagged)</small></label>
+      <textarea id="dictionary" rows="4" spellcheck="false"></textarea>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where to run</h2>
+    <div class="row">
+      <label for="siteMode">Sites</label>
+      <select id="siteMode">
+        <option value="all">Run everywhere except the sites listed below</option>
+        <option value="allowlist">Run only on the sites listed below</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="siteList" id="siteListLabel">Site list <small>(one hostname per line)</small></label>
+      <textarea id="siteList" rows="4" spellcheck="false" placeholder="mail.example.com"></textarea>
+    </div>
+    <label class="check"><input id="enabled" type="checkbox"> Local AI Text Assistant is enabled</label>
+    <p class="note">Pausing on a site from the right-click menu, <b>Alt+Shift+X</b> or the
+    toolbar button overrides these lists for that one hostname, so a pause holds whatever the
+    policy above says. Clear those overrides under <i>Maintenance</i>.</p>
+    <p class="note">Local AI Text Assistant never touches password fields, payment fields, or any field whose name suggests a secret. You can also add <code>data-laita="off"</code> to any element to exclude it and everything inside it.</p>
+  </section>
+
+  <section>
+    <h2>Maintenance</h2>
+    <div class="inline">
+      <button id="clearCache" class="btn">Clear result cache</button>
+      <button id="clearIgnored" class="btn">Forget dismissed suggestions (<span id="ignoredCount">0</span>)</button>
+      <button id="clearOverrides" class="btn">Clear per-site pauses (<span id="overrideCount">0</span>)</button>
+      <button id="reset" class="btn danger">Reset all settings</button>
+    </div>
+    <label class="check"><input id="debug" type="checkbox"> Log debug output to the page console</label>
+  </section>
+</main>
+
+<footer><span id="saved" class="saved">Saved</span></footer>
+<script type="module" src="options.js"></script>
+</body>
+</html>

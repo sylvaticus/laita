@@ -1,17 +1,21 @@
-# LAITA — Local AI Text Assistant
+# <img src="assets/imgs/laita_logo_w200.png" width="200" align="middle" />&nbsp;&nbsp;  Local AI Text Assistant
 
-A Firefox and Chrome extension that **proofreads what you type** into any web form and **rewrites
-text you select**, using a model running locally on your machine (via [Ollama](https://ollama.com)).
 
-It works like [Harper](https://writewithharper.com/) or LanguageTool, but the judgement
-comes from an LLM rather than hand-written rules, so it handles style and phrasing as well
-as hard grammar errors, and it works in any language the model knows.
+A **multi-app** extension that **proofreads what you type** and **rewrites the text you select**
+(_polish_, _translate_, _summarize_...), using any model running locally on your machine
+via [Ollama](https://ollama.com).
+
+Differently from integrated spellcheckers or apps like [Harper](https://writewithharper.com/), the judgement comes from an LLM rather than hand-written rules, so it handles style and phrasing as well as hard grammar errors, and it works in any language the model knows.
 
 **Nothing leaves your machine.** The only network destination is your own Ollama endpoint.
+
+The **Firefox extension** is working right now and is fully tested; the **Chrome extension** is experimental. **VSCode** and **LibreOffice extensions** are on their way.
 
 ---
 
 ## 1. What it does
+
+_(the following screenshots are based on the Firefox extension)_ 
 
 ### Catches mistakes as you type
 
@@ -153,7 +157,7 @@ setx OLLAMA_ORIGINS "moz-extension://*"
 
 > **Only the Linux instructions above have been tested.** The macOS and Windows steps
 > follow Ollama's documented behaviour but have not been verified on those platforms. If
-> you try one, [an issue](https://github.com/sylvaticus/locaispell/issues) saying whether
+> you try one, [an issue](https://github.com/sylvaticus/laita/issues) saying whether
 > it worked would be welcome.
 
 #### Why the wildcard, and how to narrow it safely
@@ -208,7 +212,7 @@ means Ollama was not restarted.
 **Or install the signed file directly**, which works today and needs no listing:
 
 1. Download the latest `.xpi` from the
-   [releases page](https://github.com/sylvaticus/locaispell/releases).
+   [releases page](https://github.com/sylvaticus/laita/releases).
 2. Open `about:addons`
 3. Click the **gear icon** → **Install Add-on From File…**
 4. Choose the `.xpi` you downloaded
@@ -220,18 +224,28 @@ would download a newer one when you want it.
 
 #### Chrome
 
-Not in the Chrome Web Store yet. Build and load it yourself — there is no compile step, it
-just assembles a folder:
+Not in the Chrome Web Store yet, so Chrome loads it from a folder. **You do not need to
+build anything** — the ready-to-load folder is in the repository:
 
-```bash
-git clone https://github.com/sylvaticus/locaispell
-cd locaispell/browser && ./tools/build-chrome.sh
-```
+1. Download the repository:
+   [**laita-main.zip**](https://github.com/sylvaticus/laita/archive/refs/heads/main.zip)
+   and unzip it (or `git clone https://github.com/sylvaticus/laita`)
+2. Open `chrome://extensions`
+3. Turn on **Developer mode** (top right)
+4. Click **Load unpacked** and select the **`browser/dist-chrome`** folder
 
-Then `chrome://extensions` → enable **Developer mode** → **Load unpacked** →
-select `browser/dist-chrome`.
+Chrome needs `chrome-extension://*` in `OLLAMA_ORIGINS` — see Step 1.
 
-Chrome needs `chrome-extension://*` in `OLLAMA_ORIGINS` (see Step 1).
+Two things to know about loading unpacked, neither of which is a fault:
+
+- Chrome shows *"Disable developer mode extensions"* warnings on startup. That is Chrome's
+  standard notice for anything not installed from the Web Store.
+- It does not update itself. To upgrade, download again, replace the folder, and press
+  **Reload** on the extension's card.
+
+> Rebuilding is only needed if you change the source: `cd browser && ./tools/build-chrome.sh`.
+> `dist-chrome/` is a plain copy of `src/` with the Chrome manifest — no compilation — and a
+> test fails if the two drift apart.
 
 > Building it yourself, or working on the code? See
 > [`doc/dev_doc.md`](doc/dev_doc.md) — a development build loads straight from

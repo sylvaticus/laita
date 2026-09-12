@@ -49,7 +49,11 @@ Implemented as a build target rather than a port: one `src/`, two manifests, and
 - `browser_specific_settings` is Firefox-only and absent from the Chrome manifest; the
   Web Store assigns its own id.
 
-**What is not verified.** Chrome 137+ refuses `--load-extension`, so the browser harness
+**Confirmed working** by hand on Chrome 152 - proofreading and transforms both. The one
+thing still unmeasured is the service-worker lifetime under a genuinely slow model; see
+below.
+
+**What is not verified automatically.** Chrome 137+ refuses `--load-extension`, so the browser harness
 cannot run there — confirmed on 152, including with
 `--disable-features=DisableLoadExtensionCommandLineSwitch`. `chrome-compat.test.mjs`
 covers the API-surface differences by faking both browsers and booting the real

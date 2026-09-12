@@ -4,7 +4,7 @@
   "version": "0.3.0",
   "description": "Local AI proofreading and rewriting for any web form, powered by your own Ollama models. Nothing leaves your machine.",
   "author": "Antonello Lobianco",
-  "homepage_url": "https://github.com/sylvaticus/locaispell",
+  "homepage_url": "https://github.com/sylvaticus/laita",
   "browser_specific_settings": {
     "gecko": {
       "id": "locaispell@lobianco.org",
