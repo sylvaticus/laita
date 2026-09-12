@@ -1,5 +1,6 @@
 # Signed and packaged builds
 web-ext-artifacts/
+browser/dist-chrome/
 
 # AMO / signing credentials - never commit these.
 # The JWT issuer and secret from addons.mozilla.org belong outside the repository

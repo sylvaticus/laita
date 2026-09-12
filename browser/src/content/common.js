@@ -4,6 +4,11 @@
  * is visible to the files listed after this one in the manifest.
  */
 
+// Chrome exposes only `chrome`; its MV3 APIs return promises, so aliasing is enough.
+// Content scripts are classic scripts and cannot import, hence the duplicate of the
+// first line of common/compat.js.
+globalThis.browser ??= globalThis.chrome;
+
 var LAITA = {
   clientId: Math.random().toString(36).slice(2) + Date.now().toString(36),
   settings: null,

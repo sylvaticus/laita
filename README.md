@@ -1,6 +1,6 @@
 # LAITA — Local AI Text Assistant
 
-A Firefox extension that **proofreads what you type** into any web form and **rewrites
+A Firefox and Chrome extension that **proofreads what you type** into any web form and **rewrites
 text you select**, using a model running locally on your machine (via [Ollama](https://ollama.com)).
 
 It works like [Harper](https://writewithharper.com/) or LanguageTool, but the judgement
@@ -57,7 +57,7 @@ one language in the options.
 
 ## 2. Requirements
 
-- **Firefox 142** or newer
+- **Firefox 142** or newer, or **Chrome 116** or newer
 - **[Ollama](https://ollama.com)** running locally, with a model pulled:
   ```bash
   ollama pull qwen3.5:9b
@@ -82,8 +82,17 @@ profile.
 Ollama refuses requests whose `Origin` is a browser extension unless you allow it.
 Firefox **does** send `Origin: moz-extension://…`, so without this step every check fails.
 
-You need to set the environment variable `OLLAMA_ORIGINS` to `moz-extension://*` **for the
-Ollama server process**, then restart Ollama. How you do that depends on the platform.
+You need to set the environment variable `OLLAMA_ORIGINS` **for the Ollama server
+process**, then restart Ollama. Use the value for the browsers you use:
+
+| Browser | Value |
+| --- | --- |
+| Firefox | `moz-extension://*` |
+| Chrome | `chrome-extension://*` |
+| both | `moz-extension://*,chrome-extension://*` |
+
+The examples below use the Firefox value; substitute as needed. How you set it depends on
+the platform.
 
 <details open>
 <summary><b>Linux</b> (systemd — the only platform this has been tested on)</summary>
@@ -170,6 +179,11 @@ machine needs its own UUID added.
 Keep the wildcard while loading temporary development builds: those get a fresh UUID on
 every load.
 
+**Chrome is different and easier.** Its origin is `chrome-extension://<id>`, where the id
+is stable for an installed extension (derived from the store listing, or from the folder
+path for an unpacked one). So once LAITA is installed you can read the id from
+`chrome://extensions` and narrow to `chrome-extension://<that-id>` permanently.
+
 Whatever your platform, this check should return something other than `403`:
 
 ```bash
@@ -203,6 +217,21 @@ Either way the file is signed by Mozilla, so it installs permanently and survive
 restarts. The options page opens the first time. The one difference is updates: a copy
 installed from the directory updates itself, a `.xpi` installed by hand does not, so you
 would download a newer one when you want it.
+
+#### Chrome
+
+Not in the Chrome Web Store yet. Build and load it yourself — there is no compile step, it
+just assembles a folder:
+
+```bash
+git clone https://github.com/sylvaticus/locaispell
+cd locaispell/browser && ./tools/build-chrome.sh
+```
+
+Then `chrome://extensions` → enable **Developer mode** → **Load unpacked** →
+select `browser/dist-chrome`.
+
+Chrome needs `chrome-extension://*` in `OLLAMA_ORIGINS` (see Step 1).
 
 > Building it yourself, or working on the code? See
 > [`doc/dev_doc.md`](doc/dev_doc.md) — a development build loads straight from

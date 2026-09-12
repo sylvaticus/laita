@@ -7,8 +7,10 @@ The repository is a monorepo. `browser/` is the Firefox extension (and Chrome la
 `doc/roadmap.md` has the plan for the other targets and why the shared core has not been
 extracted yet.
 
-`browser/` is an MV3 extension: proofreads web form fields with a local Ollama model, and
-rewrites a selection on demand (context menu / Alt+Shift+T).
+`browser/` is an MV3 extension for **both Firefox and Chrome**: one `src/`, two manifests
+(`manifest.json` is Firefox and loads in place; `manifest.chrome.json` is assembled into
+`dist-chrome/` by `tools/build-chrome.sh`). It proofreads web form fields with a local
+Ollama model and rewrites a selection on demand (context menu / Alt+Shift+T).
 
 **The extension ID stays `locaispell@lobianco.org`.** It predates the rename and is
 invisible to users, but AMO ties every uploaded version to it — changing it would create a
@@ -119,6 +121,15 @@ waking, which one 250 ms retry covers; or the content script is *orphaned*, left
 an open tab by reloading the extension, in which case no retry will ever work and the user
 must be told to reload the page. `LAITA.isOrphaned` reads `browser.runtime.id`, which is
 gone in an orphan. Never retry an orphan - it only delays the one instruction that helps.
+
+**Nothing may assume a Firefox-only API exists.** `common/compat.js` aliases `browser` to
+`chrome` and exports `menus` (Firefox `menus`, Chrome `contextMenus`) plus
+`canRefreshMenus`. `menus.onShown` and `menus.refresh` do not exist on Chrome, and calling
+them at top level kills the service worker before it registers anything — so the menu
+title is rewritten on open in Firefox and from tab events in Chrome. Chrome cannot be
+driven by a script (137+ refuses `--load-extension`), so `chrome-compat.test.mjs` fakes
+both API surfaces and boots the real background module; keep it passing, it is the only
+automated thing standing between a Chrome release and a dead service worker.
 
 **A per-site override beats the allowlist/denylist.** `siteOverrides` in
 `common/settings.js` is checked first by `siteAllowed`, and is what the context menu,

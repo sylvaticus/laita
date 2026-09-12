@@ -24,23 +24,41 @@ over them would pay for itself.
 
 ## The targets, in the order they are worth doing
 
-### Chrome — a build target, not a port
+### Chrome — done
 
-Roughly 95% of `browser/` already works. Do this one first: it needs no shared core at
-all, and it will show which parts genuinely vary before anything is extracted. Known
-differences:
+Implemented as a build target rather than a port: one `src/`, two manifests, and
+`tools/build-chrome.sh` to assemble `dist-chrome/`. What it actually took:
 
-- `browser.*` vs `chrome.*` — one-line shim, since Chrome MV3 returns promises.
-- **Event page vs service worker.** `holdOpen`/`releaseHold` in `background/main.js` keeps
-  the Firefox event page alive with a 20-second API call. Chrome service workers cannot be
-  held open that way; use `chrome.alarms` or a connected port. Expect to re-solve this bug
-  rather than port the fix.
-- **`menus.onShown` and `menus.refresh()` are Firefox-only.** The pause/resume item names
-  the current site by rewriting its title when the menu opens. Chrome has no equivalent —
-  update the title from `tabs.onActivated` and `tabs.onUpdated` instead.
+- **`browser.*` vs `chrome.*`** — `common/compat.js` aliases them. Chrome MV3 returns
+  promises, so no polyfill library is needed. Content scripts repeat the one line,
+  because they are classic scripts and cannot import.
+- **`menus` vs `contextMenus`, and `onShown` is Firefox-only.** The pause/resume item
+  names the current site by rewriting its title as the menu opens; Chrome has neither
+  `onShown` nor `refresh`, and calling them would kill the service worker on startup.
+  `canRefreshMenus` picks the path: Firefox rewrites on open, Chrome refreshes the title
+  from `tabs.onActivated`/`onUpdated` instead — slightly early, but correct by the time
+  anyone right-clicks.
+- **Chrome rejects SVG icons.** `icons/icon-*.png` are generated from `icon.svg` with
+  `rsvg-convert`; both manifests now use the PNGs, which also satisfies what the AMO
+  listing page wants.
+- **Event page vs service worker.** Chrome runs `background` as a `service_worker`.
+  `holdOpen`/`releaseHold` is unchanged so far and *unverified on Chrome* — see below.
 - Chrome sends `Origin: chrome-extension://<id>`, so `OLLAMA_ORIGINS` needs
-  `chrome-extension://*` as well. Unlike Firefox's per-profile UUID, that id is stable.
-- `browser_specific_settings` is ignored by Chrome; the Web Store has its own id.
+  `chrome-extension://*`. Unlike Firefox's per-profile UUID, that id is stable, so it can
+  be narrowed to one extension permanently.
+- `browser_specific_settings` is Firefox-only and absent from the Chrome manifest; the
+  Web Store assigns its own id.
+
+**What is not verified.** Chrome 137+ refuses `--load-extension`, so the browser harness
+cannot run there — confirmed on 152, including with
+`--disable-features=DisableLoadExtensionCommandLineSwitch`. `chrome-compat.test.mjs`
+covers the API-surface differences by faking both browsers and booting the real
+background module, but the service-worker *lifetime* is the open question: Chrome
+terminates an idle worker after 30 seconds, and whether a 20-second `setInterval` keeps
+it alive the way it does a Firefox event page needs a human to check with a slow model.
+If it does not, `chrome.alarms` (30-second minimum) or a port held open from the content
+script are the alternatives. The `alarms` permission is already in the Chrome manifest so
+that fix needs no permission change.
 
 ### VS Code — shares the core, rebuilds the surface
 

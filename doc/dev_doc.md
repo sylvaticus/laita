@@ -59,6 +59,29 @@ before loading a temporary one resets every option. Note anything you changed fi
 
 ---
 
+### Chrome
+
+```bash
+cd browser && ./tools/build-chrome.sh      # assembles dist-chrome/
+```
+
+`chrome://extensions` → **Developer mode** → **Load unpacked** → `browser/dist-chrome`.
+Re-run the script and press **Reload** on the card after an edit.
+
+`dist-chrome/` is assembled rather than loaded in place because Chrome insists the
+manifest be named `manifest.json`, and that name is taken by the Firefox one. The script
+copies files and swaps the manifest; it transforms no code, so the JavaScript Chrome runs
+is byte-identical to `src/`.
+
+**Chrome cannot be driven from a script any more.** Since Chrome 137 the
+`--load-extension` switch is refused, and
+`--disable-features=DisableLoadExtensionCommandLineSwitch` no longer revives it on 152 —
+verified here: the extension simply never appears among the debugger targets. So the
+browser harness is Firefox-only, and Chrome's half of the compatibility layer is covered
+by `test/unit/chrome-compat.test.mjs`, which fakes each browser's API surface, loads the
+real background module and checks what it registers. Anything beyond that needs a human
+with a Chrome window.
+
 ## 2. Tests
 
 ```bash

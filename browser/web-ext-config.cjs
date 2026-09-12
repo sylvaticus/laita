@@ -9,6 +9,9 @@
 module.exports = {
   ignoreFiles: [
     "test",
+    "tools",
+    "dist-chrome",
+    "manifest.chrome.json",
     "web-ext-artifacts",
     "web-ext-config.cjs",
     "node_modules",

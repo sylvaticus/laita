@@ -6,6 +6,8 @@
  * cancels work that a newer keystroke has already made obsolete.
  */
 
+// compat first: it aliases `browser` to `chrome` before anything else can look for it.
+import { menus, canRefreshMenus } from "../common/compat.js";
 import { getSettings, setSettings, siteAllowed, DEFAULTS } from "../common/settings.js";
 import {
   requestIssues, requestTransform, probe, describeError, isTransient,
@@ -413,13 +415,13 @@ function hostnameOf(url) {
  * neither onInstalled nor onStartup has fired in this browsing session.
  */
 async function installMenus() {
-  await browser.menus.removeAll().catch(() => {});
-  browser.menus.create({
+  await menus.removeAll().catch(() => {});
+  menus.create({
     id: MENU_ID,
     title: "Transform\u2026",
     contexts: ["selection"]
   });
-  browser.menus.create({
+  menus.create({
     id: TOGGLE_ID,
     title: "Pause spell check here",
     contexts: ["page", "editable", "selection"]
@@ -430,36 +432,59 @@ installMenus();
 browser.runtime.onInstalled.addListener(installMenus);
 
 /**
- * Firefox groups an extension's menu items under a submenu named after the extension, so
- * these titles must not repeat it: the user reads "Local AI Text Assistant > Transform".
- *
- * The pause/resume item has to say which way it will go, so its title is rewritten each
- * time the menu opens. `menus.onShown` may resolve after the menu has already closed or
- * been reopened, hence the instance counter: refreshing a stale menu is an error.
+ * Both browsers group an extension's menu items under a submenu named after the
+ * extension, so these titles must not repeat it: the user reads
+ * "LAITA - Local AI Text Assistant > Transform".
  */
-let menuInstance = 0;
 
-browser.menus.onShown.addListener(async (info, tab) => {
-  if (!info.menuIds.includes(TOGGLE_ID)) return;
-  const instance = ++menuInstance;
+/** Word the pause/resume item for whichever site the given tab is on. */
+async function toggleTitleFor(tab) {
   const hostname = hostnameOf(tab?.url);
   const settings = await getSettings();
-  if (instance !== menuInstance) return;
-
   const running = !!hostname && settings.enabled && siteAllowed(settings, hostname);
   const where = hostname || "this page";
-  await browser.menus.update(TOGGLE_ID, {
+  return {
     title: running ? `Pause spell check on ${where}` : `Resume spell check on ${where}`,
     enabled: !!hostname
+  };
+}
+
+if (canRefreshMenus) {
+  // Firefox can rewrite a title as the menu opens, which is exact. `menus.onShown` may
+  // resolve after the menu has already closed or been reopened, hence the instance
+  // counter: refreshing a stale menu is an error.
+  let menuInstance = 0;
+
+  menus.onShown.addListener(async (info, tab) => {
+    if (!info.menuIds.includes(TOGGLE_ID)) return;
+    const instance = ++menuInstance;
+    const patch = await toggleTitleFor(tab);
+    if (instance !== menuInstance) return;
+    await menus.update(TOGGLE_ID, patch);
+    menus.refresh();
   });
-  browser.menus.refresh();
-});
 
-browser.menus.onHidden.addListener(() => {
-  menuInstance++;
-});
+  menus.onHidden.addListener(() => {
+    menuInstance++;
+  });
+} else {
+  // Chrome has neither onShown nor refresh, so the title is updated whenever the active
+  // tab changes or navigates - ahead of time rather than on open, but correct by the
+  // time anyone right-clicks. Also refreshed after a toggle, since that is the one
+  // change that does not involve switching tab.
+  const refreshActiveTitle = async () => {
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    await menus.update(TOGGLE_ID, await toggleTitleFor(tab)).catch(() => {});
+  };
+  browser.tabs.onActivated.addListener(refreshActiveTitle);
+  browser.tabs.onUpdated.addListener((_id, change) => {
+    if (change.url || change.status === "complete") refreshActiveTitle();
+  });
+  browser.windows?.onFocusChanged?.addListener(refreshActiveTitle);
+  browser.storage.onChanged.addListener(refreshActiveTitle);
+}
 
-browser.menus.onClicked.addListener(async (info, tab) => {
+menus.onClicked.addListener(async (info, tab) => {
   if (!tab) return;
   if (info.menuItemId === MENU_ID) {
     await browser.tabs
