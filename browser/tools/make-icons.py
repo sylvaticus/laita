@@ -29,6 +29,11 @@ def main() -> None:
     if logo.size != (1950, 873):
         raise SystemExit(f"logo is {logo.size}, expected (1950, 873); recheck PENCIL_BOX")
 
+    # the logo background is ~6% opaque rather than transparent; left alone it shows as a
+    # faint square behind the icon on a light toolbar
+    alpha = logo.getchannel("A").point(lambda v: 0 if v < 40 else v)
+    logo.putalpha(alpha)
+
     pencil = logo.crop(PENCIL_BOX).rotate(ANGLE, resample=Image.BICUBIC, expand=True)
     pencil = pencil.crop(pencil.getchannel("A").getbbox())
 
