@@ -91,10 +91,41 @@ def promo():
     canvas.save(OUT / "promo-440x280.png")
 
 
+def marquee():
+    """1400x560 'marquee promo tile': the wide banner, only used if the store features you."""
+    W, H = 1400, 560
+    canvas = Image.new("RGB", (W, H), (255, 255, 255))
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle([0, H - 14, W, H], fill=(233, 88, 63))
+
+    logo = fit(dehaze(Image.open(IMGS / "laita_logo.png").convert("RGBA")), 760, 340)
+    canvas.paste(logo, ((W - logo.width) // 2, 70), logo)
+
+    f1 = ImageFont.truetype(FONT_B, 46)
+    f2 = ImageFont.truetype(FONT, 30)
+    for text, font, fill, yy in (("Local AI Text Assistant", f1, INK, 392),
+                                 ("Proofread and rewrite any web form — on your own machine",
+                                  f2, MUTED, 456)):
+        w = draw.textbbox((0, 0), text, font=font)[2]
+        draw.text(((W - w) // 2, yy), text, font=font, fill=fill)
+
+    canvas.save(OUT / "promo-marquee-1400x560.png")
+
+
+def store_icon():
+    """128x128 store icon. Uploaded on the listing page, separate from the manifest icons."""
+    src = HERE / "icons" / "icon-128.png"
+    Image.open(src).convert("RGBA").save(OUT / "store-icon-128.png")
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    store_icon()
+    print("  wrote assets/store/store-icon-128.png (128x128)")
     promo()
     print("  wrote assets/store/promo-440x280.png (440x280)")
+    marquee()
+    print("  wrote assets/store/promo-marquee-1400x560.png (1400x560)")
     for i, (name, caption) in enumerate(SHOTS, start=1):
         size = screenshot(IMGS / name, caption, i)
         print(f"  wrote assets/store/screenshot-{i}.png (1280x800, image {size[0]}x{size[1]})")
