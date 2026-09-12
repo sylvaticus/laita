@@ -1,9 +1,7 @@
-# <img src="assets/imgs/laita_logo_w200.png" width="200" align="middle" />&nbsp;&nbsp;  Local AI Text Assistant
+# <img src="assets/imgs/laita_logo_w200.png" width="200" align="middle" />&nbsp;&nbsp;  <u>Local</u> AI Text Assistant
 
 
-A **multi-app** extension that **proofreads what you type** and **rewrites the text you select**
-(_polish_, _translate_, _summarize_...), using any model running locally on your machine
-via [Ollama](https://ollama.com).
+A **multi-app** extension that **proofreads what you type** and **rewrites the text you select** (_polish_, _translate_, _summarize_...), using any model running locally on your machine via [Ollama](https://ollama.com).
 
 Differently from integrated spellcheckers or apps like [Harper](https://writewithharper.com/), the judgement comes from an LLM rather than hand-written rules, so it handles style and phrasing as well as hard grammar errors, and it works in any language the model knows.
 
@@ -375,6 +373,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Text Assis
 | Typing pause | `1500 ms` | |
 | Ignore fields shorter than | `12` characters | |
 | Maximum chunk size | `700` characters | Longer paragraphs are split on sentence boundaries. |
+| Maximum characters per check | `12000` | How much one check may send, **not** how long a field may be. A paragraph is far under this however long the document is, so only a whole-field check can exceed it. Also caps a single *Transform*. |
 | Language | detect | Or pin one. |
 | Categories and colours | all on | Turn off a category to stop paying for it. |
 | House style rules | empty | Free text appended to the prompt, e.g. *"Prefer British spelling."* |

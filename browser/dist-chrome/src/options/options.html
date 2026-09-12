@@ -94,8 +94,12 @@
         <small>Longer paragraphs are split on sentence boundaries.</small>
       </div>
       <div class="row">
-        <label for="maxChars">Skip fields longer than (characters)</label>
+        <label for="maxChars">Maximum characters per check</label>
         <input id="maxChars" type="number" min="500" max="200000" step="500">
+        <small>How much text one check may send, not how long a field may be. With
+        <i>only the paragraph I am working in</i> above, a paragraph is well under this
+        however long the document is; only a whole-field check can exceed it. Also caps a
+        single <i>Transform</i>.</small>
       </div>
     </div>
   </section>
