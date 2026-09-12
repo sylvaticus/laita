@@ -1,5 +1,5 @@
 /**
- * "Locaispell transform…": rewrite the selected text with a free-form instruction.
+ * "LAITA transform…": rewrite the selected text with a free-form instruction.
  *
  * Separate from proofreading in every way that matters. Proofreading is automatic, returns
  * a list of small anchored spans, and never rewrites wholesale. A transform is explicitly
@@ -36,8 +36,8 @@ function button(label, cls, onClick) {
 }
 
 function panel() {
-  LAS.Overlay.ensure();
-  const p = LAS.Overlay.panel;
+  LAITA.Overlay.ensure();
+  const p = LAITA.Overlay.panel;
   if (wiredPanel !== p) {
     wiredPanel = p;
     // Keystrokes typed into our input must not reach the page: sites bind single-letter
@@ -69,7 +69,7 @@ function head(subtitle) {
 function show(p) {
   p.style.setProperty("--c", ACCENT);
   p.classList.add("on");
-  LAS.placeNear(p, state.rect);
+  LAITA.placeNear(p, state.rect);
 }
 
 // ---------------------------------------------------------------- capturing the selection
@@ -81,9 +81,9 @@ function show(p) {
 function adapterAt(node) {
   if (!node) return null;
   const host = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-  const made = host && LAS.adapterFor(host);
+  const made = host && LAITA.adapterFor(host);
   if (!made) return null;
-  const live = LAS.getAdapter?.();
+  const live = LAITA.getAdapter?.();
   if (live && live.isAlive() && live.el === made.el) {
     made.destroy();
     return { adapter: live, owned: false };
@@ -153,10 +153,10 @@ function renderAsk() {
       e.preventDefault();
       run(input.value.trim() || defaultInstruction());
     } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      const hist = LAS.settings?.transformHistory || [];
+      const hist = LAITA.settings?.transformHistory || [];
       if (!hist.length) return;
       e.preventDefault();
-      histIndex = LAS.clamp(histIndex + (e.key === "ArrowUp" ? 1 : -1), -1, hist.length - 1);
+      histIndex = LAITA.clamp(histIndex + (e.key === "ArrowUp" ? 1 : -1), -1, hist.length - 1);
       input.value = histIndex < 0 ? "" : hist[histIndex];
       input.setSelectionRange(input.value.length, input.value.length);
     }
@@ -226,7 +226,7 @@ function renderError(message, { canCopy = false } = {}) {
 // ---------------------------------------------------------------- running and applying
 
 function defaultInstruction() {
-  return (LAS.settings?.transformDefault || "polish").trim() || "polish";
+  return (LAITA.settings?.transformDefault || "polish").trim() || "polish";
 }
 
 function preview(text) {
@@ -241,12 +241,12 @@ async function run(instruction) {
   renderBusy();
 
   const lang =
-    LAS.settings.language === "auto"
-      ? await LAS.detectLanguage(state.selected)
-      : LAS.settings.language;
+    LAITA.settings.language === "auto"
+      ? await LAITA.detectLanguage(state.selected)
+      : LAITA.settings.language;
   if (state?.reqId !== reqId) return;
 
-  const res = await LAS.send({
+  const res = await LAITA.send({
     cmd: "transformText",
     text: state.selected,
     instruction,
@@ -257,7 +257,7 @@ async function run(instruction) {
 
   state.reqId = null;
   if (!res?.ok) {
-    renderError(res?.error || LAS.sendFailure());
+    renderError(res?.error || LAITA.sendFailure());
     return;
   }
   state.output = res.output;
@@ -288,7 +288,7 @@ function accept(mode) {
   }
 
   if (mode === "append") {
-    st.adapter.applyFix(end, end, LAS.appendSeparator(st.selected, st.output) + st.output);
+    st.adapter.applyFix(end, end, LAITA.appendSeparator(st.selected, st.output) + st.output);
   } else {
     // The model is asked for the fragment, not for its surrounding whitespace; putting the
     // original's back keeps the words spaced the way they were.
@@ -308,7 +308,7 @@ async function copyOutput() {
     // Clipboard permission is not granted everywhere; the old path always works from a
     // click handler.
     const ta = document.createElement("textarea");
-    ta.setAttribute("data-locaispell", "off");
+    ta.setAttribute("data-laita", "off");
     ta.value = text;
     ta.style.cssText = "position:fixed;top:-9999px;opacity:0";
     document.body.appendChild(ta);
@@ -328,8 +328,8 @@ async function copyOutput() {
 function close({ refocus = true } = {}) {
   const st = state;
   state = null;
-  if (st?.reqId) LAS.send({ cmd: "cancelTransform", reqId: st.reqId });
-  const p = LAS.Overlay.panel;
+  if (st?.reqId) LAITA.send({ cmd: "cancelTransform", reqId: st.reqId });
+  const p = LAITA.Overlay.panel;
   if (p) {
     p.classList.remove("on");
     p.replaceChildren();
@@ -340,7 +340,7 @@ function close({ refocus = true } = {}) {
 
 // ---------------------------------------------------------------- entry point
 
-LAS.Transform = {
+LAITA.Transform = {
   isOpen() {
     return !!state;
   },
@@ -350,14 +350,14 @@ LAS.Transform = {
     // A transform can be asked for before the page has finished booting - the menu item
     // and the hotkey are live immediately - so fetch the settings rather than doing
     // nothing at all, which is indistinguishable from the feature being broken.
-    if (!LAS.settings) {
-      const res = await LAS.send({ cmd: "getConfigFor", hostname: location.hostname });
+    if (!LAITA.settings) {
+      const res = await LAITA.send({ cmd: "getConfigFor", hostname: location.hostname });
       if (res?.settings) {
-        LAS.settings = res.settings;
-        LAS.active = res.active;
+        LAITA.settings = res.settings;
+        LAITA.active = res.active;
       }
     }
-    if (!LAS.settings) return { ok: false, reason: "not-ready" };
+    if (!LAITA.settings) return { ok: false, reason: "not-ready" };
     close({ refocus: false });
 
     const t = acquire();
@@ -371,9 +371,9 @@ LAS.Transform = {
 
     state = { ...t, selected, rect: anchorRect(t), instruction: "", reqId: null, output: "" };
 
-    if (selected.length > LAS.settings.maxChars) {
+    if (selected.length > LAITA.settings.maxChars) {
       renderError(
-        `That selection is ${selected.length} characters, over the ${LAS.settings.maxChars} limit ` +
+        `That selection is ${selected.length} characters, over the ${LAITA.settings.maxChars} limit ` +
           `set in the options.`
       );
       return { ok: true };
@@ -388,7 +388,7 @@ LAS.Transform = {
   /** Keep the panel glued to the selection when the page scrolls or resizes. */
   reposition() {
     if (!state) return;
-    const p = LAS.Overlay.panel;
+    const p = LAITA.Overlay.panel;
     if (!p?.classList.contains("on")) return;
     if (state.adapter?.isAlive()) {
       state.adapter.invalidate();
@@ -398,6 +398,6 @@ LAS.Transform = {
       const b = state.domRange.getBoundingClientRect();
       if (b.width || b.height) state.rect = { left: b.left, top: b.top, width: b.width, height: b.height };
     }
-    LAS.placeNear(p, state.rect);
+    LAITA.placeNear(p, state.rect);
   }
 };

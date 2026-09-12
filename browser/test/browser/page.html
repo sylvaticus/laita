@@ -30,13 +30,13 @@
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const beacon = (step, data) => fetch("/api/beacon", {method:"POST",
   headers:{"Content-Type":"application/json"}, body: JSON.stringify({step, data})}).catch(()=>{});
-const sh = () => document.querySelector("locaispell-layer")?.shadowRoot;
+const sh = () => document.querySelector("laita-layer")?.shadowRoot;
 const ta = () => document.getElementById("ta");
 const round = r => ({left:+r.left.toFixed(1), top:+r.top.toFixed(1), w:+r.width.toFixed(1), h:+r.height.toFixed(1)});
 const decos = () => [...(sh()?.querySelectorAll(".deco") || [])]
   .map(d => ({...round(d.getBoundingClientRect()), color: d.style.getPropertyValue("--c")}));
 /* every issue's recorded span must still hold exactly its own text */
-const audit = () => JSON.parse(document.documentElement.dataset.lasIssues || "[]")
+const audit = () => JSON.parse(document.documentElement.dataset.laitaIssues || "[]")
   .map(i => ({o: i.o, ok: ta().value.slice(i.s, i.e) === i.o}));
 /* ground truth for the contenteditable, measured independently with a DOM Range */
 function truthCE(needle) {

@@ -156,7 +156,7 @@ button.act:focus-visible { outline: 2px solid #3b82f6; outline-offset: 1px; }
 }
 `;
 
-LAS.Overlay = {
+LAITA.Overlay = {
   host: null,
   shadow: null,
   /** [{ issue, rects:[{left,top,width,height}] }] in viewport coordinates */
@@ -164,8 +164,8 @@ LAS.Overlay = {
 
   ensure() {
     if (this.host?.isConnected) return;
-    this.host = document.createElement("locaispell-layer");
-    this.host.setAttribute("data-locaispell", "off");
+    this.host = document.createElement("laita-layer");
+    this.host.setAttribute("data-laita", "off");
     this.shadow = this.host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.textContent = CSS;
@@ -220,7 +220,7 @@ LAS.Overlay = {
     }
     this.clip.replaceChildren(frag);
     this.painted = painted;
-    LAS.log(
+    LAITA.log(
       "painted", painted.length, "of", issues.length, "issues;",
       painted.reduce((n, p) => n + p.rects.length, 0), "rects in",
       `${Math.round(clipRect.width)}x${Math.round(clipRect.height)} at`,
@@ -309,7 +309,7 @@ LAS.Overlay = {
 
     const r = adapter.clipRect();
     const size = { width: this.pill.offsetWidth || 90, height: this.pill.offsetHeight || 20 };
-    const at = LAS.pillPosition(r, size, { width: innerWidth, height: innerHeight });
+    const at = LAITA.pillPosition(r, size, { width: innerWidth, height: innerHeight });
     this.pill.classList.toggle("inside", at.where === "inside");
     this.pill.style.left = at.left + "px";
     this.pill.style.top = at.top + "px";

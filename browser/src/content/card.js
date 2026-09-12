@@ -15,18 +15,18 @@ const ACTIONS = {
 
 const t = (table, lang) => table[lang] || table.en;
 
-LAS.Card = {
+LAITA.Card = {
   current: null,
 
   /**
    * @param {object} opts { issue, lang, anchorRect, onApply, onDismiss, onNever, onDictionary }
    */
   show(opts) {
-    const O = LAS.Overlay;
+    const O = LAITA.Overlay;
     O.ensure();
     const { issue, lang } = opts;
     const card = O.card;
-    const color = LAS.settings.colors[issue.type] || "#e5484d";
+    const color = LAITA.settings.colors[issue.type] || "#e5484d";
     this.current = opts;
 
     card.replaceChildren();
@@ -80,9 +80,9 @@ LAS.Card = {
   },
 
   position(rect) {
-    const card = LAS.Overlay.card;
+    const card = LAITA.Overlay.card;
     if (!card?.classList.contains("on")) return;
-    LAS.placeNear(card, rect);
+    LAITA.placeNear(card, rect);
   },
 
   /** Reposition against the live geometry of the issue we are anchored to. */
@@ -98,14 +98,14 @@ LAS.Card = {
   },
 
   showError(adapter, message) {
-    const O = LAS.Overlay;
+    const O = LAITA.Overlay;
     O.ensure();
     const card = O.card;
     this.current = null;
     card.replaceChildren();
     card.style.setProperty("--c", "#e5484d");
     const head = el("div", "head");
-    head.append(el("span", "badge", "locaispell"), el("div", "spacer"));
+    head.append(el("span", "badge", "LAITA"), el("div", "spacer"));
     const close = el("button", "x", "×");
     close.addEventListener("click", () => this.hide());
     head.appendChild(close);
@@ -117,16 +117,16 @@ LAS.Card = {
 
   hide() {
     this.current = null;
-    const card = LAS.Overlay.card;
+    const card = LAITA.Overlay.card;
     if (card) {
       card.classList.remove("on");
       card.replaceChildren();
     }
-    LAS.Overlay.setHot(null);
+    LAITA.Overlay.setHot(null);
   },
 
   isOpen() {
-    return !!LAS.Overlay.card?.classList.contains("on");
+    return !!LAITA.Overlay.card?.classList.contains("on");
   }
 };
 

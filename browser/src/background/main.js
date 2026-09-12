@@ -395,8 +395,8 @@ async function tellActiveTab(payload) {
   await browser.tabs.sendMessage(tab.id, payload).catch(() => {});
 }
 
-const MENU_ID = "locaispell-transform";
-const TOGGLE_ID = "locaispell-toggle-site";
+const MENU_ID = "laita-transform";
+const TOGGLE_ID = "laita-toggle-site";
 
 function hostnameOf(url) {
   try {

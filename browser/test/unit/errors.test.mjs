@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { isTransient, describeError } from "../../src/background/ollama.js";
 
-// common.js declares `var LAS`, so it has to be evaluated in the global sloppy scope.
+// common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
 (0, eval)(readFileSync(new URL("../../src/content/common.js", import.meta.url).pathname, "utf8"));
-const LAS = globalThis.LAS;
+const LAITA = globalThis.LAITA;
 
 let pass = 0, fail = 0;
 const eq = (name, got, want) => {
@@ -55,7 +55,7 @@ eq("anything else falls through", describeError(err("boom")), { ok: false, kind:
 // "Receiving end does not exist" has two very different causes, and the advice differs:
 // an event page still waking up is worth retrying, an orphaned content script never is.
 
-const K = (msg, orphaned) => LAS.sendFailureKind(msg, orphaned);
+const K = (msg, orphaned) => LAITA.sendFailureKind(msg, orphaned);
 
 eq("no receiver yet is worth one retry", K("Could not establish connection. Receiving end does not exist.", false), "starting");
 eq("a disconnected manager is worth one retry", K("Message manager disconnected", false), "starting");
@@ -66,12 +66,12 @@ eq("anything else is a real failure", K("handler threw TypeError", false), "othe
 eq("an orphan outranks everything", K("handler threw TypeError", true), "orphaned");
 
 // the advice the user is given has to match the cause
-LAS.lastSendError = "Could not establish connection. Receiving end does not exist.";
-LAS.isOrphaned = () => true;
-eq("an orphan is told to reload the page", /reloaded or updated/.test(LAS.sendFailure()), true);
-eq("an orphan is not blamed on the background page", /did not answer/.test(LAS.sendFailure()), false);
-LAS.isOrphaned = () => false;
-eq("otherwise the reason is passed through", /Receiving end does not exist/.test(LAS.sendFailure()), true);
+LAITA.lastSendError = "Could not establish connection. Receiving end does not exist.";
+LAITA.isOrphaned = () => true;
+eq("an orphan is told to reload the page", /reloaded or updated/.test(LAITA.sendFailure()), true);
+eq("an orphan is not blamed on the background page", /did not answer/.test(LAITA.sendFailure()), false);
+LAITA.isOrphaned = () => false;
+eq("otherwise the reason is passed through", /Receiving end does not exist/.test(LAITA.sendFailure()), true);
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

@@ -1,10 +1,10 @@
 /**
  * Shared state and helpers for the content scripts.
- * All content scripts of an extension share one sandbox global, so `var LAS` declared here
+ * All content scripts of an extension share one sandbox global, so `var LAITA` declared here
  * is visible to the files listed after this one in the manifest.
  */
 
-var LAS = {
+var LAITA = {
   clientId: Math.random().toString(36).slice(2) + Date.now().toString(36),
   settings: null,
   active: false
@@ -22,7 +22,7 @@ const NO_RECEIVER =
  * They look alive but can never reach a background page again, and the only cure is
  * reloading the page.
  */
-LAS.isOrphaned = function () {
+LAITA.isOrphaned = function () {
   try {
     return !browser.runtime?.id;
   } catch {
@@ -34,7 +34,7 @@ LAS.isOrphaned = function () {
  * Why a message could not be delivered: "orphaned" is terminal, "starting" is worth one
  * more try, anything else is a real failure in the handler.
  */
-LAS.sendFailureKind = function (message, orphaned) {
+LAITA.sendFailureKind = function (message, orphaned) {
   if (orphaned) return "orphaned";
   return NO_RECEIVER.test(String(message)) ? "starting" : "other";
 };
@@ -48,47 +48,47 @@ LAS.sendFailureKind = function (message, orphaned) {
  * and a single short retry covers it. An orphaned script is not retried: it will never
  * succeed, and waiting only delays telling the user to reload the page.
  */
-LAS.sendFailure = function () {
-  return LAS.isOrphaned()
+LAITA.sendFailure = function () {
+  return LAITA.isOrphaned()
     ? "Local AI Text Assistant was reloaded or updated, so this page is still running the old copy. " +
       "Reload the page to reconnect it."
     : "Local AI Text Assistant's background page did not answer" +
-      (LAS.lastSendError ? ` (${LAS.lastSendError})` : "") +
+      (LAITA.lastSendError ? ` (${LAITA.lastSendError})` : "") +
       ". Reload the page and try again.";
 };
 
-LAS.send = async function (msg) {
+LAITA.send = async function (msg) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await browser.runtime.sendMessage(msg);
     } catch (err) {
-      LAS.lastSendError = String(err?.message || err);
-      const kind = LAS.sendFailureKind(LAS.lastSendError, LAS.isOrphaned());
+      LAITA.lastSendError = String(err?.message || err);
+      const kind = LAITA.sendFailureKind(LAITA.lastSendError, LAITA.isOrphaned());
       if (attempt > 0 || kind !== "starting") return null;
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
 };
 
-LAS.log = (...args) => {
-  if (LAS.settings?.debug) console.log("%c[locaispell]", "color:#3b82f6", ...args);
+LAITA.log = (...args) => {
+  if (LAITA.settings?.debug) console.log("%c[laita]", "color:#3b82f6", ...args);
 };
 
-LAS.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+LAITA.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 /**
  * Place a fixed-position box just under `rect`, flipping above it when there is no room
  * below and clamping to the viewport either way.
  */
-LAS.placeNear = function (node, rect) {
+LAITA.placeNear = function (node, rect) {
   const w = node.offsetWidth;
   const h = node.offsetHeight;
   const gap = 6;
-  const left = LAS.clamp(rect.left, 8, Math.max(8, innerWidth - w - 8));
+  const left = LAITA.clamp(rect.left, 8, Math.max(8, innerWidth - w - 8));
   let top = rect.top + rect.height + gap;
   if (top + h > innerHeight - 8) {
     const above = rect.top - h - gap;
-    top = above >= 8 ? above : LAS.clamp(innerHeight - h - 8, 8, innerHeight);
+    top = above >= 8 ? above : LAITA.clamp(innerHeight - h - 8, 8, innerHeight);
   }
   node.style.left = left + "px";
   node.style.top = top + "px";
@@ -102,9 +102,9 @@ LAS.placeNear = function (node, rect) {
  * field runs to the bottom of the window - and only falls back inside when the field is
  * taller than the viewport and there is nowhere else to go.
  */
-LAS.pillPosition = function (rect, size, view) {
+LAITA.pillPosition = function (rect, size, view) {
   const gap = 4;
-  const left = LAS.clamp(rect.left + rect.width - size.width - gap, gap, Math.max(gap, view.width - size.width - gap));
+  const left = LAITA.clamp(rect.left + rect.width - size.width - gap, gap, Math.max(gap, view.width - size.width - gap));
 
   const below = rect.top + rect.height + gap;
   if (below + size.height <= view.height - gap) return { left, top: below, where: "below" };
@@ -114,7 +114,7 @@ LAS.pillPosition = function (rect, size, view) {
 
   return {
     left,
-    top: LAS.clamp(rect.top + rect.height - size.height - gap, gap, Math.max(gap, view.height - size.height - gap)),
+    top: LAITA.clamp(rect.top + rect.height - size.height - gap, gap, Math.max(gap, view.height - size.height - gap)),
     where: "inside"
   };
 };
@@ -124,7 +124,7 @@ LAS.pillPosition = function (rect, size, view) {
  * Nothing when either side already carries the whitespace; a blank line when either side
  * spans more than one line, because a space would silently join two blocks.
  */
-LAS.appendSeparator = function (selected, addition) {
+LAITA.appendSeparator = function (selected, addition) {
   if (!addition) return "";
   if (/\s$/.test(selected) || /^\s/.test(addition)) return "";
   return /\n/.test(selected) || /\n/.test(addition) ? "\n\n" : " ";
@@ -168,7 +168,7 @@ function stopwordScores(text) {
  * Firefox's built-in detector is good on long text and erratic on short text, so on short
  * text the stopword heuristic wins, and on long text it is only used as a tie-breaker.
  */
-LAS.detectLanguage = async function (text) {
+LAITA.detectLanguage = async function (text) {
   const sample = text.slice(0, 4000);
   const heur = stopwordScores(sample);
   const heurLang = heur.top?.[1] >= 2 && heur.top[1] > (heur.runnerUp?.[1] ?? 0) ? heur.top[0] : null;
@@ -197,7 +197,7 @@ LAS.detectLanguage = async function (text) {
  * An issue whose span no longer holds its original text is searched for nearby and
  * shifted; if it cannot be found it is dropped.
  */
-LAS.reconcile = function (issues, text) {
+LAITA.reconcile = function (issues, text) {
   const out = [];
   for (const issue of issues) {
     if (text.slice(issue.start, issue.end) === issue.original) {
@@ -221,11 +221,11 @@ LAS.reconcile = function (issues, text) {
 };
 
 /** Issues that fall entirely outside [from, to): what a scoped re-check must not discard. */
-LAS.issuesOutside = function (issues, from, to) {
+LAITA.issuesOutside = function (issues, from, to) {
   return issues.filter((i) => i.end <= from || i.start >= to);
 };
 
-LAS.WORST = (issues) => {
+LAITA.WORST = (issues) => {
   if (issues.some((i) => i.type === "error")) return "error";
   if (issues.some((i) => i.type === "style")) return "style";
   if (issues.length) return "rephrase";

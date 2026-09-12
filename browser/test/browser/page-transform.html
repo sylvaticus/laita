@@ -43,13 +43,13 @@ Para four has recieve nothing at all and is the last of the padding paragraphs h
 /*
  * Drives the transform panel and reports what it observed back to the mock server.
  * Requires the test build described in test/README.md: an open shadow root and the
- * `las-test-transform` hook that stands in for the context menu, which page script
+ * `laita-test-transform` hook that stands in for the context menu, which page script
  * cannot open.
  */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const beacon = (step, data) => fetch("/api/beacon", {method:"POST",
   headers:{"Content-Type":"application/json"}, body: JSON.stringify({step, data})}).catch(()=>{});
-const sh = () => document.querySelector("locaispell-layer")?.shadowRoot;
+const sh = () => document.querySelector("laita-layer")?.shadowRoot;
 const panel = () => sh()?.querySelector(".panel.on");
 const $ = id => document.getElementById(id);
 const buttons = () => [...(panel()?.querySelectorAll("button.act") || [])].map(b => b.textContent);
@@ -60,7 +60,7 @@ const clickAct = label => [...panel().querySelectorAll("button.act")]
 const expected = s => s.replace(/e/g, "E");
 
 function openPanel() {
-  document.dispatchEvent(new CustomEvent("las-test-transform"));
+  document.dispatchEvent(new CustomEvent("laita-test-transform"));
 }
 
 /** Type an instruction into the panel and submit it. */
@@ -101,8 +101,8 @@ async function step(name, fn) {
 
   // Firefox reloads this tab once more while it is shutting down, by which point the
   // extension is gone. Without this the second run throws its way through every step and
-  // buries the real results. `lasAlive` is set by the test build's boot hook.
-  const alive = () => document.documentElement.dataset.lasAlive === "1";
+  // buries the real results. `laitaAlive` is set by the test build's boot hook.
+  const alive = () => document.documentElement.dataset.laitaAlive === "1";
   for (let i = 0; i < 20 && !alive(); i++) await sleep(100);
   if (!alive()) {
     await beacon("no-extension", "content script not present; nothing to test");
@@ -220,7 +220,7 @@ async function step(name, fn) {
     const el = $("pillfield");
     el.focus();
     await sleep(200);
-    document.dispatchEvent(new CustomEvent("las-test-check"));
+    document.dispatchEvent(new CustomEvent("laita-test-check"));
     for (let i = 0; i < 60 && !sh()?.querySelector(".pill.on"); i++) await sleep(50);
 
     const pill = sh()?.querySelector(".pill.on");
@@ -253,7 +253,7 @@ async function step(name, fn) {
   // ...and the same field does paint when the check is left alone, so the step above
   // proves the cancel worked rather than that nothing would have happened anyway.
   await step("pill-completes", async () => {
-    document.dispatchEvent(new CustomEvent("las-test-check"));
+    document.dispatchEvent(new CustomEvent("laita-test-check"));
     for (let i = 0; i < 100 && sh().querySelectorAll(".deco").length === 0; i++) await sleep(100);
     await beacon("pill-completes", { decos: sh().querySelectorAll(".deco").length });
   });
@@ -263,7 +263,7 @@ async function step(name, fn) {
     const el = $("retryfield");
     el.focus();
     await sleep(200);
-    document.dispatchEvent(new CustomEvent("las-test-check"));
+    document.dispatchEvent(new CustomEvent("laita-test-check"));
     for (let i = 0; i < 200 && sh().querySelectorAll(".deco").length === 0; i++) await sleep(100);
     await beacon("retry-after-500", {
       decos: sh().querySelectorAll(".deco").length,
@@ -279,9 +279,9 @@ async function step(name, fn) {
     const el = $("pillfield");
     el.focus();
     await sleep(300);
-    document.dispatchEvent(new CustomEvent("las-test-clear"));
+    document.dispatchEvent(new CustomEvent("laita-test-clear"));
     await sleep(250);
-    document.dispatchEvent(new CustomEvent("las-test-check"));
+    document.dispatchEvent(new CustomEvent("laita-test-check"));
     for (let i = 0; i < 200; i++) {
       if (sh().querySelectorAll(".deco").length || sh()?.querySelector(".pill.err")) break;
       await sleep(100);
@@ -301,7 +301,7 @@ async function step(name, fn) {
     el.focus();
     await sleep(35000);                      // outlast Firefox's 30s idle timeout
     const before = sh().querySelectorAll(".deco").length;
-    document.dispatchEvent(new CustomEvent("las-test-check"));
+    document.dispatchEvent(new CustomEvent("laita-test-check"));
     for (let i = 0; i < 250; i++) {
       if (sh().querySelectorAll(".deco").length > before || sh()?.querySelector(".pill.err")) break;
       await sleep(100);
@@ -323,7 +323,7 @@ async function step(name, fn) {
     el.focus();
     await sleep(300);
     const before = sh().querySelectorAll(".deco").length;
-    document.dispatchEvent(new CustomEvent("las-test-check"));
+    document.dispatchEvent(new CustomEvent("laita-test-check"));
     for (let i = 0; i < 900; i++) {
       if (sh().querySelectorAll(".deco").length > before || sh()?.querySelector(".pill.err")) break;
       await sleep(100);
@@ -342,7 +342,7 @@ async function step(name, fn) {
     el.setSelectionRange(at, at);
     await sleep(200);
     // the automatic path, not the forced one: Alt+Shift+C is meant to sweep everything
-    document.dispatchEvent(new CustomEvent("las-test-check-auto"));
+    document.dispatchEvent(new CustomEvent("laita-test-check-auto"));
     for (let i = 0; i < 250 && sh().querySelectorAll(".deco").length === 0; i++) await sleep(100);
     await sleep(2500);                        // let any further requests show up
     await beacon("caret-scope", {

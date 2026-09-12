@@ -129,7 +129,7 @@ class InputAdapter extends BaseAdapter {
 
     if (!this.mirror) {
       this.mirror = document.createElement("div");
-      this.mirror.setAttribute("data-locaispell-mirror", "");
+      this.mirror.setAttribute("data-laita-mirror", "");
       (document.body || document.documentElement).appendChild(this.mirror);
     }
     const s = this.mirror.style;
@@ -165,8 +165,8 @@ class InputAdapter extends BaseAdapter {
     if (!node) return [];
     const len = node.length;
     const range = document.createRange();
-    range.setStart(node, LAS.clamp(start, 0, len));
-    range.setEnd(node, LAS.clamp(end, 0, len));
+    range.setStart(node, LAITA.clamp(start, 0, len));
+    range.setEnd(node, LAITA.clamp(end, 0, len));
 
     const el = this.el;
     const mRect = this.mirror.getBoundingClientRect();
@@ -308,7 +308,7 @@ class EditableAdapter extends BaseAdapter {
 
     if (node.nodeType === Node.TEXT_NODE) {
       const part = parts.find((p) => p.node === node);
-      if (part) return part.textStart + LAS.clamp(offset, 0, part.len);
+      if (part) return part.textStart + LAITA.clamp(offset, 0, part.len);
     }
 
     let probe;
@@ -367,8 +367,8 @@ class EditableAdapter extends BaseAdapter {
     if (!a || !b) return null;
     try {
       const range = document.createRange();
-      range.setStart(a.node, LAS.clamp(a.offset, 0, a.node.length));
-      range.setEnd(b.node, LAS.clamp(b.offset, 0, b.node.length));
+      range.setStart(a.node, LAITA.clamp(a.offset, 0, a.node.length));
+      range.setEnd(b.node, LAITA.clamp(b.offset, 0, b.node.length));
       if (range.collapsed && start !== end) return null;
       return range;
     } catch {
@@ -429,9 +429,12 @@ class EditableAdapter extends BaseAdapter {
 // ------------------------------------------------------------------ detection
 
 /** Should Local AI Text Assistant ever look at this element? */
-LAS.isCheckable = function (el) {
+LAITA.isCheckable = function (el) {
   if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
-  if (el.closest("[data-locaispell='off']")) return false;
+  // data-locaispell is the pre-rename spelling. People were told to put it on their
+  // pages to opt out, so it has to keep working - a rename must not quietly switch
+  // someone's proofreading back on.
+  if (el.closest("[data-laita='off'],[data-locaispell='off']")) return false;
   if (el.isContentEditable) {
     if (el.getAttribute("aria-hidden") === "true") return false;
     return true;
@@ -450,12 +453,12 @@ LAS.isCheckable = function (el) {
 };
 
 /** Build the right adapter for a focused element, or null. */
-LAS.adapterFor = function (el) {
-  if (!LAS.isCheckable(el)) return null;
+LAITA.adapterFor = function (el) {
+  if (!LAITA.isCheckable(el)) return null;
   if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") return new InputAdapter(el);
   const host = el.closest(
     "[contenteditable=''],[contenteditable='true'],[contenteditable='plaintext-only']"
   );
-  if (!host || !LAS.isCheckable(host)) return null;
+  if (!host || !LAITA.isCheckable(host)) return null;
   return new EditableAdapter(host);
 };

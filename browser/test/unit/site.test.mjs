@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { siteAllowed, withDefaults } from "../../src/common/settings.js";
 
-// common.js declares `var LAS`, so it has to be evaluated in the global sloppy scope.
+// common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
 (0, eval)(readFileSync(new URL("../../src/content/common.js", import.meta.url).pathname, "utf8"));
-const LAS = globalThis.LAS;
+const LAITA = globalThis.LAITA;
 
 let pass = 0, fail = 0;
 const eq = (name, got, want) => {
@@ -50,22 +50,22 @@ const view = { width: 1000, height: 800 };
 const size = { width: 90, height: 20 };
 const field = { left: 100, top: 200, width: 400, height: 100 };
 
-const below = LAS.pillPosition(field, size, view);
+const below = LAITA.pillPosition(field, size, view);
 eq("sits below the field, clear of the text", below.where, "below");
 eq("below starts past the field's bottom edge", below.top >= field.top + field.height, true);
 eq("right-aligned to the field", below.left, 100 + 400 - 90 - 4);
 
-const atBottom = LAS.pillPosition({ left: 100, top: 700, width: 400, height: 90 }, size, view);
+const atBottom = LAITA.pillPosition({ left: 100, top: 700, width: 400, height: 90 }, size, view);
 eq("flips above when the field runs to the bottom", atBottom.where, "above");
 eq("above ends before the field's top edge", atBottom.top + size.height <= 700, true);
 
-const tall = LAS.pillPosition({ left: 100, top: -50, width: 400, height: 900 }, size, view);
+const tall = LAITA.pillPosition({ left: 100, top: -50, width: 400, height: 900 }, size, view);
 eq("falls back inside only when nothing else fits", tall.where, "inside");
 eq("inside stays on screen", tall.top >= 4 && tall.top + size.height <= view.height, true);
 
-const offRight = LAS.pillPosition({ left: 900, top: 100, width: 400, height: 50 }, size, view);
+const offRight = LAITA.pillPosition({ left: 900, top: 100, width: 400, height: 50 }, size, view);
 eq("never runs off the right edge", offRight.left + size.width <= view.width - 4, true);
-const offLeft = LAS.pillPosition({ left: -300, top: 100, width: 200, height: 50 }, size, view);
+const offLeft = LAITA.pillPosition({ left: -300, top: 100, width: 200, height: 50 }, size, view);
 eq("never runs off the left edge", offLeft.left >= 4, true);
 
 console.log(pass + " passed, " + fail + " failed");

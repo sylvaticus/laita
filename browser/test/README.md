@@ -22,7 +22,7 @@ It needs three temporary edits, so work on a **copy** of the extension, never th
 
 ```bash
 SRC=$(pwd)
-RUN=~/locaispell-testrun            # must be under $HOME: see the snap note below
+RUN=~/laita-testrun            # must be under $HOME: see the snap note below
 rm -rf $RUN && mkdir -p $RUN/prof && cp -r $SRC $RUN/ext
 
 # 1. point at the mock, speed up the debounce
@@ -40,7 +40,7 @@ If you are testing the **transform** panel, make a fourth edit — page script c
 context menu, so the harness needs a way in:
 
 ```bash
-sed -i 's|^LAS.Transform = {|document.addEventListener("las-test-transform", () => LAS.Transform.open());\nLAS.Transform = {|' \
+sed -i 's|^LAITA.Transform = {|document.addEventListener("laita-test-transform", () => LAITA.Transform.open());\nLAS.Transform = {|' \
        $RUN/ext/src/content/transform.js
 ```
 
@@ -50,7 +50,7 @@ down, by which point the extension is gone, and without the marker that second r
 its way through every step and buries the real results:
 
 ```bash
-sed -i 's|^  // ---------------------------------------------------------------- boot|  document.documentElement.dataset.lasAlive = "1";\n  document.addEventListener("las-test-check", () => runCheck(true));\n  document.addEventListener("las-test-check-auto", () => runCheck(false));\n  document.addEventListener("las-test-clear", () => LAS.send({ cmd: "clearSiteOverrides" }));\n\n  // ---------------------------------------------------------------- boot|' \
+sed -i 's|^  // ---------------------------------------------------------------- boot|  document.documentElement.dataset.laitaAlive = "1";\n  document.addEventListener("laita-test-check", () => runCheck(true));\n  document.addEventListener("laita-test-check-auto", () => runCheck(false));\n  document.addEventListener("laita-test-clear", () => LAITA.send({ cmd: "clearSiteOverrides" }));\n\n  // ---------------------------------------------------------------- boot|' \
        $RUN/ext/src/content/main.js
 ```
 
@@ -65,7 +65,7 @@ Also add the offset hook at the top of `paint()` in `$RUN/ext/src/content/main.j
 what lets the page audit the internal anchoring:
 
 ```js
-document.documentElement.dataset.lasIssues =
+document.documentElement.dataset.laitaIssues =
   JSON.stringify(issues.map((i) => ({ s: i.start, e: i.end, o: i.original, t: i.type })));
 ```
 
@@ -129,7 +129,7 @@ Every beacon must report `true`:
   because they pin down two things that plausibly could have caused it and do not.
 - `caret-scope`: a four-paragraph field with the caret in the second. Exactly one
   `/api/chat` must go out and it must contain that paragraph. Drive it with
-  `las-test-check-auto`, not `las-test-check` - the latter forces a check, and a forced
+  `laita-test-check-auto`, not `laita-test-check` - the latter forces a check, and a forced
   check is supposed to sweep the whole field.
 - `slow-request`: the one that matters most. The mock takes 45 seconds over any text
   containing `SLOWME`, longer than Firefox's 30 second background idle timeout, so the

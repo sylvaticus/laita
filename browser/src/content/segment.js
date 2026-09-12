@@ -51,7 +51,7 @@ function sentences(text, lang) {
  * @returns {Array<{start:number, text:string}>} chunks with trailing/leading blank space
  *          trimmed away but absolute offsets preserved.
  */
-LAS.chunkText = function (text, maxChars, lang) {
+LAITA.chunkText = function (text, maxChars, lang) {
   const limit = Math.max(120, maxChars || 700);
   const chunks = [];
 
@@ -96,7 +96,7 @@ LAS.chunkText = function (text, maxChars, lang) {
  * nearest one before it, because clicking into the space above a paragraph should not
  * be a dead zone where nothing is ever checked.
  */
-LAS.chunkAtCaret = function (chunks, caret) {
+LAITA.chunkAtCaret = function (chunks, caret) {
   if (caret == null || caret < 0 || !chunks.length) return -1;
   let before = -1;
   for (let i = 0; i < chunks.length; i++) {

@@ -4,8 +4,8 @@
  */
 
 (() => {
-  if (window.__locaispellLoaded) return;
-  window.__locaispellLoaded = true;
+  if (window.__laitaLoaded) return;
+  window.__laitaLoaded = true;
 
   /** @type {InstanceType<any>|null} */
   let adapter = null;
@@ -24,10 +24,10 @@
   // ---------------------------------------------------------------- settings
 
   async function loadSettings() {
-    const res = await LAS.send({ cmd: "getConfigFor", hostname: location.hostname });
+    const res = await LAITA.send({ cmd: "getConfigFor", hostname: location.hostname });
     if (!res) return false;
-    LAS.settings = res.settings;
-    LAS.active = res.active;
+    LAITA.settings = res.settings;
+    LAITA.active = res.active;
     return true;
   }
 
@@ -36,11 +36,11 @@
   function detach({ keepHighlights = false } = {}) {
     clearTimeout(debounceTimer);
     generation++;
-    if (adapter) LAS.send({ cmd: "cancel", clientId: LAS.clientId, gen: generation });
-    LAS.Card.hide();
+    if (adapter) LAITA.send({ cmd: "cancel", clientId: LAITA.clientId, gen: generation });
+    LAITA.Card.hide();
     if (!keepHighlights) {
-      LAS.Overlay.clearDecorations();
-      LAS.Overlay.hidePill();
+      LAITA.Overlay.clearDecorations();
+      LAITA.Overlay.hidePill();
       issues = [];
     }
     adapter?.destroy();
@@ -53,44 +53,44 @@
 
   function attach(el) {
     if (adapter && adapter.el === el) return;
-    const next = LAS.adapterFor(el);
+    const next = LAITA.adapterFor(el);
     // Focus moving to a button or a link should not wipe the highlights of the field
     // the user was just editing, so only tear down for another checkable field.
     if (!next) return;
     detach();
     adapter = next;
-    LAS.log("attached to", el);
-    if (LAS.settings.triggerMode === "auto") schedule(0);
+    LAITA.log("attached to", el);
+    if (LAITA.settings.triggerMode === "auto") schedule(0);
   }
 
   /** The field main.js is currently driving, so transform.js can reuse its adapter
    *  instead of building a second layout mirror for the same element. */
-  LAS.getAdapter = () => adapter;
+  LAITA.getAdapter = () => adapter;
 
   function schedule(delay) {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => runCheck(false), delay ?? LAS.settings.debounceMs);
+    debounceTimer = setTimeout(() => runCheck(false), delay ?? LAITA.settings.debounceMs);
   }
 
   // ---------------------------------------------------------------- checking
 
   async function runCheck(force) {
-    if (!adapter || !LAS.active || !LAS.settings.enabled) return;
+    if (!adapter || !LAITA.active || !LAITA.settings.enabled) return;
     if (!adapter.isAlive()) return detach();
 
     adapter.invalidate();
     const text = adapter.getText();
 
-    if (text.trim().length < LAS.settings.minChars) {
+    if (text.trim().length < LAITA.settings.minChars) {
       issues = [];
       lastError = null;
-      LAS.Overlay.clearDecorations();
-      LAS.Overlay.hidePill();
+      LAITA.Overlay.clearDecorations();
+      LAITA.Overlay.hidePill();
       reportStatus();
       return;
     }
-    if (text.length > LAS.settings.maxChars) {
-      lastError = `This field holds ${text.length} characters, over the ${LAS.settings.maxChars} limit.`;
+    if (text.length > LAITA.settings.maxChars) {
+      lastError = `This field holds ${text.length} characters, over the ${LAITA.settings.maxChars} limit.`;
       showPill();
       return;
     }
@@ -98,10 +98,10 @@
     // check is a duplicate now depends on *which* paragraph it would look at, not just
     // on the text. Nothing is cancelled until we know there is work to do.
     const lang =
-      LAS.settings.language === "auto" ? await LAS.detectLanguage(text) : LAS.settings.language;
+      LAITA.settings.language === "auto" ? await LAITA.detectLanguage(text) : LAITA.settings.language;
     if (!adapter?.isAlive()) return;
 
-    const chunks = LAS.chunkText(text, LAS.settings.chunkMaxChars, lang);
+    const chunks = LAITA.chunkText(text, LAITA.settings.chunkMaxChars, lang);
     if (!chunks.length) return;
 
     // Scope. Opening a long document should not fire a request per paragraph before the
@@ -110,8 +110,8 @@
     // or the toolbar button - always sweeps the whole field.
     let todo = chunks;
     let keep = [];
-    if (!force && LAS.settings.checkScope === "caret" && chunks.length > 1) {
-      const at = LAS.chunkAtCaret(chunks, adapter.caretIn());
+    if (!force && LAITA.settings.checkScope === "caret" && chunks.length > 1) {
+      const at = LAITA.chunkAtCaret(chunks, adapter.caretIn());
       if (at === -1) {
         // No caret to work from yet. Checking something arbitrary would be worse than
         // waiting for the user to click or type.
@@ -121,7 +121,7 @@
       }
       todo = [chunks[at]];
       // Everything already found elsewhere in the field stays on screen.
-      keep = LAS.issuesOutside(issues, todo[0].start, todo[0].start + todo[0].text.length);
+      keep = LAITA.issuesOutside(issues, todo[0].start, todo[0].start + todo[0].text.length);
     }
 
     const rangeKey = todo.map((c) => c.start + "+" + c.text.length).join(",");
@@ -135,9 +135,9 @@
     lastError = null;
     const gen = ++generation;
 
-    LAS.log(
+    LAITA.log(
       "checking", todo.length, "of", chunks.length, "chunk(s), language:", currentLang,
-      "field:", adapter.kind, "scope:", force ? "forced" : LAS.settings.checkScope
+      "field:", adapter.kind, "scope:", force ? "forced" : LAITA.settings.checkScope
     );
     busyChunks = todo.length;
     const collected = [...keep];
@@ -145,11 +145,11 @@
 
     await Promise.all(
       todo.map(async (chunk) => {
-        const res = await LAS.send({
+        const res = await LAITA.send({
           cmd: "checkChunk",
           text: chunk.text,
           lang: currentLang,
-          clientId: LAS.clientId,
+          clientId: LAITA.clientId,
           gen
         });
         if (gen !== generation) return;
@@ -157,7 +157,7 @@
 
         if (!res || !res.ok) {
           if (res?.stale) return;
-          lastError = res?.error || LAS.sendFailure();
+          lastError = res?.error || LAITA.sendFailure();
           showPill();
           return;
         }
@@ -165,7 +165,7 @@
           collected.push({ ...issue, start: issue.start + chunk.start, end: issue.end + chunk.start });
         }
         // Paint progressively: the first paragraph should not wait for the last.
-        issues = LAS.reconcile(collected.slice(), adapter.getText());
+        issues = LAITA.reconcile(collected.slice(), adapter.getText());
         paint();
         showPill();
       })
@@ -182,8 +182,8 @@
   function paint() {
     if (!adapter?.isAlive()) return;
     adapter.invalidate();
-    LAS.Overlay.render(adapter, issues, LAS.settings);
-    if (LAS.Card.isOpen()) LAS.Card.follow(adapter);
+    LAITA.Overlay.render(adapter, issues, LAITA.settings);
+    if (LAITA.Card.isOpen()) LAITA.Card.follow(adapter);
   }
 
   /**
@@ -193,52 +193,52 @@
   function cancelCheck() {
     clearTimeout(debounceTimer);
     generation++;
-    LAS.send({ cmd: "cancel", clientId: LAS.clientId, gen: generation });
+    LAITA.send({ cmd: "cancel", clientId: LAITA.clientId, gen: generation });
     busyChunks = 0;
     lastError = null;
     if (adapter?.isAlive()) {
       lastCheckedText = adapter.getText();
       lastCheckedRange = ALL;
     }
-    LAS.Overlay.hidePill();
+    LAITA.Overlay.hidePill();
     reportStatus();
   }
 
   function showPill() {
     if (!adapter?.isAlive()) return;
     if (lastError) {
-      LAS.Overlay.showPill(adapter, {
-        text: "locaispell: error",
+      LAITA.Overlay.showPill(adapter, {
+        text: "LAITA: error",
         error: true,
         onClose: cancelCheck,
-        onDetail: () => LAS.Card.showError(adapter, lastError)
+        onDetail: () => LAITA.Card.showError(adapter, lastError)
       });
       return;
     }
     if (busyChunks > 0) {
-      LAS.Overlay.showPill(adapter, { text: "Checking…", busy: true, onClose: cancelCheck });
+      LAITA.Overlay.showPill(adapter, { text: "Checking…", busy: true, onClose: cancelCheck });
       return;
     }
     if (issues.length) {
-      LAS.Overlay.showPill(adapter, {
+      LAITA.Overlay.showPill(adapter, {
         text: `${issues.length} suggestion${issues.length > 1 ? "s" : ""}`,
         onClose: cancelCheck
       });
       setTimeout(() => {
-        if (busyChunks === 0 && !lastError) LAS.Overlay.hidePill();
+        if (busyChunks === 0 && !lastError) LAITA.Overlay.hidePill();
       }, 1800);
       return;
     }
-    LAS.Overlay.showPill(adapter, { text: "No issues", onClose: cancelCheck });
+    LAITA.Overlay.showPill(adapter, { text: "No issues", onClose: cancelCheck });
     setTimeout(() => {
-      if (busyChunks === 0 && !lastError) LAS.Overlay.hidePill();
+      if (busyChunks === 0 && !lastError) LAITA.Overlay.hidePill();
     }, 1200);
   }
 
   function reportStatus() {
-    LAS.send({
+    LAITA.send({
       cmd: "status",
-      state: { busy: busyChunks > 0, error: !!lastError, count: issues.length, worst: LAS.WORST(issues) }
+      state: { busy: busyChunks > 0, error: !!lastError, count: issues.length, worst: LAITA.WORST(issues) }
     });
   }
 
@@ -247,11 +247,11 @@
     repositionQueued = true;
     requestAnimationFrame(() => {
       repositionQueued = false;
-      LAS.Transform.reposition();
+      LAITA.Transform.reposition();
       if (!adapter?.isAlive()) return;
-      if (!issues.length && !LAS.Card.isOpen()) return;
+      if (!issues.length && !LAITA.Card.isOpen()) return;
       paint();
-      if (LAS.Overlay.pill?.classList.contains("on")) showPill();
+      if (LAITA.Overlay.pill?.classList.contains("on")) showPill();
     });
   }
 
@@ -263,7 +263,7 @@
     const text = adapter.getText();
     if (text.slice(issue.start, issue.end) !== issue.original) {
       // The text moved under us; re-anchor everything and give up on this one.
-      issues = LAS.reconcile(issues, text);
+      issues = LAITA.reconcile(issues, text);
       paint();
       return;
     }
@@ -277,7 +277,7 @@
     adapter.invalidate();
     lastCheckedText = adapter.getText();
     lastCheckedRange = ALL;
-    issues = LAS.reconcile(issues, lastCheckedText);
+    issues = LAITA.reconcile(issues, lastCheckedText);
     paint();
     reportStatus();
   }
@@ -293,9 +293,9 @@
   document.addEventListener(
     "focusin",
     (e) => {
-      if (!LAS.active) return;
+      if (!LAITA.active) return;
       const target = e.target;
-      if (LAS.Overlay.isOurs(target)) return;
+      if (LAITA.Overlay.isOurs(target)) return;
       attach(target);
     },
     true
@@ -307,10 +307,10 @@
       if (!adapter || e.target !== adapter.el && !adapter.el.contains(e.target)) return;
       adapter.invalidate();
       // Shift highlights with the edit right away so they do not lag behind the caret.
-      issues = LAS.reconcile(issues, adapter.getText());
+      issues = LAITA.reconcile(issues, adapter.getText());
       paint();
-      if (LAS.Card.isOpen()) LAS.Card.hide();
-      if (LAS.settings.triggerMode === "auto") schedule();
+      if (LAITA.Card.isOpen()) LAITA.Card.hide();
+      if (LAITA.settings.triggerMode === "auto") schedule();
     },
     true
   );
@@ -319,27 +319,27 @@
     "click",
     (e) => {
       // A click on our own card must reach the card's buttons untouched.
-      if (LAS.Overlay.isOurs(e.target)) return;
+      if (LAITA.Overlay.isOurs(e.target)) return;
       if (!adapter?.isAlive()) return;
-      const hit = LAS.Overlay.hitTest(e.clientX, e.clientY);
+      const hit = LAITA.Overlay.hitTest(e.clientX, e.clientY);
       if (!hit) {
-        if (LAS.Card.isOpen()) LAS.Card.hide();
+        if (LAITA.Card.isOpen()) LAITA.Card.hide();
         return;
       }
       const rects = adapter.rects(hit.start, hit.end);
-      LAS.Overlay.setHot(hit.fp);
-      LAS.Card.show({
+      LAITA.Overlay.setHot(hit.fp);
+      LAITA.Card.show({
         issue: hit,
         lang: currentLang,
         anchorRect: rects[0] || { left: e.clientX, top: e.clientY, width: 0, height: 0 },
         onApply: applyIssue,
         onDismiss: dropIssue,
         onNever: (issue) => {
-          LAS.send({ cmd: "ignoreSuggestion", fp: issue.fp });
+          LAITA.send({ cmd: "ignoreSuggestion", fp: issue.fp });
           dropIssue(issue);
         },
         onDictionary: (issue) => {
-          LAS.send({ cmd: "addToDictionary", word: issue.original });
+          LAITA.send({ cmd: "addToDictionary", word: issue.original });
           dropIssue(issue);
         }
       });
@@ -350,21 +350,21 @@
   document.addEventListener(
     "mousemove",
     (e) => {
-      if (!LAS.active || !issues.length) return;
-      const hit = LAS.Overlay.hitTest(e.clientX, e.clientY);
-      LAS.Overlay.setHot(hit ? hit.fp : LAS.Card.current?.issue.fp || null);
+      if (!LAITA.active || !issues.length) return;
+      const hit = LAITA.Overlay.hitTest(e.clientX, e.clientY);
+      LAITA.Overlay.setHot(hit ? hit.fp : LAITA.Card.current?.issue.fp || null);
     },
     { capture: true, passive: true }
   );
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && LAS.Transform.isOpen()) {
-      LAS.Transform.close();
+    if (e.key === "Escape" && LAITA.Transform.isOpen()) {
+      LAITA.Transform.close();
       e.stopPropagation();
       return;
     }
-    if (e.key === "Escape" && LAS.Card.isOpen()) {
-      LAS.Card.hide();
+    if (e.key === "Escape" && LAITA.Card.isOpen()) {
+      LAITA.Card.hide();
       e.stopPropagation();
     }
   }, true);
@@ -392,12 +392,12 @@
       return { ok: true };
     }
     if (msg.cmd === "transformSelection") {
-      return LAS.Transform.open();
+      return LAITA.Transform.open();
     }
     if (msg.cmd === "settingsChanged") {
-      const wasActive = LAS.active;
+      const wasActive = LAITA.active;
       await loadSettings();
-      if (!LAS.active) detach();
+      if (!LAITA.active) detach();
       else if (!wasActive && document.activeElement) attach(document.activeElement);
       else if (adapter) {
         lastCheckedText = null;
@@ -421,6 +421,6 @@
   // ---------------------------------------------------------------- boot
 
   loadSettings().then(() => {
-    if (LAS.active && document.activeElement) attach(document.activeElement);
+    if (LAITA.active && document.activeElement) attach(document.activeElement);
   });
 })();

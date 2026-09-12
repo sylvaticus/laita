@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Local AI Text Assistant",
-  "version": "0.2.2",
+  "name": "LAITA - Local AI Text Assistant",
+  "version": "0.3.0",
   "description": "Local AI proofreading and rewriting for any web form, powered by your own Ollama models. Nothing leaves your machine.",
   "author": "Antonello Lobianco",
   "homepage_url": "https://github.com/sylvaticus/locaispell",
@@ -54,7 +54,7 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "Local AI Text Assistant",
+    "default_title": "LAITA - Local AI Text Assistant",
     "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "icons/icon.svg",

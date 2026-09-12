@@ -1,9 +1,18 @@
-# locaispell — notes for future sessions
+# LAITA — notes for future sessions
 
-Firefox MV3 extension: proofreads web form fields with a local Ollama model, and rewrites
-a selection on demand (context menu / Alt+Shift+T).
-Display name "Local AI Text Assistant", single-token name `locaispell`, ID
-`locaispell@lobianco.org` (permanent — never change it, AMO ties versions to it).
+**LAITA** = Local AI Text Assistant. Short name `laita`; the sandbox global in the content
+scripts is `LAITA`. Display name "LAITA - Local AI Text Assistant".
+
+The repository is a monorepo. `browser/` is the Firefox extension (and Chrome later);
+`doc/roadmap.md` has the plan for the other targets and why the shared core has not been
+extracted yet.
+
+`browser/` is an MV3 extension: proofreads web form fields with a local Ollama model, and
+rewrites a selection on demand (context menu / Alt+Shift+T).
+
+**The extension ID stays `locaispell@lobianco.org`.** It predates the rename and is
+invisible to users, but AMO ties every uploaded version to it — changing it would create a
+second, unrelated add-on and abandon the listing. Do not "tidy" it.
 
 User-facing docs are in `README.md`. This file is the things that are **not** obvious from
 reading the code.
@@ -11,11 +20,11 @@ reading the code.
 ## Verify changes with
 
 ```bash
-./test/run.sh                                    # 24 unit tests, node only
-web-ext lint --source-dir . --self-hosted        # must stay 0 errors / 0 warnings
+browser/test/run.sh                                    # 24 unit tests, node only
+(cd browser && npx web-ext lint --self-hosted)        # must stay 0 errors / 0 warnings
 ```
 
-`test/README.md` has two browser harnesses (real extension, headless Firefox, fake Ollama).
+`browser/test/README.md` has two browser harnesses (real extension, headless Firefox, fake Ollama).
 `page.html` checks highlight geometry against independently measured DOM Ranges;
 `page-transform.html` drives the transform panel and checks the text that actually lands in
 the field. Use them for any change to `overlay.js`, `textmap.js`, `transform.js` or the
@@ -25,7 +34,7 @@ event handling in `content/main.js` — unit tests cannot see those bugs.
 
 **Ollama blocks browser extensions.** Firefox sends `Origin: moz-extension://<uuid>` and
 Ollama answers 403 unless `OLLAMA_ORIGINS` allows it. Already configured on this machine via
-`/etc/systemd/system/ollama.service.d/locaispell.conf`. A plain
+`/etc/systemd/system/ollama.service.d/laita.conf`. A plain
 `GET` carries no Origin and succeeds regardless — that is why `probe()` in
 `background/ollama.js` deliberately ends with a POST to `/api/show`. Do not "simplify" it
 back to a GET; it would report a healthy connection while every real check failed.
@@ -52,7 +61,7 @@ proofreading.
 returns anchored spans and never rewrites wholesale; a transform is explicit, covers exactly
 the selected fragment and is not cached, queued or fingerprinted. The one thing they share
 is the adapter, deliberately: `transform.js` reuses the instance `main.js` is driving
-(`LAS.getAdapter()`) rather than building a second layout mirror for the same `<textarea>`.
+(`LAITA.getAdapter()`) rather than building a second layout mirror for the same `<textarea>`.
 
 **The extension never names a `num_ctx` unless the user pinned one.** Ollama keys a
 loaded model by its runtime options, so asking for the same model at a different context
@@ -66,7 +75,7 @@ reason; an oversized transform against a pinned window is now refused instead.
 
 **An automatic check looks at one paragraph, an explicit one at the whole field.**
 `checkScope` defaults to `"caret"`, and `runCheck` then sends only the chunk
-`LAS.chunkAtCaret` points at, keeping the issues found elsewhere via `LAS.issuesOutside`.
+`LAITA.chunkAtCaret` points at, keeping the issues found elsewhere via `LAITA.issuesOutside`.
 Without this, focusing a long document queues one request per paragraph before the user
 has typed a character, which is what made the extension unusable on a blog post. `force`
 - the hotkey and the toolbar button - deliberately ignores the scope.
@@ -102,13 +111,13 @@ unit tested. Its job is to turn transport failures into something the user can a
 in particular a 500 mentioning `llama-server` becomes an explanation about VRAM rather
 than a Go error string.
 
-**`null` from `LAS.send` means the message never reached the background page**, which is a
+**`null` from `LAITA.send` means the message never reached the background page**, which is a
 different failure from anything Ollama said, and must not be reported as "could not reach
 the model". Two causes hide behind the same "Receiving end does not exist", and
 `sendFailureKind` separates them: the background is an event page that may still be
 waking, which one 250 ms retry covers; or the content script is *orphaned*, left behind in
 an open tab by reloading the extension, in which case no retry will ever work and the user
-must be told to reload the page. `LAS.isOrphaned` reads `browser.runtime.id`, which is
+must be told to reload the page. `LAITA.isOrphaned` reads `browser.runtime.id`, which is
 gone in an orphan. Never retry an orphan - it only delays the one instruction that helps.
 
 **A per-site override beats the allowlist/denylist.** `siteOverrides` in
@@ -120,7 +129,7 @@ never by suffix: an override is set from one concrete tab's hostname.
 **The status pill is click-through; only its × is not.** `.pill` keeps
 `pointer-events: none` so that text underneath stays selectable and the caret still lands
 where the user clicked, and `.pillx` opts back in. It is also positioned *outside* the
-field by `LAS.pillPosition` - it used to cover the words being typed. Do not move it back
+field by `LAITA.pillPosition` - it used to cover the words being typed. Do not move it back
 inside or make the whole pill clickable.
 
 **The pill's × stops the check, it does not merely hide it.** `cancelCheck` bumps
@@ -129,8 +138,8 @@ inside or make the whole pill clickable.
 the work the user just stopped.
 
 **Context menu titles must not repeat the extension name.** Firefox groups an extension's
-items under a submenu named after the extension, so a title of "Locaispell transform…"
-reads as "Local AI Text Assistant > Locaispell transform…". They are bare verbs for that
+items under a submenu named after the extension, so a title of "LAITA transform…"
+reads as "Local AI Text Assistant > LAITA transform…". They are bare verbs for that
 reason.
 
 **The transform panel swallows key events.** Sites bind single-letter shortcuts, and a
@@ -145,7 +154,7 @@ hallucinated quote from mangling the user's text. Never trust an offset from the
 `anchor.js` also re-reads `original` from the document rather than keeping the model's copy.
 
 **Events from the closed shadow root retarget to the host.** The document-level capture
-listeners in `content/main.js` must call `LAS.Overlay.isOurs(e.target)` and bail, or they
+listeners in `content/main.js` must call `LAITA.Overlay.isOurs(e.target)` and bail, or they
 tear the card down before its own buttons can fire. This was a real bug.
 
 **`applyFix` dispatches `input` synchronously**, and the `input` handler re-anchors the
@@ -153,9 +162,11 @@ remaining issues by searching for their text. So `applyIssue` must *not* also sh
 by the length delta — that double-shifts them. Retire the applied issue from the list before
 calling `applyFix`, and let re-anchoring do the rest. Also a real bug.
 
-**`data-locaispell="off"` is set on the overlay host in `overlay.js` and read by
-`isCheckable` in `textmap.js`.** They must be renamed together or the extension starts
-proofreading its own suggestion card.
+**`data-laita="off"` is set on the overlay host in `overlay.js` and read by `isCheckable`
+in `textmap.js`.** They must be renamed together or the extension starts proofreading its
+own suggestion card. `isCheckable` also honours the pre-rename `data-locaispell="off"`,
+because users were told to put it on their pages and a rename must not silently switch
+their proofreading back on.
 
 **The overlay is `pointer-events: none`** and clicks are matched against the rectangles it
 drew. That is deliberate: it keeps caret placement and text selection exactly as the page
@@ -186,7 +197,7 @@ cache stores *raw* responses so that changing the ignore list needs no invalidat
 
 ## Conventions
 
-- Content scripts share one sandbox global: `var LAS` in `common.js`, visible to the files
+- Content scripts share one sandbox global: `var LAITA` in `common.js`, visible to the files
   listed after it in the manifest. They are classic scripts, not modules.
 - Background, options and popup are ES modules and import `common/settings.js`.
 - Settings live in exactly one place: `DEFAULTS` in `src/common/settings.js`.

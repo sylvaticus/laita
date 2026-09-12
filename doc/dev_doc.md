@@ -12,17 +12,17 @@ This is the fastest loop: no build step, no signing, and changes reload in a cli
 
 1. Open **`about:debugging#/runtime/this-firefox`**
 2. Click **Load Temporary Add-on…**
-3. Select **`manifest.json`** in the repository root — the manifest itself, not a `.zip`
+3. Select **`browser/manifest.json`** — the manifest itself, not a `.zip`
    or `.xpi`
 
 The add-on appears under **Temporary Extensions**:
 
 ```
 ┌─ Temporary Extensions ──────────────────────────────────┐
-│  [icon]  Local AI Text Assistant                         │
+│  [icon]  LAITA - Local AI Text Assistant                         │
 │          Extension ID    locaispell@lobianco.org         │
 │          Internal UUID   d2f842af-951b-4d15-…            │
-│          Location        /home/…/locaispell_firefox/…    │
+│          Location        /home/…/laita/browser/manifest.json │
 │                                                          │
 │          [ Inspect ]  [ Reload ]  [ Remove ]             │
 └──────────────────────────────────────────────────────────┘
@@ -62,11 +62,11 @@ before loading a temporary one resets every option. Note anything you changed fi
 ## 2. Tests
 
 ```bash
-./test/run.sh                                    # unit tests, node only, no dependencies
-npx web-ext lint --source-dir . --self-hosted    # must stay 0 errors / 0 warnings
+browser/test/run.sh                                    # unit tests, node only, no dependencies
+(cd browser && npx web-ext lint --self-hosted)    # must stay 0 errors / 0 warnings
 ```
 
-`test/README.md` describes the browser harnesses: the real extension in headless Firefox
+`browser/test/README.md` describes the browser harnesses: the real extension in headless Firefox
 against a fake Ollama, checking highlight geometry against independently measured DOM
 Ranges and the text that actually lands in the field. They need more setup than the unit
 tests and are the only thing that catches overlay, geometry and event-handling bugs.
@@ -106,11 +106,15 @@ the `.xpi` sees exactly what is in this repository.
 
 ### Build
 
+Every `web-ext` command must be run **from inside `browser/`**: web-ext reads
+`web-ext-config.cjs` from the current directory, not from `--source-dir`, so running it
+from the repository root silently ignores `ignoreFiles` and packages `test/`.
+
 ```bash
-npx web-ext build --overwrite-dest
+(cd browser && npx web-ext build --overwrite-dest)
 ```
 
-Output: `web-ext-artifacts/local_ai_text_assistant-<version>.zip`.
+Output: `browser/web-ext-artifacts/laita-<version>.zip`.
 
 ### The two different "IDs"
 
@@ -139,7 +143,7 @@ through the questions — or use the API:
 ```bash
 export WEB_EXT_API_KEY='user:12345678:123'      # the JWT issuer
 export WEB_EXT_API_SECRET='...'                 # the secret
-npx web-ext sign --channel=unlisted
+(cd browser && npx web-ext sign --channel=unlisted)
 ```
 
 Credentials come from <https://addons.mozilla.org/developers/addon/api/key/>. **Treat the
@@ -167,7 +171,7 @@ anything, but **the version number still has to be one that has never been uploa
 
 Submit at <https://addons.mozilla.org/developers/> → *Upload New Version*, choosing
 **"On this site"** where the unlisted flow chose "On your own". Or
-`npx web-ext sign --channel=listed`.
+`(cd browser && npx web-ext sign --channel=listed)`.
 
 Before submitting:
 
@@ -178,7 +182,7 @@ Before submitting:
 - [ ] **Check the listing name and summary.** AMO stores these separately from
       `manifest.json` once the add-on exists, so renaming the extension does not update
       them — they have to be edited by hand on that page.
-- [ ] **A PNG icon, 128px or larger.** `icons/icon.svg` is fine for Firefox itself, but
+- [ ] **A PNG icon, 128px or larger.** `browser/icons/icon.svg` is fine for Firefox itself, but
       the listing page wants a raster version.
 - [ ] **Screenshots and a description.** `assets/imgs/` has five screenshots; the
       description field is empty by default and is what a stranger reads first.

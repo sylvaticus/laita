@@ -1,4 +1,4 @@
-# Local AI Text Assistant
+# LAITA — Local AI Text Assistant
 
 A Firefox extension that **proofreads what you type** into any web form and **rewrites
 text you select**, using a model running locally on your machine (via [Ollama](https://ollama.com)).
@@ -91,7 +91,7 @@ Ollama server process**, then restart Ollama. How you do that depends on the pla
 ```bash
 sudo mkdir -p /etc/systemd/system/ollama.service.d
 printf '[Service]\nEnvironment="OLLAMA_ORIGINS=moz-extension://*"\n' \
-  | sudo tee /etc/systemd/system/ollama.service.d/locaispell.conf
+  | sudo tee /etc/systemd/system/ollama.service.d/laita.conf
 sudo systemctl daemon-reload && sudo systemctl restart ollama
 ```
 
@@ -147,6 +147,29 @@ setx OLLAMA_ORIGINS "moz-extension://*"
 > you try one, [an issue](https://github.com/sylvaticus/locaispell/issues) saying whether
 > it worked would be welcome.
 
+#### Why the wildcard, and how to narrow it safely
+
+The `moz-extension://…` origin Firefox sends is **not** the extension's ID. It is a random
+UUID that Firefox generates **per profile**, so it differs on every machine and every
+profile, and there is no value you can publish that would work for everyone. Four runs on
+one machine during development produced four different origins for the same extension.
+
+So `moz-extension://*` is the only setting that works out of the box. It does mean *any*
+extension can reach Ollama. To close that, pin **your own** profile's UUID once LAITA is
+permanently installed:
+
+1. Open `about:config` and search for `extensions.webextensions.uuids`
+2. Find `locaispell@lobianco.org` in the JSON and copy the UUID next to it
+3. Use `OLLAMA_ORIGINS=moz-extension://<that-uuid>` and restart Ollama
+
+⚠️ Do **not** use the extension ID there — `moz-extension://locaispell@lobianco.org` looks
+plausible and is silently wrong: Ollama accepts the setting and then rejects every real
+request with `403`. The variable takes a comma-separated list, so a second profile or
+machine needs its own UUID added.
+
+Keep the wildcard while loading temporary development builds: those get a fresh UUID on
+every load.
+
 Whatever your platform, this check should return something other than `403`:
 
 ```bash
@@ -163,7 +186,7 @@ means Ollama was not restarted.
 
 **From Firefox Add-ons** — the normal way, and it updates itself:
 
-> **[Local AI Text Assistant on addons.mozilla.org](https://addons.mozilla.org/firefox/addon/local-ai-text-assistant/)**
+> **[LAITA on addons.mozilla.org](https://addons.mozilla.org/firefox/addon/local-ai-text-assistant/)**
 >
 > The listing is awaiting Mozilla's review. Until it is approved that link will not
 > resolve — use the direct download below in the meantime.
@@ -212,7 +235,7 @@ shows progress; click its **×** to hide it and abandon the check that is runnin
   - **Add to dictionary** — for a single word, adds it to your personal dictionary.
 - **Alt+Shift+C** — check the focused field immediately.
 - **Alt+Shift+X** — pause (or resume) proofreading on the current site. The same thing is
-  in the right-click menu as **Locaispell: pause / resume spell check on …**, and on the
+  in the right-click menu as **LAITA: pause / resume spell check on …**, and on the
   toolbar button. See [pausing on a site](#pausing-on-a-site).
 - The **toolbar button** shows the issue count, the connection status, and per-site and
   global on/off switches.
@@ -266,7 +289,7 @@ Three places do the same thing — the right-click menu, **Alt+Shift+X**, and th
 button's per-site switch. The menu entry names the site and says which way it will go, so
 you can see the current state before clicking:
 
-> Locaispell: pause spell check on **news.ycombinator.com**
+> LAITA: pause spell check on **news.ycombinator.com**
 
 A pause set this way is an **override**: it wins over the allowlist/denylist in the
 options, so it holds whatever the standing policy says for that hostname. It applies to
@@ -286,7 +309,8 @@ Passwords, payment fields, one-time codes, and any field whose type, `autocomple
 id, placeholder or class hints at a secret are skipped outright — they are never read and
 never sent anywhere. Fields shorter than 12 characters are ignored too.
 
-To exclude anything else, add `data-locaispell="off"` to it or to any ancestor.
+To exclude anything else, add `data-laita="off"` to it or to any ancestor. The older
+`data-locaispell="off"` still works, so pages that already use it keep their exclusion.
 
 ---
 
@@ -454,8 +478,15 @@ read at all.
 
 ## 8. Development
 
-Building, testing, signing and how the internals fit together:
-[`doc/dev_doc.md`](doc/dev_doc.md).
+This repository is a monorepo. The Firefox extension is in [`browser/`](browser/); it is
+self-contained and has no build step.
+
+- [`doc/dev_doc.md`](doc/dev_doc.md) — running a development build, tests, signing,
+  architecture
+- [`doc/roadmap.md`](doc/roadmap.md) — Chrome, VS Code and LibreOffice: what can be
+  shared and what cannot
+
+LAITA is short for *Local AI Text Assistant*, and is the name used throughout the code.
 
 ---
 

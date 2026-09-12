@@ -6,9 +6,9 @@ import {
   buildTransformSystemPrompt
 } from "../../src/background/ollama.js";
 
-// common.js declares `var LAS`, so it has to be evaluated in the global sloppy scope.
+// common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
 (0, eval)(readFileSync(new URL("../../src/content/common.js", import.meta.url).pathname, "utf8"));
-const LAS = globalThis.LAS;
+const LAITA = globalThis.LAITA;
 
 let pass = 0, fail = 0;
 const eq = (name, got, want) => {
@@ -72,13 +72,13 @@ eq(
 
 // ---------------------------------------------------------------- appendSeparator
 
-eq("space between two words", LAS.appendSeparator("hello", "world"), " ");
-eq("nothing when the fragment already ends in space", LAS.appendSeparator("hello ", "world"), "");
-eq("nothing when the addition starts with space", LAS.appendSeparator("hello", " world"), "");
-eq("nothing when the fragment ends in a newline", LAS.appendSeparator("hello\n", "world"), "");
-eq("blank line for a multi-line fragment", LAS.appendSeparator("a\nb", "c"), "\n\n");
-eq("blank line for a multi-line addition", LAS.appendSeparator("a", "b\nc"), "\n\n");
-eq("nothing to append", LAS.appendSeparator("hello", ""), "");
+eq("space between two words", LAITA.appendSeparator("hello", "world"), " ");
+eq("nothing when the fragment already ends in space", LAITA.appendSeparator("hello ", "world"), "");
+eq("nothing when the addition starts with space", LAITA.appendSeparator("hello", " world"), "");
+eq("nothing when the fragment ends in a newline", LAITA.appendSeparator("hello\n", "world"), "");
+eq("blank line for a multi-line fragment", LAITA.appendSeparator("a\nb", "c"), "\n\n");
+eq("blank line for a multi-line addition", LAITA.appendSeparator("a", "b\nc"), "\n\n");
+eq("nothing to append", LAITA.appendSeparator("hello", ""), "");
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);
