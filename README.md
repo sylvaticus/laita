@@ -5,9 +5,11 @@ A **multi-app** extension that **proofreads what you type** and **rewrites the t
 
 Differently from integrated spellcheckers or apps like [Harper](https://writewithharper.com/), the judgement comes from an LLM rather than hand-written rules, so it handles style and phrasing as well as hard grammar errors, and it works in any language the model knows.
 
-**Nothing leaves your machine.** The only network destination is your own Ollama endpoint.
+**Nothing leaves your machine.** The only network destination is your own Ollama .
 
 The **Firefox extension** is working right now and is fully tested; the **Chrome extension** is experimental. **VSCode** and **LibreOffice extensions** are on their way.
+
+
 
 ---
 
@@ -48,38 +50,42 @@ The result can replace the selection, be inserted after it, or be thrown away:
 
 ![The transform result: "Sorry, me don't speak too well english." rewritten as "Sorry, I don't speak English very well.", with buttons Accept & replace, Reject, Accept & append](assets/imgs/screenshot_locaispell_firefox1.png)
 
-`translate to French`, `shorten it`, `make it more formal`, `turn into bullet points` — the
-instruction is free text, so anything the model understands works.
+`translate to French`, `shorten it`, `make it more formal`, `turn into bullet points` — the instruction is free text, so anything the model understands works.
 
-The language of each field is detected automatically (English and French are the tuned
-cases; Italian, Spanish, German, Portuguese and Dutch are also recognised), or you can pin
-one language in the options.
+The language of each field is detected automatically (English and French are the tuned cases; Italian, Spanish, German, Portuguese and Dutch are also recognised), or you can pin one language in the options.
 
----
-
-## 2. Requirements
-
-- **Firefox 142** or newer, or **Chrome 116** or newer
-- **[Ollama](https://ollama.com)** running locally, with a model pulled:
-  ```bash
-  ollama pull qwen3.5:9b
-  ```
-
-A 7–9B instruction model is the sweet spot. `qwen3.5:9b` was used to develop this and gives
-good results in both English and French. Smaller models are faster but miss more and invent
-more; `qwen3.5:4b` is a reasonable choice on a GPU with less than 8 GB.
-
-**A paragraph takes a few seconds** on a mid-range GPU. That is why the extension checks
-only the paragraph you are working in, caches every result, and re-sends only what you
-changed. If it feels much slower than that, something is wrong outside the extension —
-see [everything is slow](#everything-is-slow), which on a laptop is usually the power
-profile.
+> [!WARNING]
+> Text is not sanitaized before being sent to your Ollama running model. Use it only with text you trust and on non-agentic models.
 
 ---
 
-## 3. Install
+## 2. Install
 
-### Step 1 — let Ollama accept requests from the extension  ⚠️ required
+- Install Ollama
+- Pull a model
+- Set Ollama to communicate with this extension
+- Install this extension
+
+The Firefox extenson requires **Firefox 142** or newer, the Chrome extension requires **Chrome 116** or newer.
+
+### 2.1. Install Ollama
+
+Go to https://ollama.com/download and follow the instructions.
+
+### 2.2. Pull a model
+
+I suggest `qwen3.5:9b` for GPU with a VRAB >= 8 GB, `qwen3.5:3b` ottherwise: 
+
+- VRAM >= 8 GB: ` ollama pull qwen3.5:9b`
+- VRAM < 8 GB: ` ollama pull qwen3.5:3b`
+
+`qwen3.5:4b` is fine for basic spell check, but may be too limited for text transformative tasks..
+
+**A paragraph takes a few seconds** on a mid-range GPU. That is why the extension checks only the paragraph you are working in, caches every result, and re-sends only what you changed. If it feels much slower than that, something is wrong outside the extension —see [everything is slow](#51-everything-is-slow), which on a laptop is usually the power profile.
+
+---
+
+### 2.3. Let Ollama accept requests from the extension  ⚠️ required
 
 Ollama refuses requests whose `Origin` is a browser extension unless you allow it.
 Firefox **does** send `Origin: moz-extension://…`, so without this step every check fails.
@@ -198,7 +204,9 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
 `200` means you are set. `403` means Ollama did not pick up the variable — it almost always
 means Ollama was not restarted.
 
-### Step 2 — install the extension
+### 2.4. Install the extension
+
+#### 2.4.1. Firefox
 
 **From Firefox Add-ons** — the normal way, and it updates itself:
 
@@ -220,7 +228,7 @@ restarts. The options page opens the first time. The one difference is updates: 
 installed from the directory updates itself, a `.xpi` installed by hand does not, so you
 would download a newer one when you want it.
 
-#### Chrome
+#### 2.4.2. Chrome
 
 Not in the Chrome Web Store yet, so Chrome loads it from a folder. **You do not need to
 build anything** — the ready-to-load folder is in the repository:
@@ -249,7 +257,7 @@ Two things to know about loading unpacked, neither of which is a fault:
 > [`doc/dev_doc.md`](doc/dev_doc.md) — a development build loads straight from
 > `manifest.json` via `about:debugging`, with no signing.
 
-### Step 3 — check the connection
+#### 2.4.3. Check the connection
 
 On the options page press **Test connection**. You should see
 *"Connected. N models available, "qwen3.5:9b" is one of them."*
@@ -259,7 +267,9 @@ and would report success even while real checks were being refused.
 
 ---
 
-## 4. Using it
+## 3. Using it
+
+### 3.1. Text spell check
 
 Click into any text box and type. Roughly 1.5 seconds after you stop, **the paragraph you
 are working in** is checked and problems get a coloured wavy underline. Paragraphs you
@@ -277,14 +287,14 @@ shows progress; click its **×** to hide it and abandon the check that is runnin
 - **Alt+Shift+C** — check the focused field immediately.
 - **Alt+Shift+X** — pause (or resume) proofreading on the current site. The same thing is
   in the right-click menu as **LAITA: pause / resume spell check on …**, and on the
-  toolbar button. See [pausing on a site](#pausing-on-a-site).
+  toolbar button. See [pausing on a site](#33-pausing-on-a-site).
 - The **toolbar button** shows the issue count, the connection status, and per-site and
   global on/off switches.
 
 Both plain `<textarea>` / `<input>` fields and rich `contenteditable` editors (webmail,
 wikis, most WYSIWYG editors) are supported.
 
-### Transforming a selection
+### 3.2. Transforming a selection
 
 Proofreading suggests small fixes and never rewrites wholesale. When you *want* a rewrite,
 select the text, right-click and choose **Local AI Text Assistant → Transform…** (or press
@@ -324,7 +334,7 @@ Two things worth knowing:
 - Unlike proofreading, a transform is never automatic and ignores the per-site switch: you
   asked for it explicitly, so it runs wherever you ask for it.
 
-### Pausing on a site
+### 3.3. Pausing on a site
 
 Three places do the same thing — the right-click menu, **Alt+Shift+X**, and the toolbar
 button's per-site switch. The menu entry names the site and says which way it will go, so
@@ -344,7 +354,7 @@ on too, since otherwise "resume" would appear to do nothing.
 Pausing only stops the automatic proofreading. **Local AI Text Assistant → Transform…** is something you
 ask for explicitly, so it keeps working on a paused site.
 
-### What Local AI Text Assistant will not touch
+### 3.4. What Local AI Text Assistant will not touch
 
 Passwords, payment fields, one-time codes, and any field whose type, `autocomplete`, name,
 id, placeholder or class hints at a secret are skipped outright — they are never read and
@@ -355,7 +365,7 @@ To exclude anything else, add `data-laita="off"` to it or to any ancestor. The o
 
 ---
 
-## 5. Options
+## 4. Options
 
 Open them from the toolbar popup, or from `about:addons` → Local AI Text Assistant → Preferences.
 
@@ -364,7 +374,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Text Assis
 | Ollama endpoint | `http://localhost:11434` | |
 | Model | `qwen3.5:9b` | The field autocompletes from your installed models. |
 | Temperature | `0` | Keep at 0 for repeatable corrections. |
-| Context window (tokens) | `0` | `0` follows Ollama's own setting. Pinning a different number makes Ollama unload another app's model and load a second copy of the same weights. See [sharing Ollama](#sharing-ollama-with-other-apps). |
+| Context window (tokens) | `0` | `0` follows Ollama's own setting. Pinning a different number makes Ollama unload another app's model and load a second copy of the same weights. See [sharing Ollama](#52-sharing-ollama-with-other-apps). |
 | Parallel requests | `1` | Raise only if you have set `OLLAMA_NUM_PARALLEL` higher. Ollama serves one request at a time by default, so extra ones just queue — and a queued request's timeout is already running. |
 | Request timeout | `90 s` | The floor. A transform is allowed longer in proportion to the selection, because a rewrite emits about as much text as it consumes: a paragraph takes seconds, ten pages took over three minutes on the machine this was developed on. |
 | Keep model loaded for | `10m` | Avoids a slow reload on every check. Needs a unit (`30m`, `8h`); `-1m` — or any negative value — keeps it loaded indefinitely, while a bare `-1` is rejected by Ollama. Sent with every request, so it overrides the server's `OLLAMA_KEEP_ALIVE`. |
@@ -385,7 +395,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Text Assis
 
 ---
 
-## 6. Troubleshooting
+## 5. Troubleshooting
 
 | Symptom | Cause and fix |
 | --- | --- |
@@ -393,14 +403,14 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Text Assis
 | *"Cannot reach Ollama"* | `ollama serve` is not running, or the endpoint is wrong. Try `curl http://localhost:11434/api/tags`. |
 | *"Ollama does not have that model"* | `ollama pull <model>`. |
 | *"The request to Ollama timed out"* | The model is slow to load, or too large for the machine. Raise the timeout, or use a smaller model. |
-| *"Ollama could not start the model"* | The model does not fit in the GPU next to whatever else is using it. See [errors that come and go](#errors-that-come-and-go). |
+| *"Ollama could not start the model"* | The model does not fit in the GPU next to whatever else is using it. See [errors that come and go](#53-errors-that-come-and-go). |
 | *"was reloaded or updated, so this page is still running the old copy"* | Exactly that: reload the page. Pages open while you reload the extension in `about:debugging` keep the old content scripts, which can no longer reach it. |
 | *"the background page did not answer"* | Firefox unloaded the extension's background page. Long requests hold it open, so if you see this, reload the tab and report it. |
 | Nothing happens at all | The site may be disabled (check the toolbar popup), the field may be too short, or it may look like a password field. |
 | Highlights sit slightly off | Report it — the field probably uses a layout the mirror does not yet copy. |
-| Checks feel slow | **Check your laptop's power profile first** — see [everything is slow](#everything-is-slow). Otherwise: lower *maximum chunk size*, turn off the *rephrase* category, or use a smaller model. The first check after an idle period also pays for reloading the model. |
+| Checks feel slow | **Check your laptop's power profile first** — see [everything is slow](#51-everything-is-slow). Otherwise: lower *maximum chunk size*, turn off the *rephrase* category, or use a smaller model. The first check after an idle period also pays for reloading the model. |
 
-### Everything is slow
+### 5.1. Everything is slow
 
 On a laptop, check the power profile before anything else. Measured on one machine with
 an RTX 2000 Ada, the same model and the same 149-word request:
@@ -434,7 +444,7 @@ clocks directly.
 Rough guide once the GPU is running properly: **a paragraph is a few seconds.** If a
 paragraph takes half a minute, something is wrong outside the extension.
 
-### Sharing Ollama with other apps
+### 5.2. Sharing Ollama with other apps
 
 Ollama identifies a loaded model by its weights **and its runtime options**. Ask for the
 same model with a different `num_ctx` and it does not reuse what is resident: it unloads
@@ -469,7 +479,7 @@ Two related settings work the same way — a mismatch costs a reload:
 a reload. A model made with `ollama create` is a different model and does get its own
 runner, even when the weights on disk are shared.
 
-### Errors that come and go
+### 5.3. Errors that come and go
 
 An error on a page that worked a minute ago almost always means the model had to be
 **loaded again** and the load failed. Ollama unloads a model after the *keep model loaded
@@ -505,7 +515,7 @@ error, its **?** button opens the full message.
 ---
 ---
 
-## 7. Privacy
+## 6. Privacy
 
 The extension talks to exactly one place: the Ollama endpoint in its options, which
 defaults to `http://localhost:11434`. There is no telemetry, no analytics and no remote
@@ -519,13 +529,15 @@ read at all.
 
 ---
 
-## 8. Development
+## 7. Development
 
 This repository is a monorepo. The Firefox extension is in [`browser/`](browser/); it is
 self-contained and has no build step.
 
 - [`doc/dev_doc.md`](doc/dev_doc.md) — running a development build, tests, signing,
   architecture
+- [`doc/agent_context.md`](doc/agent_context.md) — handover note for an LLM assistant:
+  current state, what is untested, and this machine's quirks
 - [`doc/roadmap.md`](doc/roadmap.md) — Chrome, VS Code and LibreOffice: what can be
   shared and what cannot
 
@@ -533,12 +545,12 @@ LAITA is short for *Local AI Text Assistant*, and is the name used throughout th
 
 ---
 
-## Licence
+## 8. Licence
 
 MIT — see [LICENSE](LICENSE).
 
 
-## Acknowledgements
+## 9. Acknowledgements
 
 The development of this software at the Bureau d'Economie Théorique et Appliquée (BETA, Nancy) was supported by the French National Research Agency through the ARTEMIS (Advanced Research and Education on the biology, the Ecology, the Management and the biomonitoring of forest ecosystems in a changing world) interdisciplinary program.
 
