@@ -366,9 +366,6 @@ async function activate(context) {
   // The editor that was already open when the extension started never fires
   // onDidChangeActiveTextEditor, so without this a freshly opened document sits there
   // doing nothing until the first keystroke - which reads as a broken extension.
-  DBG("activate: activeEditor=" + !!vscode.window.activeTextEditor +
-    " lang=" + (vscode.window.activeTextEditor?.document.languageId) +
-    " watched=" + (vscode.window.activeTextEditor ? watched(vscode.window.activeTextEditor.document) : "n/a"));
   const open = vscode.window.activeTextEditor;
   if (open) {
     refreshStatus(open.document);
