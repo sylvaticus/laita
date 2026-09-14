@@ -25,7 +25,8 @@ OUT = HERE / "icons"
 # master and scaled down, a one-pixel halo at 16px would be a grey blur.
 SIZES = {16: 1, 32: 2, 48: 2, 96: 3, 128: 4}
 HALO = (255, 255, 255, 235)
-PENCIL_BOX = (904, 38, 1101, 843)   # the "I" of LAITA, in the 1950x873 logo
+# The pencil is found rather than hardcoded: the logo has already been redrawn once, and
+# fixed coordinates silently crop the wrong letter when it is.
 ANGLE = 45
 PADDING = 1.10                      # a little air so the tip is not flush to the edge
 
@@ -50,10 +51,44 @@ def resize_premultiplied(im, size):
     return Image.fromarray(out.astype(np.uint8), "RGBA")
 
 
+def find_pencil(logo):
+    """
+    Locate the pencil - the "I" of LAITA - by looking for ink columns.
+
+    The wordmark separates into runs of non-empty columns, one per glyph (sometimes two
+    glyphs merge). The pencil is the one that is much taller than it is wide, which no
+    letter in LAITA is, so the tallest aspect ratio wins.
+    """
+    a = np.asarray(logo)
+    ink = (a[..., 3] > 40) & ~np.all(a[..., :3] > 235, axis=-1)
+    cols = ink.any(axis=0)
+
+    runs, start = [], None
+    for x, filled in enumerate(cols):
+        if filled and start is None:
+            start = x
+        elif not filled and start is not None:
+            if x - start > 20:
+                runs.append((start, x))
+            start = None
+    if start is not None:
+        runs.append((start, len(cols)))
+    if not runs:
+        raise SystemExit("no glyphs found in the logo")
+
+    def box(x0, x1):
+        ys = np.where(ink[:, x0:x1].any(axis=1))[0]
+        return x0, int(ys[0]), x1, int(ys[-1]) + 1
+
+    boxes = [box(*r) for r in runs]
+    pencil = max(boxes, key=lambda b: (b[3] - b[1]) / (b[2] - b[0]))
+    if (pencil[3] - pencil[1]) / (pencil[2] - pencil[0]) < 2.0:
+        raise SystemExit(f"no tall narrow glyph found; runs were {boxes}")
+    return pencil
+
+
 def main() -> None:
     logo = Image.open(LOGO).convert("RGBA")
-    if logo.size != (1950, 873):
-        raise SystemExit(f"logo is {logo.size}, expected (1950, 873); recheck PENCIL_BOX")
 
     # the logo background is ~6% opaque rather than transparent; left alone it shows as a
     # faint square behind the icon on a light toolbar
@@ -62,7 +97,9 @@ def main() -> None:
     # haze and push the rest to fully opaque.
     logo.putalpha(logo.getchannel("A").point(lambda v: 0 if v < 40 else min(255, int(v * 1.3))))
 
-    pencil = logo.crop(PENCIL_BOX).rotate(ANGLE, resample=Image.BICUBIC, expand=True)
+    box = find_pencil(logo)
+    print(f"  pencil found at {box} in a {logo.width}x{logo.height} logo")
+    pencil = logo.crop(box).rotate(ANGLE, resample=Image.BICUBIC, expand=True)
     pencil = pencil.crop(pencil.getchannel("A").getbbox())
 
     side = int(max(pencil.size) * PADDING)

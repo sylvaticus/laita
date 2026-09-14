@@ -168,7 +168,7 @@ from the repository root silently ignores `ignoreFiles` and packages `test/`.
 (cd browser && npx web-ext build --overwrite-dest)
 ```
 
-Output: `browser/web-ext-artifacts/laita-<version>.zip`.
+Output: `browser/web-ext-artifacts/laita-firefox-<version>.zip`.
 
 ### Cutting a release
 
@@ -198,7 +198,7 @@ EOF
 npx web-ext lint --self-hosted            # from inside browser/, see above
 
 # 4. build both packages
-npx web-ext build --overwrite-dest                       # Firefox -> laita-$V.zip
+npx web-ext build --overwrite-dest                  # Firefox -> laita-firefox-$V.zip
 (cd dist-chrome && zip -qr "../web-ext-artifacts/laita-chrome-$V.zip" . -x '.*')
 
 # 5. commit the bump and the rebuilt dist-chrome together
@@ -210,7 +210,7 @@ interchangeable:
 
 | File | Store | Why it is specific |
 | --- | --- | --- |
-| `laita-<V>.zip` | addons.mozilla.org | has `browser_specific_settings` with the Gecko id |
+| `laita-firefox-<V>.zip` | addons.mozilla.org | has `browser_specific_settings` with the Gecko id |
 | `laita-chrome-<V>.zip` | Chrome Web Store | no Gecko block, `service_worker` instead of an event page |
 
 Uploading one to the other store fails.
@@ -218,7 +218,7 @@ Uploading one to the other store fails.
 #### Firefox (addons.mozilla.org)
 
 <https://addons.mozilla.org/developers/> → the add-on → **Upload New Version** →
-`laita-<V>.zip`.
+`laita-firefox-<V>.zip`.
 
 - **"Do you need to submit source code?" → No.** There is no build step; the JavaScript in
   the package is byte-identical to `src/`. `tools/build-chrome.sh` only copies files.

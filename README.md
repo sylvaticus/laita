@@ -1,4 +1,4 @@
-# <img src="assets/imgs/laita_logo_w200.png" width="200" align="middle" />&nbsp;&nbsp;  <u>Local</u> AI Text Assistant
+# <img src="assets/imgs/laita_logo_h100.png" width="200" align="middle" />&nbsp;&nbsp;  <u>Local</u> AI Text Assistant
 
 
 A **multi-app** extension that **proofreads what you type** and **rewrites the text you select** (_polish_, _translate_, _summarize_...), using any model running locally on your machine via [Ollama](https://ollama.com).

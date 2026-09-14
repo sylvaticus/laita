@@ -17,6 +17,8 @@ module.exports = {
     "node_modules",
     "package*.json"
   ],
-  // Default would be "laita_-_local_ai_text_assistant-<version>.zip".
-  build: { filename: "laita-{version}.zip" }
+  // Default would be "laita_-_local_ai_text_assistant-<version>.zip". Named for the
+  // browser, because the Chrome package sits in the same directory and uploading one to
+  // the wrong store fails.
+  build: { filename: "laita-firefox-{version}.zip" }
 };
