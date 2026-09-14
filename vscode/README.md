@@ -65,8 +65,16 @@ code --user-data-dir=/tmp/laita-ud --extensions-dir=/tmp/laita-ext \
      --extensionDevelopmentPath="$PWD" --new-window somefile.md
 ```
 
-To install it properly instead: `npx @vscode/vsce package --no-dependencies`, then
-**Extensions → … → Install from VSIX**.
+To install it properly instead:
+
+```bash
+npm run package                                   # -> laita-vscode-0.3.4.vsix
+code --install-extension laita-vscode-0.3.4.vsix
+```
+
+or **Extensions → … → Install from VSIX**. Reload the window afterwards. An extension
+installed this way never updates itself: repackage and reinstall with `--force` to move
+to a newer build.
 
 ## Requirements
 
@@ -135,7 +143,11 @@ clear suggestions.
 
 
 
-All settings are under `laita.` — endpoint, model, language, temperature, context window, timeout,
+Settings are grouped into **Ollama connection** (endpoint, model, context window,
+timeout, keep-alive), **When to check** (as you type, on save, which file types, size
+caps) and **What to suggest** (language, categories, dictionary, house rules).
+
+All are under `laita.` — endpoint, model, language, temperature, context window, timeout,
 which categories to report, a personal dictionary, and house style rules appended to the
 prompt. See the Settings UI for the full list.
 

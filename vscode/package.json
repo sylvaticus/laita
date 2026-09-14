@@ -2,88 +2,250 @@
   "name": "laita",
   "displayName": "LAITA - Local AI Text Assistant",
   "description": "Proofread and rewrite text with a language model running locally in Ollama. Nothing leaves your machine.",
-  "version": "0.1.0",
+  "version": "0.3.4",
   "publisher": "sylvaticus",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/sylvaticus/laita" },
-  "engines": { "vscode": "^1.90.0" },
-  "categories": ["Linters", "Formatters", "Other"],
-  "keywords": ["spell check", "grammar", "proofreading", "ollama", "local llm"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sylvaticus/laita"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Linters",
+    "Formatters",
+    "Other"
+  ],
+  "keywords": [
+    "spell check",
+    "grammar",
+    "proofreading",
+    "ollama",
+    "local llm"
+  ],
   "icon": "icon.png",
   "main": "./src/extension.js",
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "contributes": {
     "commands": [
-      { "command": "laita.checkParagraph", "title": "LAITA: Proofread the paragraph at the cursor" },
-      { "command": "laita.checkDocument", "title": "LAITA: Proofread the whole document" },
-      { "command": "laita.transform", "title": "LAITA: Transform the selection…" },
-      { "command": "laita.clearDiagnostics", "title": "LAITA: Clear suggestions" },
-      { "command": "laita.enableForFile", "title": "LAITA: Also check this file (and show its language id)" },
-      { "command": "laita.showDictionary", "title": "LAITA: Show the personal dictionary" },
-      { "command": "laita.openSettings", "title": "LAITA: Settings" },
-      { "command": "laita.showMenu", "title": "LAITA: Show all commands" },
-      { "command": "laita.clearIgnored", "title": "LAITA: Forget suggestions I told it never to make" }
+      {
+        "command": "laita.checkParagraph",
+        "title": "LAITA: Proofread the paragraph at the cursor"
+      },
+      {
+        "command": "laita.checkDocument",
+        "title": "LAITA: Proofread the whole document"
+      },
+      {
+        "command": "laita.transform",
+        "title": "LAITA: Transform the selection…"
+      },
+      {
+        "command": "laita.clearDiagnostics",
+        "title": "LAITA: Clear suggestions"
+      },
+      {
+        "command": "laita.enableForFile",
+        "title": "LAITA: Also check this file (and show its language id)"
+      },
+      {
+        "command": "laita.showDictionary",
+        "title": "LAITA: Show the personal dictionary"
+      },
+      {
+        "command": "laita.openSettings",
+        "title": "LAITA: Settings"
+      },
+      {
+        "command": "laita.showMenu",
+        "title": "LAITA: Show all commands"
+      },
+      {
+        "command": "laita.clearIgnored",
+        "title": "LAITA: Forget suggestions I told it never to make"
+      }
     ],
     "keybindings": [
-      { "command": "laita.checkParagraph", "key": "alt+shift+c", "when": "editorTextFocus" },
-      { "command": "laita.transform", "key": "alt+shift+t", "when": "editorHasSelection" }
+      {
+        "command": "laita.checkParagraph",
+        "key": "alt+shift+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "laita.transform",
+        "key": "alt+shift+t",
+        "when": "editorHasSelection"
+      }
     ],
     "menus": {
       "editor/context": [
-        { "command": "laita.transform", "when": "editorHasSelection", "group": "1_modification@100" },
-        { "command": "laita.checkParagraph", "when": "editorTextFocus", "group": "1_modification@101" }
+        {
+          "command": "laita.transform",
+          "when": "editorHasSelection",
+          "group": "1_modification@100"
+        },
+        {
+          "command": "laita.checkParagraph",
+          "when": "editorTextFocus",
+          "group": "1_modification@101"
+        }
       ]
     },
-    "configuration": {
-      "title": "LAITA",
-      "properties": {
-        "laita.endpoint": {
-          "type": "string", "default": "http://localhost:11434",
-          "description": "Address of your Ollama server."
-        },
-        "laita.model": {
-          "type": "string", "default": "qwen3.5:9b",
-          "description": "Model to use. A 7-9B instruction model is the sweet spot."
-        },
-        "laita.language": {
-          "type": "string", "default": "auto",
-          "description": "Language of the text, or 'auto' to detect it (e.g. en, fr, it)."
-        },
-        "laita.temperature": { "type": "number", "default": 0, "description": "0 gives the most repeatable corrections." },
-        "laita.numCtx": {
-          "type": "number", "default": 0,
-          "description": "Context window. 0 follows Ollama's own setting, which avoids evicting a model another app has loaded."
-        },
-        "laita.keepAlive": { "type": "string", "default": "10m", "description": "How long Ollama keeps the model loaded. Needs a unit; -1m means indefinitely." },
-        "laita.requestTimeoutMs": { "type": "number", "default": 90000, "description": "Timeout for one request. A transform is allowed longer in proportion to the selection." },
-        "laita.maxChars": { "type": "number", "default": 12000, "description": "Maximum characters one check or transform may send." },
-        "laita.chunkMaxChars": { "type": "number", "default": 700, "description": "Paragraphs longer than this are split on sentence boundaries." },
-        "laita.think": { "type": "boolean", "default": false, "description": "Let reasoning models think before answering. Much slower." },
-        "laita.categories.error": { "type": "boolean", "default": true, "description": "Report outright errors (spelling, agreement, punctuation)." },
-        "laita.categories.style": { "type": "boolean", "default": true, "description": "Report weak style (wordiness, redundancy, passive voice)." },
-        "laita.categories.rephrase": { "type": "boolean", "default": true, "description": "Report better wordings." },
-        "laita.checkOnType": {
-          "type": "boolean", "default": true,
-          "description": "Proofread the paragraph you are writing in, shortly after you stop typing. Only in the languages listed below."
-        },
-        "laita.debounceMs": {
-          "type": "number", "default": 1500,
-          "description": "How long to wait after you stop typing before checking."
-        },
-        "laita.checkOnSave": { "type": "boolean", "default": false, "description": "Proofread the whole document when it is saved." },
-        "laita.languages": {
-          "type": "array", "items": { "type": "string" },
-          "default": ["markdown", "quarto", "plaintext", "latex", "tex", "bibtex",
-                      "asciidoc", "restructuredtext", "html", "typst", "org", "mdx",
-                      "git-commit", "scminput"],
-          "markdownDescription": "File types checked automatically, given as VS Code **language identifiers** — not file extensions. `markdown`, not `.md`.\n\nTo find the identifier for a file you have open, run **LAITA: Also check this file**: it tells you the id and offers to add it here. You can also click the language name at the right of the status bar, or see the [full list of identifiers](https://code.visualstudio.com/docs/languages/identifiers).\n\nAnything not listed is left alone, but the LAITA commands still work on it."
-        },
-        "laita.dictionary": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Words never to flag. Grows when you use 'Add to dictionary'." },
-        "laita.ignored": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Fingerprints of suggestions you asked never to see again. Cleared by the 'Forget' command." },
-        "laita.extraInstructions": { "type": "string", "default": "", "description": "House style rules appended to the prompt." },
-        "laita.transformDefault": { "type": "string", "default": "polish", "description": "Instruction used when the transform box is submitted empty." }
+    "configuration": [
+      {
+        "title": "LAITA: Ollama connection",
+        "order": 1,
+        "properties": {
+          "laita.endpoint": {
+            "type": "string",
+            "default": "http://localhost:11434",
+            "description": "Address of your Ollama server."
+          },
+          "laita.model": {
+            "type": "string",
+            "default": "qwen3.5:9b",
+            "description": "Model to use. A 7-9B instruction model is the sweet spot."
+          },
+          "laita.temperature": {
+            "type": "number",
+            "default": 0,
+            "description": "0 gives the most repeatable corrections."
+          },
+          "laita.numCtx": {
+            "type": "number",
+            "default": 0,
+            "description": "Context window. 0 follows Ollama's own setting, which avoids evicting a model another app has loaded."
+          },
+          "laita.keepAlive": {
+            "type": "string",
+            "default": "10m",
+            "description": "How long Ollama keeps the model loaded. Needs a unit; -1m means indefinitely."
+          },
+          "laita.requestTimeoutMs": {
+            "type": "number",
+            "default": 90000,
+            "description": "Timeout for one request. A transform is allowed longer in proportion to the selection."
+          },
+          "laita.think": {
+            "type": "boolean",
+            "default": false,
+            "description": "Let reasoning models think before answering. Much slower."
+          }
+        }
+      },
+      {
+        "title": "LAITA: When to check",
+        "order": 2,
+        "properties": {
+          "laita.checkOnType": {
+            "type": "boolean",
+            "default": true,
+            "description": "Proofread the paragraph you are writing in, shortly after you stop typing. Only in the languages listed below."
+          },
+          "laita.debounceMs": {
+            "type": "number",
+            "default": 1500,
+            "description": "How long to wait after you stop typing before checking."
+          },
+          "laita.checkOnSave": {
+            "type": "boolean",
+            "default": false,
+            "description": "Proofread the whole document when it is saved."
+          },
+          "laita.languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "markdown",
+              "quarto",
+              "plaintext",
+              "latex",
+              "tex",
+              "bibtex",
+              "asciidoc",
+              "restructuredtext",
+              "html",
+              "typst",
+              "org",
+              "mdx",
+              "git-commit",
+              "scminput"
+            ],
+            "markdownDescription": "File types checked automatically, given as VS Code **language identifiers** — not file extensions. `markdown`, not `.md`.\n\nTo find the identifier for a file you have open, run **LAITA: Also check this file**: it tells you the id and offers to add it here. You can also click the language name at the right of the status bar, or see the [full list of identifiers](https://code.visualstudio.com/docs/languages/identifiers).\n\nAnything not listed is left alone, but the LAITA commands still work on it."
+          },
+          "laita.maxChars": {
+            "type": "number",
+            "default": 12000,
+            "description": "Maximum characters one check or transform may send."
+          },
+          "laita.chunkMaxChars": {
+            "type": "number",
+            "default": 700,
+            "description": "Paragraphs longer than this are split on sentence boundaries."
+          }
+        }
+      },
+      {
+        "title": "LAITA: What to suggest",
+        "order": 3,
+        "properties": {
+          "laita.language": {
+            "type": "string",
+            "default": "auto",
+            "description": "Language of the text, or 'auto' to detect it (e.g. en, fr, it)."
+          },
+          "laita.categories.error": {
+            "type": "boolean",
+            "default": true,
+            "description": "Report outright errors (spelling, agreement, punctuation)."
+          },
+          "laita.categories.style": {
+            "type": "boolean",
+            "default": true,
+            "description": "Report weak style (wordiness, redundancy, passive voice)."
+          },
+          "laita.categories.rephrase": {
+            "type": "boolean",
+            "default": true,
+            "description": "Report better wordings."
+          },
+          "laita.extraInstructions": {
+            "type": "string",
+            "default": "",
+            "description": "House style rules appended to the prompt."
+          },
+          "laita.transformDefault": {
+            "type": "string",
+            "default": "polish",
+            "description": "Instruction used when the transform box is submitted empty."
+          },
+          "laita.dictionary": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "Words never to flag. Grows when you use 'Add to dictionary'."
+          },
+          "laita.ignored": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "Fingerprints of suggestions you asked never to see again. Cleared by the 'Forget' command."
+          }
+        }
       }
-    }
+    ]
   },
-  "scripts": { "test": "node --test test/unit" }
+  "scripts": {
+    "test": "./test/run.sh",
+    "package": "npx --yes @vscode/vsce package --no-dependencies --out laita-vscode-$npm_package_version.vsix"
+  }
 }

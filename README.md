@@ -271,7 +271,13 @@ and would report success even while real checks were being refused.
 
 ## 3. Using it
 
-### 3.1. Text spell check
+LAITA is the same idea in two very different hosts. The browser extension draws its own
+highlights because a web page offers nothing better; in VS Code the suggestions are
+ordinary diagnostics, so they behave like every other linter you already use.
+
+### 3.1. In Firefox and Chrome
+
+#### 3.1.1. Text spell check
 
 Click into any text box and type. Roughly 1.5 seconds after you stop, **the paragraph you
 are working in** is checked and problems get a coloured wavy underline. Paragraphs you
@@ -289,14 +295,14 @@ shows progress; click its **×** to hide it and abandon the check that is runnin
 - **Alt+Shift+C** — check the focused field immediately.
 - **Alt+Shift+X** — pause (or resume) proofreading on the current site. The same thing is
   in the right-click menu as **LAITA: pause / resume spell check on …**, and on the
-  toolbar button. See [pausing on a site](#33-pausing-on-a-site).
+  toolbar button. See [pausing on a site](#313-pausing-on-a-site).
 - The **toolbar button** shows the issue count, the connection status, and per-site and
   global on/off switches.
 
 Both plain `<textarea>` / `<input>` fields and rich `contenteditable` editors (webmail,
 wikis, most WYSIWYG editors) are supported.
 
-### 3.2. Transforming a selection
+#### 3.1.2. Transforming a selection
 
 Proofreading suggests small fixes and never rewrites wholesale. When you *want* a rewrite,
 select the text, right-click and choose **Local AI Text Assistant → Transform…** (or press
@@ -336,7 +342,7 @@ Two things worth knowing:
 - Unlike proofreading, a transform is never automatic and ignores the per-site switch: you
   asked for it explicitly, so it runs wherever you ask for it.
 
-### 3.3. Pausing on a site
+#### 3.1.3. Pausing on a site
 
 Three places do the same thing — the right-click menu, **Alt+Shift+X**, and the toolbar
 button's per-site switch. The menu entry names the site and says which way it will go, so
@@ -356,7 +362,7 @@ on too, since otherwise "resume" would appear to do nothing.
 Pausing only stops the automatic proofreading. **Local AI Text Assistant → Transform…** is something you
 ask for explicitly, so it keeps working on a paused site.
 
-### 3.4. What Local AI Text Assistant will not touch
+#### 3.1.4. What LAITA will not touch
 
 Passwords, payment fields, one-time codes, and any field whose type, `autocomplete`, name,
 id, placeholder or class hints at a secret are skipped outright — they are never read and
@@ -364,6 +370,40 @@ never sent anywhere. Fields shorter than 12 characters are ignored too.
 
 To exclude anything else, add `data-laita="off"` to it or to any ancestor. The older
 `data-locaispell="off"` still works, so pages that already use it keep their exclusion.
+
+---
+
+### 3.2. In VS Code
+
+Install it from [`vscode/`](vscode/) — see that folder's README for the details. In
+short:
+
+```bash
+cd vscode && npm run package
+code --install-extension laita-vscode-0.3.4.vsix
+```
+
+Then write. Prose files are checked **as you type**, a paragraph at a time:
+
+- **Squiggles** in the editor and entries in the **Problems** panel, rather than a custom
+  overlay. Severity follows the category: error → Warning, style → Information,
+  rephrase → Hint.
+- **`Ctrl+.`** on a squiggle offers *LAITA: change to "…"*, plus *add to the dictionary*,
+  *never make this suggestion again*, and *dismiss for this session*. Every entry says
+  LAITA, because that menu also holds VS Code's own and any AI assistant's.
+- **`Alt+Shift+T`** transforms the selection, with the same instruction box as the
+  browser; the result can replace the selection or be inserted after it.
+- **`Alt+Shift+C`** checks the paragraph at the cursor on demand.
+- The **status bar** item opens everything: proofread, transform, the dictionary,
+  settings.
+
+Which file types are checked automatically is `laita.languages` — Markdown, Quarto,
+LaTeX, AsciiDoc, reStructuredText, HTML, plain text and commit messages by default. Code
+fences inside them are never sent.
+
+**No `OLLAMA_ORIGINS` setting is needed here.** Requests come from Node rather than a
+page, so they carry no `Origin` header and Ollama does not refuse them — step 2.3 above
+is only for the browsers.
 
 ---
 

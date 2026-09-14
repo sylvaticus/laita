@@ -358,7 +358,7 @@ with a dynamic `import()` at activation.
 cd vscode
 ./tools/sync-core.sh     # after ANY change to browser/src/background/{anchor,ollama}.js
 ./test/run.sh            # pure logic; core.test.mjs fails if the copies drifted
-npx @vscode/vsce package --no-dependencies      # -> laita-<version>.vsix
+npm run package          # -> laita-vscode-<version>.vsix
 ```
 
 Run it from source without packaging: open `vscode/` in VS Code and press **F5**, or
