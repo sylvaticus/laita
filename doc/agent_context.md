@@ -34,7 +34,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ---
 
-## State — last updated 2026-09-13
+## State — last updated 2026-09-14
 
 ### Identity
 
@@ -46,8 +46,9 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   rename and is invisible to users, but AMO ties every uploaded version to it. Changing it
   creates a second, unrelated add-on and abandons the listing, its slug and any review in
   flight.
-- Both manifests are at **0.3.4**. They must always match; `dist-chrome.test.mjs` fails if
-  they drift.
+- All three packages are at **0.3.4**. The two browser manifests must match and
+  `dist-chrome.test.mjs` enforces it; the VS Code package is kept in step by convention
+  only, with nothing checking it.
 
 ### Store status
 
@@ -55,7 +56,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 | --- | --- | --- |
 | Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts |
 | Listing slug | `local-ai-text-assistant` | — |
-| Ready to upload | `browser/web-ext-artifacts/laita-0.3.4.zip` | `laita-chrome-0.3.4.zip` |
+| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.4.zip` | `laita-chrome-0.3.4.zip` |
 
 - Neither store will accept a version number it has already seen, in either channel, even
   after the version is deleted.
@@ -113,19 +114,68 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ### VS Code extension
 
-`vscode/`, version 0.1.0, not yet published to the Marketplace. Activation verified by
-launching a real VS Code with `--extensionDevelopmentPath` and reading the extension host
-log; the behaviour beyond activation has **not** been exercised against a live Ollama.
-`core/` is a committed copy of two files from `browser/src/background/`; re-run
-`vscode/tools/sync-core.sh` after touching either, or `core.test.mjs` fails.
+`vscode/`, version **0.3.4** (numbered in step with the browser manifests rather than
+starting at 0.1.0: three numbers for three targets of one tool is the worse confusion).
+Not published to the Marketplace.
+
+Built and installed like this:
+
+```bash
+cd vscode
+./tools/sync-core.sh                              # only after touching browser/src/background
+npm run package                                   # -> laita-vscode-0.3.4.vsix
+code --install-extension laita-vscode-0.3.4.vsix --force
+```
+
+`--force` is needed to reinstall the same version. To run it without installing, open
+`vscode/` in VS Code and press **F5**, or launch an isolated instance:
+
+```bash
+code --user-data-dir=/tmp/laita-ud --extensions-dir=/tmp/laita-ext \
+     --extensionDevelopmentPath="$PWD" --new-window somefile.md
+```
+
+The isolated `--user-data-dir` matters twice over: without it the window joins the normal
+session, and with it the extension host log lands somewhere predictable —
+`<user-data-dir>/logs/*/window1/exthost/exthost.log`, where `_doActivateExtension
+sylvaticus.laita` confirms it started.
+
+**Things that cost time here, in the order they bit:**
+
+1. **F5 did nothing** because there was no `.vscode/launch.json`. It is not optional
+   scaffolding; without it there is no launch configuration to run.
+2. **`console.log` from an extension never reaches the log files.** It goes to the Debug
+   Console of the *debugging* instance. Tracing a headless run means writing to a file
+   (`fs.appendFileSync`) — which is how the next one was found.
+3. **Opening a document checked nothing**, because the cursor starts on line 0, which is
+   usually the title, and a seven-character heading is correctly not worth sending. The
+   initial check now falls back to the first paragraph that is real prose. The logic had
+   been right and the outcome useless, which no unit test would have caught.
+4. **A `ReferenceError` shipped.** `node --check` validates syntax, not references, and
+   nothing else loaded `extension.js` because it requires the `vscode` module.
+   `test/unit/activate.test.mjs` now loads it against a stubbed `vscode` and calls
+   `activate()`; it was confirmed to fail on a deliberately broken call. **For this
+   package, "tests pass" is not the same as "it starts" — run that test.**
+5. **The lightbulb menu is shared.** VS Code's own *View Problem* and any AI assistant's
+   *Fix* appear next to ours and cannot be suppressed, so every LAITA action names itself
+   and the apply-the-fix one is `isPreferred`.
+
+`core/` is a committed copy of `anchor.js` and `ollama.js` from `browser/src/background/`,
+because a packaged `.vsix` may only contain files from inside `vscode/`.
+`test/unit/core.test.mjs` fails if a copy drifts.
+
+Verified end to end against a live Ollama: opening a markdown file produces exactly one
+`POST /api/chat`. Everything past that — quick fixes, the dictionary, transforms — has
+been exercised by hand in the F5 window but has no automated coverage.
 
 ### Open items
 
-- Re-upload 0.3.4 to both stores; the Chrome listing still needs its Privacy practices tab
+- Upload 0.3.4 to both browser stores, and decide whether to publish the VS Code
+  package to the Marketplace (`vsce publish`, needs an Azure DevOps token, no review
+  queue); the Chrome listing still needs its Privacy practices tab
   completed and the publisher email verified.
 - The Chrome service-worker lifetime question above.
 - AMO 0.2.2 review outcome, after which the listing name should be updated to LAITA.
 - The 16px icon is legible but weak; a hand-drawn simplified mark was offered and not done.
-- The VS Code extension has never been run against a live Ollama, only activated.
 - Language detection is now duplicated between `browser/src/content/common.js` and
   `vscode/src/text.js`; the first candidate if a real shared `core/` package is extracted.
