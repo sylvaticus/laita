@@ -46,7 +46,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   rename and is invisible to users, but AMO ties every uploaded version to it. Changing it
   creates a second, unrelated add-on and abandons the listing, its slug and any review in
   flight.
-- All three packages are at **0.3.5**. The two browser manifests must match and
+- All three packages are at **0.3.6**. The two browser manifests must match and
   `dist-chrome.test.mjs` enforces it; the VS Code package is kept in step by convention
   only, with nothing checking it.
 
@@ -56,7 +56,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 | --- | --- | --- |
 | Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts |
 | Listing slug | `local-ai-text-assistant` | — |
-| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.5.zip` | `laita-chrome-0.3.5.zip` |
+| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.6.zip` | `laita-chrome-0.3.6.zip` |
 
 - Neither store will accept a version number it has already seen, in either channel, even
   after the version is deleted.
@@ -114,7 +114,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ### VS Code extension
 
-`vscode/`, version **0.3.5** (numbered in step with the browser manifests rather than
+`vscode/`, version **0.3.6** (numbered in step with the browser manifests rather than
 starting at 0.1.0: three numbers for three targets of one tool is the worse confusion).
 Not published to the Marketplace.
 
@@ -123,8 +123,8 @@ Built and installed like this:
 ```bash
 cd vscode
 ./tools/sync-core.sh                              # only after touching browser/src/background
-npm run package                                   # -> laita-vscode-0.3.5.vsix
-code --install-extension laita-vscode-0.3.5.vsix --force
+npm run package                                   # -> laita-vscode-0.3.6.vsix
+code --install-extension laita-vscode-0.3.6.vsix --force
 ```
 
 `--force` is needed to reinstall the same version. To run it without installing, open
@@ -173,6 +173,14 @@ moves them on every change and drops any the edit went through, and `locateIssue
 refuses to replace text that is not what the model was shown, relocating nearby or
 offering no fix at all. `test/unit/stale.test.mjs` reproduces the exact corruption when
 either is removed.
+
+The same staleness applies when the squiggle is **drawn**, not only when a fix is
+applied: a model answer arrives seconds after the text it describes, and mapping its
+offsets straight onto a document that shrank meanwhile makes `positionAt` clamp the end,
+underlining part of the phrase with the whole message attached. `rangeForIssue`
+re-anchors before creating each diagnostic. The browser has never had this because
+`runCheck` already calls `LAITA.reconcile` against the current text before painting -
+the port simply omitted the equivalent.
 
 Verified end to end against a live Ollama: opening a markdown file produces exactly one
 `POST /api/chat`. Everything past that — quick fixes, the dictionary, transforms — has

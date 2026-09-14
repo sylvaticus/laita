@@ -110,15 +110,15 @@ async function checkSpan(doc, text, offset, s, token) {
   const anchored = core.anchorIssues(text, raw,
     { categories: s.categories, ignored: s.ignored });
 
-  return anchored.map((issue) => {
-    const range = new vscode.Range(doc.positionAt(offset + issue.start),
-                                   doc.positionAt(offset + issue.end));
+  return anchored.flatMap((issue) => {
+    const range = rangeForIssue(doc, offset, issue);
+    if (!range) return [];
     const d = new vscode.Diagnostic(range, issue.message || "Suggested change",
                                     SEVERITY[issue.type] ?? vscode.DiagnosticSeverity.Information);
     d.source = "LAITA";
     d.code = issue.type;
     fixes.set(d, issue);
-    return d;
+    return [d];
   });
 }
 
@@ -312,6 +312,41 @@ function shiftDiagnostics(doc, changes) {
   diagnostics.set(doc.uri, list);
 }
 
+/**
+ * The range that really holds `original`, or null.
+ *
+ * Usually `range` itself. If the text moved, look for it nearby, the way the browser
+ * extension re-anchors a suggestion whose span no longer holds its own text. If it
+ * cannot be found, the suggestion is no longer applicable and no fix is offered.
+ */
+function locateIssue(doc, range, original) {
+  if (doc.getText(range) === original) return range;
+
+  const full = doc.getText();
+  const at = doc.offsetAt(range.start);
+  let i = full.indexOf(original, Math.max(0, at - 200));
+  if (i === -1 || i > at + 200) i = full.indexOf(original);
+  if (i === -1) return null;
+  return new vscode.Range(doc.positionAt(i), doc.positionAt(i + original.length));
+}
+
+/**
+ * Where an anchored issue belongs in the document *now*.
+ *
+ * The offsets came back from a model that saw the text several seconds ago, and the
+ * user has very likely typed since. Mapping them straight onto the current document
+ * puts the squiggle in the wrong place, and if the document has become shorter
+ * `positionAt` clamps the end, so the underline covers part of the phrase - which is how
+ * "too well english" came to be underlined under "too" alone, with the full message
+ * attached. The browser extension re-anchors against the current text before painting
+ * for exactly this reason.
+ */
+function rangeForIssue(doc, offset, issue) {
+  const naive = new vscode.Range(doc.positionAt(offset + issue.start),
+                                 doc.positionAt(offset + issue.end));
+  return locateIssue(doc, naive, issue.original);
+}
+
 /** Is this a document the user wants proofread without asking? */
 function watched(doc) {
   const c = vscode.workspace.getConfiguration("laita");
@@ -365,24 +400,6 @@ function scheduleCheck(doc, line, { orFirstProse = false } = {}) {
  * whose is whose. Ours are also marked preferred, so `Ctrl+.` then Enter applies the
  * suggestion rather than opening somebody else's chat.
  */
-/**
- * The range that really holds `original`, or null.
- *
- * Usually `range` itself. If the text moved, look for it nearby, the way the browser
- * extension re-anchors a suggestion whose span no longer holds its own text. If it
- * cannot be found, the suggestion is no longer applicable and no fix is offered.
- */
-function locateIssue(doc, range, original) {
-  if (doc.getText(range) === original) return range;
-
-  const full = doc.getText();
-  const at = doc.offsetAt(range.start);
-  let i = full.indexOf(original, Math.max(0, at - 200));
-  if (i === -1 || i > at + 200) i = full.indexOf(original);
-  if (i === -1) return null;
-  return new vscode.Range(doc.positionAt(i), doc.positionAt(i + original.length));
-}
-
 const codeActions = {
   provideCodeActions(doc, range, context) {
     const out = [];
@@ -644,4 +661,5 @@ function deactivate() {
   for (const t of pending.values()) clearTimeout(t);
 }
 
-module.exports = { activate, deactivate, __test: { codeActions, fixes, locateIssue } };
+module.exports = { activate, deactivate,
+  __test: { codeActions, fixes, locateIssue, rangeForIssue } };

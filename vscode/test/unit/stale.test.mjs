@@ -93,5 +93,34 @@ const gone = new Doc(TEXT.replace("Finally the negative", "Lastly the negative")
 eq("no fix when the text no longer exists",
    actionsFor(gone, R(AT, AT + 11)).some((a) => a.title.startsWith("LAITA: change to")), false);
 
+// ---------------------------------------------------------------- painting
+// The same staleness hits when the squiggle is drawn, not just when the fix is applied.
+// A model answer arrives seconds later; if the document shrank meanwhile, mapping the
+// offsets straight on clamps the end and underlines part of the phrase - reported as
+// "too well english" underlined under "too", with the whole message attached.
+
+const PHRASE = "Sorry, me don't speak too well english.";
+const issue2 = { original: "too well english", replacement: "very well English",
+                 type: "rephrase", message: "…", fp: "x2", start: 22, end: 38 };
+const cover = (doc, off, iss) => {
+  const r = ext.__test.rangeForIssue(doc, off, iss);
+  return r ? doc.getText(r) : null;
+};
+
+eq("unchanged document: the whole phrase", cover(new Doc(PHRASE), 0, issue2), "too well english");
+
+// four characters deleted before the phrase, so offset 22 now lands mid-word and the
+// end would clamp
+const shorter = new Doc(PHRASE.replace("Sorry, ", "Oh, "));
+eq("after a deletion the phrase is found again", cover(shorter, 0, issue2), "too well english");
+
+// text added before it
+const longer = new Doc(PHRASE.replace("Sorry,", "Well, sorry,"));
+eq("after an insertion too", cover(longer, 0, issue2), "too well english");
+
+// the document shrank past the end of the issue: nothing to underline
+const vanished = new Doc("Sorry, me don't speak");
+eq("nothing is drawn when the phrase has gone", cover(vanished, 0, issue2), null);
+
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);
