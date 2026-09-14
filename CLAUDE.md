@@ -158,6 +158,13 @@ closed shadow root still lets events bubble out retargeted to the host, so `pane
 stops `keydown`/`keyup`/`keypress` propagation. Removing that makes typing an instruction
 trigger the page underneath.
 
+**The model also quotes short.** Asked about a sentence that already ends in a full
+stop, it answers original "English", replacement "English." - complaining of punctuation
+that is already there, which applied gives "English..". `alreadyThere` in `anchor.js`
+drops any suggestion whose replacement merely wraps the quote in characters the document
+already has on that side. Same principle as dropping an unfindable quote: never trust
+the model's view of the text over the text.
+
 **The model quotes, it never counts.** The prompt asks for a verbatim substring, never an
 offset. `background/anchor.js` locates the quote, tolerating curly quotes, collapsed
 whitespace and (last resort) case, and *drops* anything it cannot find. This is what stops a

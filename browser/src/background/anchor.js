@@ -94,6 +94,33 @@ export function locate(text, needle) {
  * @param {object} opts       { categories, ignored, offset }
  * @returns {Array} anchored issues, sorted by position, guaranteed non-overlapping
  */
+/**
+ * Would applying this replacement just duplicate what is already there?
+ *
+ * Models quote a substring that stops short of the character they want to add: asked
+ * about "Sorry, I don't speak very well English." one reliably answers
+ * original "English", replacement "English.", complaining of a missing full stop that is
+ * already present. Applying that gives "English..".
+ *
+ * So when the replacement merely wraps the quote in extra characters, check whether the
+ * document already has them on that side. If it does, the suggestion has nothing to fix.
+ * This is the same defence as dropping a quote that cannot be found: never trust the
+ * model's view of the text over the text.
+ */
+function alreadyThere(text, start, end, replacement) {
+  const quoted = text.slice(start, end);
+  const at = replacement.indexOf(quoted);
+  if (at === -1) return false;                 // a real rewrite, not an insertion
+
+  const before = replacement.slice(0, at);
+  const after = replacement.slice(at + quoted.length);
+  if (!before && !after) return false;         // identical, handled elsewhere
+
+  const beforeIsThere = !before || text.slice(start - before.length, start) === before;
+  const afterIsThere = !after || text.startsWith(after, end);
+  return beforeIsThere && afterIsThere;
+}
+
 export function anchorIssues(text, rawIssues, opts = {}) {
   const categories = opts.categories || { error: true, style: true, rephrase: true };
   const ignored = opts.ignored instanceof Set ? opts.ignored : new Set(opts.ignored || []);
@@ -131,13 +158,15 @@ export function anchorIssues(text, rawIssues, opts = {}) {
   }
 
   // Higher-priority and longer spans claim their territory first.
+  //
+  // (see alreadyThere below, applied when a span is chosen)
   candidates.sort((a, b) => a.rank - b.rank || b.original.length - a.original.length);
 
   const accepted = [];
   const overlaps = (s, e) => accepted.some((x) => s < x.end && e > x.start);
 
   for (const c of candidates) {
-    const free = c.ranges.find(([s, e]) => !overlaps(s, e));
+    const free = c.ranges.find(([s, e]) => !overlaps(s, e) && !alreadyThere(text, s, e, c.replacement));
     if (!free) continue;
     accepted.push({
       start: free[0] + offset,

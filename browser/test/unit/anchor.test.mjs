@@ -33,5 +33,38 @@ const long = "x".repeat(200);
 eq("whole-chunk rewrite dropped", anchorIssues(long, [{type:"rephrase",original:long,replacement:"y",message:"m"}]).length, 0);
 eq("original re-read from document", anchorIssues("it’s ok", [{type:"error",original:"it's",replacement:"it is",message:"m"}])[0].original, "it’s");
 
+// ---------------------------------------------------------------- already there
+// Models quote a substring that stops short of the character they want to add. Asked
+// about a sentence that already ends in a full stop, qwen3.5:9b reliably answers
+// original "English", replacement "English." - and applying it gives "English..".
+
+const A = (text, raw) => anchorIssues(text, [raw], { categories: { error: true, style: true }, ignored: [] });
+const one = (text, raw) => { const [i] = A(text, raw); return i ? text.slice(0, i.start) + i.replacement + text.slice(i.end) : null; };
+
+const SENT = "Sorry, I don't speak very well English.";
+eq("the reported case is dropped",
+   A(SENT, { original: "English", replacement: "English.", type: "error", message: "full stop" }).length, 0);
+eq("a prefix already present is dropped too",
+   A("Good morning everyone", { original: "morning", replacement: "Good morning", type: "error", message: "x" }).length, 0);
+eq("both sides at once",
+   A("He said (yes) today", { original: "yes", replacement: "(yes)", type: "error", message: "x" }).length, 0);
+
+// but real corrections must survive, including ones that genuinely add punctuation
+eq("a real spelling fix still applies",
+   one("I have recieve it", { original: "recieve", replacement: "received", type: "error", message: "sp" }),
+   "I have received it");
+eq("a genuinely missing full stop still applies",
+   one("I speak English", { original: "English", replacement: "English.", type: "error", message: "fs" }),
+   "I speak English.");
+eq("a comma that is not already there still applies",
+   one("Finally the loops", { original: "Finally the", replacement: "Finally, the", type: "error", message: "c" }),
+   "Finally, the loops");
+eq("adding a word still applies",
+   one("speak well English", { original: "well English", replacement: "English well", type: "style", message: "order" }),
+   "speak English well");
+eq("a different trailing character is not a duplicate",
+   one("I speak English.", { original: "English", replacement: "English!", type: "style", message: "x" }),
+   "I speak English!.");
+
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);
