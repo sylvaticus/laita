@@ -473,12 +473,32 @@ async function activate(context) {
         .update("ignored", [], vscode.ConfigurationTarget.Global);
       vscode.window.showInformationMessage("LAITA: dismissed suggestions can be made again.");
     }),
-    vscode.commands.registerCommand("laita.enableForFile", () => {
+    vscode.commands.registerCommand("laita.enableForFile", async () => {
       const ed = vscode.window.activeTextEditor;
       if (!ed) return;
+      const id = ed.document.languageId;
+      const listed = (vscode.workspace.getConfiguration("laita").get("languages") || [])
+        .includes(id);
+
+      // Telling the user the identifier is the point: it is not the file extension and
+      // it is not the name VS Code shows in the status bar, so there is no way to guess
+      // it. Offering to add it here means never having to look it up.
+      const choice = listed
+        ? await vscode.window.showInformationMessage(
+            `LAITA already checks "${id}" files.`, "Open settings")
+        : await vscode.window.showQuickPick(
+            [{ label: "$(file) Just this file, this session", permanent: false },
+             { label: `$(check-all) Always check "${id}" files`, permanent: true,
+               description: "adds it to laita.languages" }],
+            { title: `This file's language id is "${id}"` });
+
+      if (choice?.permanent) await appendToSetting("languages", id);
+      if (choice === "Open settings") {
+        return vscode.commands.executeCommand("laita.openSettings");
+      }
+      if (!choice) return;
+
       optedIn.add(ed.document.uri.toString());
-      vscode.window.setStatusBarMessage(
-        `LAITA: also checking this ${ed.document.languageId} file`, 3000);
       scheduleCheck(ed.document, ed.selection.active.line, { orFirstProse: true });
     }),
     vscode.languages.registerCodeActionsProvider(

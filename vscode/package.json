@@ -18,7 +18,7 @@
       { "command": "laita.checkDocument", "title": "LAITA: Proofread the whole document" },
       { "command": "laita.transform", "title": "LAITA: Transform the selection…" },
       { "command": "laita.clearDiagnostics", "title": "LAITA: Clear suggestions" },
-      { "command": "laita.enableForFile", "title": "LAITA: Also check this file (unlisted type)" },
+      { "command": "laita.enableForFile", "title": "LAITA: Also check this file (and show its language id)" },
       { "command": "laita.showDictionary", "title": "LAITA: Show the personal dictionary" },
       { "command": "laita.openSettings", "title": "LAITA: Settings" },
       { "command": "laita.showMenu", "title": "LAITA: Show all commands" },
@@ -76,7 +76,7 @@
           "default": ["markdown", "quarto", "plaintext", "latex", "tex", "bibtex",
                       "asciidoc", "restructuredtext", "html", "typst", "org", "mdx",
                       "git-commit", "scminput"],
-          "description": "File types checked automatically. Anything else is left alone, but you can still run the commands on it, or use 'LAITA: Also check this file' to include one file of an unlisted type for this session."
+          "markdownDescription": "File types checked automatically, given as VS Code **language identifiers** — not file extensions. `markdown`, not `.md`.\n\nTo find the identifier for a file you have open, run **LAITA: Also check this file**: it tells you the id and offers to add it here. You can also click the language name at the right of the status bar, or see the [full list of identifiers](https://code.visualstudio.com/docs/languages/identifiers).\n\nAnything not listed is left alone, but the LAITA commands still work on it."
         },
         "laita.dictionary": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Words never to flag. Grows when you use 'Add to dictionary'." },
         "laita.ignored": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Fingerprints of suggestions you asked never to see again. Cleared by the 'Forget' command." },

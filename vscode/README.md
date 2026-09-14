@@ -97,6 +97,27 @@ title.
 Turn that off with `laita.checkOnType` and use the commands instead, or set
 `laita.checkOnSave` to sweep the whole document when you save.
 
+### Which file types, and what those names are
+
+`laita.languages` holds **VS Code language identifiers**, not file extensions or the
+names shown in menus:
+
+| Your file | Status bar shows | The identifier is |
+| --- | --- | --- |
+| `notes.md` | Markdown | `markdown` |
+| `paper.tex` | LaTeX | `latex` |
+| `readme.txt` | Plain Text | `plaintext` |
+| `report.qmd` | Quarto | `quarto` |
+
+The identifier is assigned by VS Code from the file extension, or by whichever extension
+handles that language, and you can override it per file with `files.associations`.
+
+**The easy way to find one:** open the file and run **LAITA: Also check this file**. It
+tells you the identifier and offers either "just this file, this session" or "always
+check these files", which adds it to the setting for you — so you never have to look it
+up. Clicking the language name at the right of the status bar also shows it, and there
+is an [official list](https://code.visualstudio.com/docs/languages/identifiers).
+
 For a one-off file whose type is not in the list — a `.txt` opened as something else, a
 config file with a long prose comment — run **LAITA: Also check this file**. That lasts
 for the session. To make it permanent, add the language id to `laita.languages`.
