@@ -419,7 +419,7 @@ async function activate(context) {
 
   diagnostics = vscode.languages.createDiagnosticCollection("laita");
   status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  status.command = "laita.checkParagraph";
+  status.command = "laita.showMenu";
   status.text = "$(pencil) LAITA";
   status.show();
 
@@ -452,6 +452,22 @@ async function activate(context) {
       vscode.window.setStatusBarMessage("LAITA: that suggestion will not come back", 3000);
     }),
     vscode.commands.registerCommand("laita.showDictionary", showDictionary),
+    vscode.commands.registerCommand("laita.showMenu", async () => {
+      // The status bar item is the only part of LAITA always on screen, so it is the
+      // natural place to reach everything else from.
+      const items = [
+        { label: "$(check) Proofread this paragraph", cmd: "laita.checkParagraph" },
+        { label: "$(checklist) Proofread the whole document", cmd: "laita.checkDocument" },
+        { label: "$(wand) Transform the selection…", cmd: "laita.transform" },
+        { label: "$(book) Personal dictionary…", cmd: "laita.showDictionary" },
+        { label: "$(clear-all) Clear suggestions", cmd: "laita.clearDiagnostics" },
+        { label: "$(gear) Settings", cmd: "laita.openSettings" }
+      ];
+      const chosen = await vscode.window.showQuickPick(items, { title: "LAITA" });
+      if (chosen) vscode.commands.executeCommand(chosen.cmd);
+    }),
+    vscode.commands.registerCommand("laita.openSettings", () =>
+      vscode.commands.executeCommand("workbench.action.openSettings", "@ext:sylvaticus.laita")),
     vscode.commands.registerCommand("laita.clearIgnored", async () => {
       await vscode.workspace.getConfiguration("laita")
         .update("ignored", [], vscode.ConfigurationTarget.Global);

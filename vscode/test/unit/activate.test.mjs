@@ -40,6 +40,7 @@ const vscodeStub = {
     showWarningMessage: async () => undefined,
     showErrorMessage: async () => undefined,
     showInputBox: async () => undefined,
+    showQuickPick: async () => undefined,
     withProgress: async (_o, fn) => fn({ report() {} }, { onCancellationRequested() {} }),
     createQuickPick: () => ({
       items: [], title: "", placeholder: "", selectedItems: [],
@@ -61,7 +62,8 @@ const vscodeStub = {
     registerCodeActionsProvider: (sel, provider) => { providers.push({ sel, provider }); return disposable(); }
   },
   commands: {
-    registerCommand: (id, fn) => { registered.set(id, fn); return disposable(); }
+    registerCommand: (id, fn) => { registered.set(id, fn); return disposable(); },
+    executeCommand: async () => undefined
   },
   Range: class { constructor(a, b, c, d) { Object.assign(this, { a, b, c, d }); } },
   Diagnostic: class { constructor(range, message, severity) { Object.assign(this, { range, message, severity }); } },
@@ -114,6 +116,7 @@ ok("its selectors all carry a scheme",
    providers[0].sel.every((x) => typeof x === "object" && x.scheme),
    JSON.stringify(providers[0].sel));
 ok("it watches document changes", listeners.includes("onDidChangeTextDocument"));
+ok("the status bar leads somewhere real", registered.has("laita.showMenu"));
 ok("it cleans up on close", listeners.includes("onDidCloseTextDocument"));
 
 console.log(pass + " passed, " + fail + " failed");

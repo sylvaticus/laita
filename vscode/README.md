@@ -103,7 +103,18 @@ for the session. To make it permanent, add the language id to `laita.languages`.
 
 ## Settings
 
-All under `laita.` — endpoint, model, language, temperature, context window, timeout,
+Three ways in, whichever you reach for first:
+
+- Click **LAITA** in the status bar (bottom right) → **Settings**
+- `Ctrl+Shift+P` → **LAITA: Settings**
+- `Ctrl+,` and type `laita`
+
+The status bar item also opens everything else: proofread, transform, the dictionary,
+clear suggestions.
+
+
+
+All settings are under `laita.` — endpoint, model, language, temperature, context window, timeout,
 which categories to report, a personal dictionary, and house style rules appended to the
 prompt. See the Settings UI for the full list.
 

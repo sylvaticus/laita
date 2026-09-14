@@ -20,6 +20,8 @@
       { "command": "laita.clearDiagnostics", "title": "LAITA: Clear suggestions" },
       { "command": "laita.enableForFile", "title": "LAITA: Also check this file (unlisted type)" },
       { "command": "laita.showDictionary", "title": "LAITA: Show the personal dictionary" },
+      { "command": "laita.openSettings", "title": "LAITA: Settings" },
+      { "command": "laita.showMenu", "title": "LAITA: Show all commands" },
       { "command": "laita.clearIgnored", "title": "LAITA: Forget suggestions I told it never to make" }
     ],
     "keybindings": [
