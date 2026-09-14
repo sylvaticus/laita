@@ -17,6 +17,21 @@ entries in the Problems panel, and a quick fix (`Ctrl+.`) that applies the sugge
 | Information | style | Wordy, redundant, needlessly passive |
 | Hint | rephrase | A better word or a more natural formulation |
 
+On the lightbulb (`Ctrl+.`) every LAITA action is named, because that menu pools
+suggestions from every extension that has an opinion — VS Code's own *View Problem*, and
+any AI assistant offering to fix it. Ours are:
+
+| Action | What it does |
+| --- | --- |
+| **LAITA: change to "…"** | applies the suggestion. Preferred, so `Ctrl+.` then Enter does it |
+| **LAITA: add "…" to the dictionary** | the word is never flagged again, anywhere |
+| **LAITA: never make this suggestion again** | that exact suggestion is dropped for good |
+| **LAITA: dismiss this one** | hides it until the next check |
+
+The dictionary and the never-suggest list are ordinary settings (`laita.dictionary`,
+`laita.ignored`), so they are editable and syncable. *LAITA: Forget suggestions I told it
+never to make* empties the second one.
+
 **Rewrites a selection.** Select text, press `Alt+Shift+T`, and type what you want done —
 `polish`, `translate to French`, `shorten it`, `turn into bullet points`. The result can
 replace the selection or be inserted after it.
@@ -67,6 +82,10 @@ title.
 
 Turn that off with `laita.checkOnType` and use the commands instead, or set
 `laita.checkOnSave` to sweep the whole document when you save.
+
+For a one-off file whose type is not in the list — a `.txt` opened as something else, a
+config file with a long prose comment — run **LAITA: Also check this file**. That lasts
+for the session. To make it permanent, add the language id to `laita.languages`.
 
 ## Settings
 

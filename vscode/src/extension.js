@@ -52,7 +52,7 @@ function settings() {
       style: c.get("categories.style"),
       rephrase: c.get("categories.rephrase")
     },
-    ignored: []
+    ignored: c.get("ignored") || []
   };
 }
 
@@ -70,7 +70,8 @@ function languageFor(text) {
 async function checkSpan(doc, text, offset, s, token) {
   const lang = languageFor(text);
   const raw = await core.requestIssues({ text, lang, settings: s, signal: token });
-  const anchored = core.anchorIssues(text, raw, { categories: s.categories, ignored: [] });
+  const anchored = core.anchorIssues(text, raw,
+    { categories: s.categories, ignored: s.ignored });
 
   return anchored.map((issue) => {
     const range = new vscode.Range(doc.positionAt(offset + issue.start),
@@ -231,10 +232,15 @@ async function transform() {
 
 // ---------------------------------------------------------------- as you type
 
+/** Files of an unlisted type that the user opted in with "Also check this file". */
+const optedIn = new Set();
+
 /** Is this a document the user wants proofread without asking? */
 function watched(doc) {
   const c = vscode.workspace.getConfiguration("laita");
-  return c.get("checkOnType") && (c.get("languages") || []).includes(doc.languageId);
+  if (!c.get("checkOnType")) return false;
+  return (c.get("languages") || []).includes(doc.languageId) ||
+         optedIn.has(doc.uri.toString());
 }
 
 /**
@@ -273,13 +279,23 @@ function scheduleCheck(doc, line, { orFirstProse = false } = {}) {
 
 // ---------------------------------------------------------------- quick fixes
 
+/**
+ * Quick fixes.
+ *
+ * Every title says LAITA. The lightbulb menu pools actions from every extension that
+ * has something to say about a diagnostic - VS Code's own "View Problem", and any AI
+ * assistant offering to fix it - and without a name on them there is no way to tell
+ * whose is whose. Ours are also marked preferred, so `Ctrl+.` then Enter applies the
+ * suggestion rather than opening somebody else's chat.
+ */
 const codeActions = {
   provideCodeActions(doc, range, context) {
     const out = [];
     for (const d of context.diagnostics) {
       const issue = fixes.get(d);
       if (!issue) continue;
-      const fix = new vscode.CodeAction(`Change to "${issue.replacement}"`,
+
+      const fix = new vscode.CodeAction(`LAITA: change to "${issue.replacement}"`,
                                         vscode.CodeActionKind.QuickFix);
       fix.edit = new vscode.WorkspaceEdit();
       fix.edit.replace(doc.uri, d.range, issue.replacement);
@@ -287,16 +303,54 @@ const codeActions = {
       fix.isPreferred = true;
       out.push(fix);
 
-      const ignore = new vscode.CodeAction("Dismiss this suggestion",
+      // Only offer the dictionary for something that is actually a word.
+      if (/^[\p{L}\p{M}'-]{2,40}$/u.test(issue.original)) {
+        const dict = new vscode.CodeAction(`LAITA: add "${issue.original}" to the dictionary`,
                                            vscode.CodeActionKind.QuickFix);
-      ignore.command = { command: "laita.dismiss", title: "Dismiss", arguments: [doc.uri, d.range] };
-      out.push(ignore);
+        dict.command = { command: "laita.addToDictionary", title: "Add to dictionary",
+                         arguments: [issue.original, doc.uri, d.range] };
+        dict.diagnostics = [d];
+        out.push(dict);
+      }
+
+      const never = new vscode.CodeAction("LAITA: never make this suggestion again",
+                                          vscode.CodeActionKind.QuickFix);
+      never.command = { command: "laita.neverSuggest", title: "Never suggest",
+                        arguments: [issue.fp, doc.uri, d.range] };
+      never.diagnostics = [d];
+      out.push(never);
+
+      const dismiss = new vscode.CodeAction("LAITA: dismiss this one",
+                                            vscode.CodeActionKind.QuickFix);
+      dismiss.command = { command: "laita.dismiss", title: "Dismiss",
+                          arguments: [doc.uri, d.range] };
+      dismiss.diagnostics = [d];
+      out.push(dismiss);
     }
     return out;
   }
 };
 
 // ---------------------------------------------------------------- plumbing
+
+/** Drop one diagnostic without re-running the model. */
+function removeDiagnostic(uri, range) {
+  const left = (diagnostics.get(uri) || []).filter((d) => !d.range.isEqual(range));
+  diagnostics.set(uri, left);
+  const ed = vscode.window.activeTextEditor;
+  if (ed && ed.document.uri.toString() === uri.toString()) refreshStatus(ed.document);
+}
+
+/**
+ * Append to a list setting, globally rather than per workspace: a personal dictionary
+ * and "never suggest this" are about the person, not the project.
+ */
+async function appendToSetting(key, value) {
+  const c = vscode.workspace.getConfiguration("laita");
+  const current = c.get(key) || [];
+  if (current.includes(value)) return;
+  await c.update(key, [...current, value].slice(-500), vscode.ConfigurationTarget.Global);
+}
 
 function refreshStatus(doc) {
   const n = (diagnostics.get(doc.uri) || []).length;
@@ -333,9 +387,29 @@ async function activate(context) {
       diagnostics.clear();
       if (vscode.window.activeTextEditor) refreshStatus(vscode.window.activeTextEditor.document);
     }),
-    vscode.commands.registerCommand("laita.dismiss", (uri, range) => {
-      const left = (diagnostics.get(uri) || []).filter((d) => !d.range.isEqual(range));
-      diagnostics.set(uri, left);
+    vscode.commands.registerCommand("laita.dismiss", removeDiagnostic),
+    vscode.commands.registerCommand("laita.addToDictionary", async (word, uri, range) => {
+      await appendToSetting("dictionary", word);
+      removeDiagnostic(uri, range);
+      vscode.window.setStatusBarMessage(`LAITA: "${word}" added to the dictionary`, 3000);
+    }),
+    vscode.commands.registerCommand("laita.neverSuggest", async (fp, uri, range) => {
+      if (fp) await appendToSetting("ignored", fp);
+      removeDiagnostic(uri, range);
+      vscode.window.setStatusBarMessage("LAITA: that suggestion will not come back", 3000);
+    }),
+    vscode.commands.registerCommand("laita.clearIgnored", async () => {
+      await vscode.workspace.getConfiguration("laita")
+        .update("ignored", [], vscode.ConfigurationTarget.Global);
+      vscode.window.showInformationMessage("LAITA: dismissed suggestions can be made again.");
+    }),
+    vscode.commands.registerCommand("laita.enableForFile", () => {
+      const ed = vscode.window.activeTextEditor;
+      if (!ed) return;
+      optedIn.add(ed.document.uri.toString());
+      vscode.window.setStatusBarMessage(
+        `LAITA: also checking this ${ed.document.languageId} file`, 3000);
+      scheduleCheck(ed.document, ed.selection.active.line, { orFirstProse: true });
     }),
     vscode.languages.registerCodeActionsProvider(
       sel.length ? sel : [{ scheme: "file" }, { scheme: "untitled" }], codeActions,

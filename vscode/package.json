@@ -17,7 +17,9 @@
       { "command": "laita.checkParagraph", "title": "LAITA: Proofread the paragraph at the cursor" },
       { "command": "laita.checkDocument", "title": "LAITA: Proofread the whole document" },
       { "command": "laita.transform", "title": "LAITA: Transform the selection…" },
-      { "command": "laita.clearDiagnostics", "title": "LAITA: Clear suggestions" }
+      { "command": "laita.clearDiagnostics", "title": "LAITA: Clear suggestions" },
+      { "command": "laita.enableForFile", "title": "LAITA: Also check this file (unlisted type)" },
+      { "command": "laita.clearIgnored", "title": "LAITA: Forget suggestions I told it never to make" }
     ],
     "keybindings": [
       { "command": "laita.checkParagraph", "key": "alt+shift+c", "when": "editorTextFocus" },
@@ -68,10 +70,13 @@
         "laita.checkOnSave": { "type": "boolean", "default": false, "description": "Proofread the whole document when it is saved." },
         "laita.languages": {
           "type": "array", "items": { "type": "string" },
-          "default": ["markdown", "plaintext", "latex", "tex", "asciidoc", "restructuredtext", "quarto"],
-          "description": "Language ids LAITA offers to check. Other files are left alone unless you run a command explicitly."
+          "default": ["markdown", "quarto", "plaintext", "latex", "tex", "bibtex",
+                      "asciidoc", "restructuredtext", "html", "typst", "org", "mdx",
+                      "git-commit", "scminput"],
+          "description": "File types checked automatically. Anything else is left alone, but you can still run the commands on it, or use 'LAITA: Also check this file' to include one file of an unlisted type for this session."
         },
-        "laita.dictionary": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Words never to flag." },
+        "laita.dictionary": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Words never to flag. Grows when you use 'Add to dictionary'." },
+        "laita.ignored": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Fingerprints of suggestions you asked never to see again. Cleared by the 'Forget' command." },
         "laita.extraInstructions": { "type": "string", "default": "", "description": "House style rules appended to the prompt." },
         "laita.transformDefault": { "type": "string", "default": "polish", "description": "Instruction used when the transform box is submitted empty." }
       }
