@@ -23,6 +23,22 @@ replace the selection or be inserted after it.
 
 Code fences are treated as opaque and never sent to the model.
 
+## Running it from source
+
+Open the `vscode/` folder in VS Code and press **F5**. A second window opens with the
+extension loaded; edit a Markdown file there.
+
+Or from a terminal, without touching your normal setup:
+
+```bash
+cd vscode
+code --user-data-dir=/tmp/laita-ud --extensions-dir=/tmp/laita-ext \
+     --extensionDevelopmentPath="$PWD" --new-window somefile.md
+```
+
+To install it properly instead: `npx @vscode/vsce package --no-dependencies`, then
+**Extensions → … → Install from VSIX**.
+
 ## Requirements
 
 [Ollama](https://ollama.com) running locally with a model pulled:
@@ -43,8 +59,14 @@ from Node and carry no `Origin` header, so Ollama does not refuse them.
 | Transform the selection… | `Alt+Shift+T` |
 | Clear suggestions | — |
 
-Checking is on demand by default. Set `laita.checkOnSave` to proofread the whole document
-each time you save.
+**Checking is automatic**, shortly after you stop typing, for the file types in
+`laita.languages` — Markdown, LaTeX, AsciiDoc, reStructuredText, plain text. It looks at
+the paragraph you are working in, not the whole file, so a long document does not fire a
+request per paragraph. Opening a document checks its first real paragraph, skipping the
+title.
+
+Turn that off with `laita.checkOnType` and use the commands instead, or set
+`laita.checkOnSave` to sweep the whole document when you save.
 
 ## Settings
 

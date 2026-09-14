@@ -19,6 +19,10 @@ let diagnostics;                 // vscode.DiagnosticCollection
 let status;                      // vscode.StatusBarItem
 /** Diagnostic -> the issue it came from, so a code action can apply the right fix. */
 const fixes = new WeakMap();
+/** uri -> debounce timer, for checking as you type. */
+const pending = new Map();
+/** uri -> the paragraph text last sent, so an unchanged paragraph is not re-sent. */
+const lastSent = new Map();
 
 const SEVERITY = {
   error: vscode.DiagnosticSeverity.Warning,      // not Error: this is prose, not a build
@@ -225,6 +229,48 @@ async function transform() {
   });
 }
 
+// ---------------------------------------------------------------- as you type
+
+/** Is this a document the user wants proofread without asking? */
+function watched(doc) {
+  const c = vscode.workspace.getConfiguration("laita");
+  return c.get("checkOnType") && (c.get("languages") || []).includes(doc.languageId);
+}
+
+/**
+ * Check the paragraph being edited, once the typing stops.
+ *
+ * Scoped to one paragraph for the same reason the browser extension is: opening a long
+ * document and checking all of it queues one slow request per paragraph before the user
+ * has written anything. Unchanged paragraphs are skipped so that moving the cursor, or
+ * editing elsewhere and coming back, does not re-send text the model has already seen.
+ */
+function scheduleCheck(doc, line, { orFirstProse = false } = {}) {
+  if (!watched(doc)) return;
+  const key = doc.uri.toString();
+  clearTimeout(pending.get(key));
+  pending.set(key, setTimeout(async () => {
+    pending.delete(key);
+    if (doc.isClosed) return;
+    const lines = doc.getText().split(/\r?\n/);
+    const textOf = (q) =>
+      doc.getText(new vscode.Range(q.start, 0, q.end, doc.lineAt(q.end).text.length));
+
+    // On open the cursor is usually on line 0, which in most documents is the title:
+    // too short to be worth checking, so nothing would happen and the extension would
+    // look broken. Fall back to the first paragraph that is actually prose.
+    let p = paragraphAt(lines, line);
+    if (orFirstProse && (!p || !isProse(textOf(p), p.code))) {
+      p = paragraphs(lines).find((q) => isProse(textOf(q), q.code)) || null;
+    }
+    if (!p) return;
+    const text = textOf(p);
+    if (lastSent.get(key) === text) return;
+    lastSent.set(key, text);
+    await run(doc, [p], "checking this paragraph");
+  }, vscode.workspace.getConfiguration("laita").get("debounceMs") || 1500));
+}
+
 // ---------------------------------------------------------------- quick fixes
 
 const codeActions = {
@@ -294,15 +340,44 @@ async function activate(context) {
     vscode.languages.registerCodeActionsProvider(
       sel.length ? sel : [{ scheme: "file" }, { scheme: "untitled" }], codeActions,
       { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }),
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      if (!e.contentChanges.length) return;
+      scheduleCheck(e.document, e.contentChanges[e.contentChanges.length - 1].range.start.line);
+    }),
+    vscode.window.onDidChangeActiveTextEditor((ed) => {
+      if (ed) {
+        refreshStatus(ed.document);
+        scheduleCheck(ed.document, ed.selection.active.line, { orFirstProse: true });
+      }
+    }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (vscode.workspace.getConfiguration("laita").get("checkOnSave")) {
         run(doc, paragraphs(doc.getText().split(/\r?\n/)), "checking the document");
       }
     }),
-    vscode.workspace.onDidCloseTextDocument((doc) => diagnostics.delete(doc.uri))
+    vscode.workspace.onDidCloseTextDocument((doc) => {
+      diagnostics.delete(doc.uri);
+      clearTimeout(pending.get(doc.uri.toString()));
+      pending.delete(doc.uri.toString());
+      lastSent.delete(doc.uri.toString());
+    })
   );
+
+  // The editor that was already open when the extension started never fires
+  // onDidChangeActiveTextEditor, so without this a freshly opened document sits there
+  // doing nothing until the first keystroke - which reads as a broken extension.
+  DBG("activate: activeEditor=" + !!vscode.window.activeTextEditor +
+    " lang=" + (vscode.window.activeTextEditor?.document.languageId) +
+    " watched=" + (vscode.window.activeTextEditor ? watched(vscode.window.activeTextEditor.document) : "n/a"));
+  const open = vscode.window.activeTextEditor;
+  if (open) {
+    refreshStatus(open.document);
+    scheduleCheck(open.document, open.selection.active.line, { orFirstProse: true });
+  }
 }
 
-function deactivate() {}
+function deactivate() {
+  for (const t of pending.values()) clearTimeout(t);
+}
 
 module.exports = { activate, deactivate };

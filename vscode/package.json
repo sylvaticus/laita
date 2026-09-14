@@ -57,6 +57,14 @@
         "laita.categories.error": { "type": "boolean", "default": true, "description": "Report outright errors (spelling, agreement, punctuation)." },
         "laita.categories.style": { "type": "boolean", "default": true, "description": "Report weak style (wordiness, redundancy, passive voice)." },
         "laita.categories.rephrase": { "type": "boolean", "default": true, "description": "Report better wordings." },
+        "laita.checkOnType": {
+          "type": "boolean", "default": true,
+          "description": "Proofread the paragraph you are writing in, shortly after you stop typing. Only in the languages listed below."
+        },
+        "laita.debounceMs": {
+          "type": "number", "default": 1500,
+          "description": "How long to wait after you stop typing before checking."
+        },
         "laita.checkOnSave": { "type": "boolean", "default": false, "description": "Proofread the whole document when it is saved." },
         "laita.languages": {
           "type": "array", "items": { "type": "string" },
