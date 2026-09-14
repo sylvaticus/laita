@@ -66,5 +66,41 @@ eq("a different trailing character is not a duplicate",
    one("I speak English.", { original: "English", replacement: "English!", type: "style", message: "x" }),
    "I speak English!.");
 
+// ---------------------------------------------------------------- truncated answers
+// Asked to add a comma to a long sentence, the model answered with its opening followed
+// by "...". Applying that deleted the rest of the paragraph.
+
+const LONG = "In the world system the negative feedback loops involve such processes as " +
+             "pollution of the environment, depletion of nonrenewable resources, and famine.";
+const PARA = "Growth comes to an end. " + LONG;
+
+eq("an elided replacement is dropped",
+   A(PARA, { original: LONG, replacement: "In the world system, the negative feedback loops...",
+             type: "style", message: "comma" }).length, 0);
+eq("a unicode ellipsis too",
+   A(PARA, { original: LONG, replacement: "In the world system, the negative\u2026",
+             type: "style", message: "comma" }).length, 0);
+eq("spaced dots too",
+   A(PARA, { original: LONG, replacement: "In the world system, the negative . . .",
+             type: "style", message: "comma" }).length, 0);
+eq("a long quote halved is treated as elision",
+   A(PARA, { original: LONG, replacement: "In the world system, the loops.",
+             type: "style", message: "x" }).length, 0);
+
+// the full rewrite of a long sentence is legitimate and must survive
+eq("a full-length rewrite still applies",
+   one(PARA, { original: LONG,
+               replacement: "In the world system, the negative feedback loops involve such " +
+                            "processes as pollution, depletion of nonrenewable resources, and famine.",
+               type: "style", message: "comma" }) !== null, true);
+eq("short wordiness fixes are untouched",
+   one("Due to the fact that we met", { original: "Due to the fact that", replacement: "Since",
+                                        type: "style", message: "wordy" }),
+   "Since we met");
+eq("an ellipsis the original also has is not a truncation",
+   one("Wait... and see", { original: "Wait... and", replacement: "Wait... but",
+                            type: "style", message: "x" }),
+   "Wait... but see");
+
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

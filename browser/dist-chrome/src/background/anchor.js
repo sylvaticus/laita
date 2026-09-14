@@ -95,6 +95,27 @@ export function locate(text, needle) {
  * @returns {Array} anchored issues, sorted by position, guaranteed non-overlapping
  */
 /**
+ * Has the model abbreviated its own replacement instead of writing it out?
+ *
+ * Asked to add a comma to a long sentence, it answered with the sentence's opening
+ * followed by "..." - and applying that deleted the rest of the paragraph. The prompt
+ * demands a drop-in replacement; when the answer is visibly not one, the only safe move
+ * is to drop the suggestion, because applying it destroys text.
+ *
+ * Two signs. An ellipsis the original does not have is conclusive. Beyond that, a
+ * replacement less than half the length of a long quote is elision rather than editing:
+ * real corrections of that size do happen, but the prompt asks for quotes of a few
+ * words, so a long one that comes back halved is far more likely to have been cut short.
+ */
+const ELLIPSIS = /(\.\s*\.\s*\.|\u2026)\s*$/;
+const LONG_QUOTE = 60;
+
+function looksTruncated(original, replacement) {
+  if (ELLIPSIS.test(replacement) && !ELLIPSIS.test(original)) return true;
+  return original.length >= LONG_QUOTE && replacement.length < original.length * 0.5;
+}
+
+/**
  * Would applying this replacement just duplicate what is already there?
  *
  * Models quote a substring that stops short of the character they want to add: asked
@@ -141,6 +162,7 @@ export function anchorIssues(text, rawIssues, opts = {}) {
     const message = String(raw.message ?? "").trim();
 
     if (!original || original === replacement) continue;
+    if (looksTruncated(original, replacement)) continue;
     // A suggestion that restates the entire chunk is a rewrite, not a correction.
     if (trimmedLen > 120 && original.length >= trimmedLen * 0.95) continue;
 

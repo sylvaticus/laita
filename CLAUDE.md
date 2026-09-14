@@ -158,6 +158,14 @@ closed shadow root still lets events bubble out retargeted to the host, so `pane
 stops `keydown`/`keyup`/`keypress` propagation. Removing that makes typing an instruction
 trigger the page underneath.
 
+**The model also abbreviates its own answer.** Asked to add a comma to a long sentence
+it replied with the sentence's opening followed by "...", and applying that deleted the
+rest of the paragraph. `looksTruncated` in `anchor.js` drops a replacement carrying an
+ellipsis the original lacks, and one less than half the length of a quote of 60
+characters or more. Both signs of elision rather than editing. A replacement that is
+visibly not a drop-in must never be applied: the cost of a wrong drop is a missed
+suggestion, the cost of a wrong apply is destroyed text.
+
 **The model also quotes short.** Asked about a sentence that already ends in a full
 stop, it answers original "English", replacement "English." - complaining of punctuation
 that is already there, which applied gives "English..". `alreadyThere` in `anchor.js`
