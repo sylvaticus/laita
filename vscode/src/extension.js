@@ -24,6 +24,38 @@ const pending = new Map();
 /** uri -> the paragraph text last sent, so an unchanged paragraph is not re-sent. */
 const lastSent = new Map();
 
+/**
+ * Raw model answers, keyed by the text and everything that changes what the model would
+ * say. Typing in a paragraph re-checks it every time you pause, and moving back to a
+ * paragraph checked a minute ago would otherwise pay the full cost again - seconds, or
+ * minutes on a long one. The browser extension keeps the same cache for the same reason.
+ *
+ * Raw rather than anchored, so that adding a word to the dictionary or turning off a
+ * category needs no invalidation: only the prompt inputs are part of the key.
+ */
+const CACHE_MAX = 400;
+const cache = new Map();
+
+function cacheKey(text, lang, s) {
+  const cats = ["error", "style", "rephrase"].map((c) => (s.categories[c] ? "1" : "0")).join("");
+  return [core.hash(text), text.length, lang, s.model, s.temperature, cats,
+          core.hash((s.dictionary || []).join(",")),
+          core.hash(s.extraInstructions || "")].join("|");
+}
+
+function cacheGet(key) {
+  if (!cache.has(key)) return undefined;
+  const v = cache.get(key);
+  cache.delete(key);            // refresh LRU position
+  cache.set(key, v);
+  return v;
+}
+
+function cacheSet(key, value) {
+  cache.set(key, value);
+  while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+}
+
 const SEVERITY = {
   error: vscode.DiagnosticSeverity.Warning,      // not Error: this is prose, not a build
   style: vscode.DiagnosticSeverity.Information,
@@ -69,7 +101,12 @@ function languageFor(text) {
  */
 async function checkSpan(doc, text, offset, s, token) {
   const lang = languageFor(text);
-  const raw = await core.requestIssues({ text, lang, settings: s, signal: token });
+  const key = cacheKey(text, lang, s);
+  let raw = cacheGet(key);
+  if (raw === undefined) {
+    raw = await core.requestIssues({ text, lang, settings: s, signal: token });
+    cacheSet(key, raw);
+  }
   const anchored = core.anchorIssues(text, raw,
     { categories: s.categories, ignored: s.ignored });
 
@@ -235,6 +272,46 @@ async function transform() {
 /** Files of an unlisted type that the user opted in with "Also check this file". */
 const optedIn = new Set();
 
+/**
+ * Move diagnostics with the text.
+ *
+ * A DiagnosticCollection range is a fixed pair of offsets; VS Code does not adjust it
+ * when the document changes. Edit one paragraph and every suggestion after it is
+ * silently pointing a few characters off, and applying one then corrupts the text -
+ * "Finally the" became "FiFinally, theegative" that way. The browser extension
+ * re-anchors after every keystroke for the same reason.
+ *
+ * A diagnostic the edit overlapped is dropped rather than guessed at: the text it
+ * described no longer exists.
+ */
+function shiftDiagnostics(doc, changes) {
+  const existing = diagnostics.get(doc.uri);
+  if (!existing || !existing.length) return;
+
+  let list = existing;
+  for (const ch of changes) {
+    const from = ch.rangeOffset;
+    const to = ch.rangeOffset + ch.rangeLength;
+    const delta = ch.text.length - ch.rangeLength;
+    list = list.flatMap((d) => {
+      const a = doc.offsetAt(d.range.start), b = doc.offsetAt(d.range.end);
+      if (b <= from) return [d];                       // before the edit: unaffected
+      if (a >= to) {                                   // after it: slides by delta
+        const moved = new vscode.Diagnostic(
+          new vscode.Range(doc.positionAt(a + delta), doc.positionAt(b + delta)),
+          d.message, d.severity);
+        moved.source = d.source;
+        moved.code = d.code;
+        const issue = fixes.get(d);
+        if (issue) fixes.set(moved, issue);
+        return [moved];
+      }
+      return [];                                       // the edit went through it
+    });
+  }
+  diagnostics.set(doc.uri, list);
+}
+
 /** Is this a document the user wants proofread without asking? */
 function watched(doc) {
   const c = vscode.workspace.getConfiguration("laita");
@@ -288,6 +365,24 @@ function scheduleCheck(doc, line, { orFirstProse = false } = {}) {
  * whose is whose. Ours are also marked preferred, so `Ctrl+.` then Enter applies the
  * suggestion rather than opening somebody else's chat.
  */
+/**
+ * The range that really holds `original`, or null.
+ *
+ * Usually `range` itself. If the text moved, look for it nearby, the way the browser
+ * extension re-anchors a suggestion whose span no longer holds its own text. If it
+ * cannot be found, the suggestion is no longer applicable and no fix is offered.
+ */
+function locateIssue(doc, range, original) {
+  if (doc.getText(range) === original) return range;
+
+  const full = doc.getText();
+  const at = doc.offsetAt(range.start);
+  let i = full.indexOf(original, Math.max(0, at - 200));
+  if (i === -1 || i > at + 200) i = full.indexOf(original);
+  if (i === -1) return null;
+  return new vscode.Range(doc.positionAt(i), doc.positionAt(i + original.length));
+}
+
 const codeActions = {
   provideCodeActions(doc, range, context) {
     const out = [];
@@ -295,13 +390,20 @@ const codeActions = {
       const issue = fixes.get(d);
       if (!issue) continue;
 
-      const fix = new vscode.CodeAction(`LAITA: change to "${issue.replacement}"`,
-                                        vscode.CodeActionKind.QuickFix);
-      fix.edit = new vscode.WorkspaceEdit();
-      fix.edit.replace(doc.uri, d.range, issue.replacement);
-      fix.diagnostics = [d];
-      fix.isPreferred = true;
-      out.push(fix);
+      // Last line of defence: only replace text that still reads exactly as the model
+      // saw it. Shifting handles the common case, but a reload, an undo, or an edit
+      // from another source can still leave a range pointing at the wrong characters,
+      // and replacing those corrupts the document.
+      const where = locateIssue(doc, d.range, issue.original);
+      if (where) {
+        const fix = new vscode.CodeAction(`LAITA: change to "${issue.replacement}"`,
+                                          vscode.CodeActionKind.QuickFix);
+        fix.edit = new vscode.WorkspaceEdit();
+        fix.edit.replace(doc.uri, where, issue.replacement);
+        fix.diagnostics = [d];
+        fix.isPreferred = true;
+        out.push(fix);
+      }
 
       // Only offer the dictionary for something that is actually a word.
       if (/^[\p{L}\p{M}'-]{2,40}$/u.test(issue.original)) {
@@ -506,6 +608,7 @@ async function activate(context) {
       { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (!e.contentChanges.length) return;
+      shiftDiagnostics(e.document, e.contentChanges);
       scheduleCheck(e.document, e.contentChanges[e.contentChanges.length - 1].range.start.line);
     }),
     vscode.window.onDidChangeActiveTextEditor((ed) => {
@@ -541,4 +644,4 @@ function deactivate() {
   for (const t of pending.values()) clearTimeout(t);
 }
 
-module.exports = { activate, deactivate };
+module.exports = { activate, deactivate, __test: { codeActions, fixes, locateIssue } };

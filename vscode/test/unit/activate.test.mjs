@@ -117,6 +117,8 @@ ok("its selectors all carry a scheme",
    JSON.stringify(providers[0].sel));
 ok("it watches document changes", listeners.includes("onDidChangeTextDocument"));
 ok("the status bar leads somewhere real", registered.has("laita.showMenu"));
+ok("the shared core exposes the hash the cache key needs",
+   typeof (await import("../../core/anchor.js")).hash === "function");
 ok("it cleans up on close", listeners.includes("onDidCloseTextDocument"));
 
 console.log(pass + " passed, " + fail + " failed");

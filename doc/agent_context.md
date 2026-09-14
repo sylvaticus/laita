@@ -164,6 +164,16 @@ sylvaticus.laita` confirms it started.
 because a packaged `.vsix` may only contain files from inside `vscode/`.
 `test/unit/core.test.mjs` fails if a copy drifts.
 
+**A diagnostic range does not move with the text.** VS Code leaves a
+DiagnosticCollection's ranges exactly where they were set, so editing one paragraph
+leaves every suggestion after it pointing a few characters off, and applying one then
+corrupts the document - reported in the wild as "Finally the negative" becoming
+"FiFinally, theegative". Two defences now, mirroring the browser: `shiftDiagnostics`
+moves them on every change and drops any the edit went through, and `locateIssue`
+refuses to replace text that is not what the model was shown, relocating nearby or
+offering no fix at all. `test/unit/stale.test.mjs` reproduces the exact corruption when
+either is removed.
+
 Verified end to end against a live Ollama: opening a markdown file produces exactly one
 `POST /api/chat`. Everything past that — quick fixes, the dictionary, transforms — has
 been exercised by hand in the F5 window but has no automated coverage.
