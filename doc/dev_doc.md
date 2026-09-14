@@ -377,8 +377,54 @@ Two things that warn if you get them wrong, both already handled: `core/package.
 must declare `"type": "module"` or node cannot tell what the shared files are, and a
 document selector must carry a `scheme` or it also matches output panels and diff views.
 
-Publishing goes to the Visual Studio Marketplace via `vsce publish`, which needs an Azure
-DevOps personal access token. Unlike the two browser stores, there is no review queue.
+### Publishing to the Marketplace
+
+Unlike the two browser stores there is no review queue: a successful `vsce publish` is
+live as soon as validation passes. Three separate identities are involved and only the
+last is ever shown to users:
+
+| | Where | Public? |
+| --- | --- | --- |
+| Azure DevOps organisation | <https://dev.azure.com> | no — it exists only to mint the token |
+| Personal access token (PAT) | same site, avatar -> Personal access tokens | no |
+| Marketplace **publisher** `sylvaticus` | <https://marketplace.visualstudio.com/manage> | **yes** — it is the `publisher` field of `package.json` |
+
+A GitHub organisation of the same name is unrelated to all three.
+
+The PAT must be created with **Organization: `All accessible organizations`**, and with
+**Marketplace -> Manage**, which only appears after clicking *Show all scopes*. Anything
+narrower fails, because the Marketplace does not live inside your organisation.
+
+```bash
+cd vscode
+npm run package
+npx @vscode/vsce publish --packagePath laita-vscode-<V>.vsix     # prompts for the PAT
+```
+
+`--azure-credential` authenticates through the Azure CLI with Microsoft Entra ID instead,
+if a token that expires every year is not worth the bother.
+
+The three failures worth recognising:
+
+- **`TF400813: The user 'aaaaaaaa-…' is not authorized`.** That all-`a` GUID is Azure
+  DevOps's anonymous identity: the token resolved to nobody at all, so this is never a
+  permission problem on the publisher. Either the PAT is scoped to a single organisation,
+  or it was truncated on paste — a current PAT is 84 characters.
+- **The `…/extensions/<name>/hub` link 404s.** The Marketplace answers 404, not 403, for
+  a publisher the signed-in browser account does not own; easy to hit with both a
+  personal and a work Microsoft account. Open <https://marketplace.visualstudio.com/manage>
+  with no publisher in the path — it resolves to whichever publisher you do own.
+- **The public item page 404s after a successful publish.** Validation runs after the
+  upload and the page does not exist until it passes, typically 5-15 minutes. Poll it
+  without the browser:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -L \
+  "https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita"
+```
+
+The gallery API is more informative than the page, and answers immediately: a version
+carries `flags: none` until validation completes, and `validated` afterwards.
 
 ## 4. Restricting Ollama to just this extension
 

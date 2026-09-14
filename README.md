@@ -373,19 +373,25 @@ To exclude anything else, add `data-laita="off"` to it or to any ancestor. The o
 
 ### 3.2. In VS Code
 
-Install it from [`vscode/`](vscode/) — see that folder's README for the details. In
-short:
+Search for **LAITA** in the Extensions panel, or from a terminal:
+
+```bash
+code --install-extension sylvaticus.laita
+```
+
+It is on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita).
+To build it yourself instead, see [`vscode/`](vscode/):
 
 ```bash
 cd vscode && npm run package
-code --install-extension laita-vscode-0.3.4.vsix
+code --install-extension laita-vscode-0.3.9.vsix
 ```
 
 Then write. Prose files are checked **as you type**, a paragraph at a time:
 
 - **Squiggles** in the editor and entries in the **Problems** panel, rather than a custom
-  overlay. Severity follows the category: error → Warning, style → Information,
-  rephrase → Hint.
+  overlay. Severity follows the category — error → Warning, style and rephrase →
+  Information — and each is a setting, so you can raise or lower any of them.
 - **`Ctrl+.`** on a squiggle offers *LAITA: change to "…"*, plus *add to the dictionary*,
   *never make this suggestion again*, and *dismiss for this session*. Every entry says
   LAITA, because that menu also holds VS Code's own and any AI assistant's.

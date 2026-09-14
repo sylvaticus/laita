@@ -52,11 +52,11 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ### Store status
 
-| | Firefox (AMO) | Chrome Web Store |
-| --- | --- | --- |
-| Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts |
-| Listing slug | `local-ai-text-assistant` | — |
-| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.9.zip` | `laita-chrome-0.3.9.zip` |
+| | Firefox (AMO) | Chrome Web Store | VS Code Marketplace |
+| --- | --- | --- | --- |
+| Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts | **0.3.9 published 2026-09-14** |
+| Listing id | slug `local-ai-text-assistant` | — | `sylvaticus.laita` |
+| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.9.zip` | `laita-chrome-0.3.9.zip` | — |
 
 - Neither store will accept a version number it has already seen, in either channel, even
   after the version is deleted.
@@ -65,6 +65,10 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 - The AMO listing still describes 0.2.2, which predates the LAITA rename.
 - `alarms` was declared in the Chrome manifest and removed again at 0.3.3: nothing used
   it, and the store makes you justify every permission individually.
+- The VS Code Marketplace is the odd one out: no review queue, so a mistake is public
+  immediately and the only remedy is another version. The publisher is `sylvaticus`,
+  owned by a Microsoft account — unrelated to the GitHub organisation of the same name.
+  `dev_doc.md` §3b decodes the three failures that cost time the first time.
 
 ### Verified, and not
 
@@ -120,7 +124,8 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 `vscode/`, version **0.3.9** (numbered in step with the browser manifests rather than
 starting at 0.1.0: three numbers for three targets of one tool is the worse confusion).
-Not published to the Marketplace.
+**Published to the Marketplace as `sylvaticus.laita` on 2026-09-14**, the first of the
+three surfaces to be publicly listed under the LAITA name.
 
 Built and installed like this:
 
@@ -192,10 +197,12 @@ been exercised by hand in the F5 window but has no automated coverage.
 
 ### Open items
 
-- Upload 0.3.4 to both browser stores, and decide whether to publish the VS Code
-  package to the Marketplace (`vsce publish`, needs an Azure DevOps token, no review
-  queue); the Chrome listing still needs its Privacy practices tab
-  completed and the publisher email verified.
+- Upload **0.3.9** to both browser stores — neither has yet seen a version under the
+  LAITA name. The Chrome listing still needs its Privacy practices tab completed and the
+  publisher email verified.
+- The Marketplace listing has no screenshots and reuses the browser README; the artwork
+  in `assets/store/` was sized for Chrome and has not been reviewed against what the
+  Marketplace page actually renders.
 - The Chrome service-worker lifetime question above.
 - AMO 0.2.2 review outcome, after which the listing name should be updated to LAITA.
 - qwen3.5:9b reliably claims a missing full stop on a sentence that has one; the
