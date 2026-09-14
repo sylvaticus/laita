@@ -46,7 +46,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   rename and is invisible to users, but AMO ties every uploaded version to it. Changing it
   creates a second, unrelated add-on and abandons the listing, its slug and any review in
   flight.
-- All three packages are at **0.3.8**. The two browser manifests must match and
+- All three packages are at **0.3.9**. The two browser manifests must match and
   `dist-chrome.test.mjs` enforces it; the VS Code package is kept in step by convention
   only, with nothing checking it.
 
@@ -56,7 +56,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 | --- | --- | --- |
 | Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts |
 | Listing slug | `local-ai-text-assistant` | — |
-| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.8.zip` | `laita-chrome-0.3.8.zip` |
+| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.9.zip` | `laita-chrome-0.3.9.zip` |
 
 - Neither store will accept a version number it has already seen, in either channel, even
   after the version is deleted.
@@ -104,6 +104,10 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ### Measurements worth not repeating
 
+- Proofreading latency grows **faster than linearly** with the text sent: 139 chars 0.7s,
+  419 chars 4.4s, 699 chars 9.0s, 1119 chars 19.4s. This is why both surfaces chunk, and
+  why an automatic check sends exactly one chunk.
+
 - `qwen3.5:9b`: ~30 tok/s for a short answer, **~10 tok/s for a long one**. The rate falls
   as the answer grows, so big jobs are worse than linear.
 - A 10269-character transform took **205 s** and returned all 65 paragraphs intact.
@@ -114,7 +118,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ### VS Code extension
 
-`vscode/`, version **0.3.8** (numbered in step with the browser manifests rather than
+`vscode/`, version **0.3.9** (numbered in step with the browser manifests rather than
 starting at 0.1.0: three numbers for three targets of one tool is the worse confusion).
 Not published to the Marketplace.
 
@@ -123,8 +127,8 @@ Built and installed like this:
 ```bash
 cd vscode
 ./tools/sync-core.sh                              # only after touching browser/src/background
-npm run package                                   # -> laita-vscode-0.3.8.vsix
-code --install-extension laita-vscode-0.3.8.vsix --force
+npm run package                                   # -> laita-vscode-0.3.9.vsix
+code --install-extension laita-vscode-0.3.9.vsix --force
 ```
 
 `--force` is needed to reinstall the same version. To run it without installing, open

@@ -90,4 +90,59 @@ function isProse(text, code) {
   return words >= 3;
 }
 
-module.exports = { detectLanguage, paragraphs, paragraphAt, isProse };
+/** Sentences, as [{offset, text}] relative to `text`. Mirrors the browser's splitter. */
+function sentences(text, lang) {
+  try {
+    const seg = new Intl.Segmenter(lang || "en", { granularity: "sentence" });
+    return [...seg.segment(text)].map((s) => ({ offset: s.index, text: s.segment }));
+  } catch {
+    const out = [];
+    const re = /[^.!?\u2026]*[.!?\u2026]+[\s"'\u201d\u00bb)]*|[^.!?\u2026]+$/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (!m[0]) break;
+      out.push({ offset: m.index, text: m[0] });
+    }
+    return out;
+  }
+}
+
+/**
+ * Break a paragraph into pieces small enough to be worth one request.
+ *
+ * The model's latency grows faster than the text it is given: measured on one machine,
+ * 419 characters took 4.4 seconds, 699 took 9.0, and 1119 took 19.4. Sending a whole
+ * long paragraph is therefore much worse than sending the part being worked on, which
+ * is why the browser extension has always chunked and why this now does too.
+ *
+ * Offsets are relative to `text`, so the caller adds the paragraph's own offset.
+ */
+function chunkParagraph(text, limit, lang) {
+  const max = Math.max(120, limit || 700);
+  if (text.length <= max) return [{ offset: 0, text }];
+
+  const chunks = [];
+  let buf = "";
+  let start = null;
+  const flush = () => {
+    if (buf.trim()) chunks.push({ offset: start, text: buf });
+    buf = "";
+    start = null;
+  };
+
+  for (const s of sentences(text, lang)) {
+    if (buf && buf.length + s.text.length > max) flush();
+    if (start === null) start = s.offset;
+    buf += s.text;
+    if (buf.length >= max) flush();          // a single sentence longer than the limit
+  }
+  flush();
+  return chunks.length ? chunks : [{ offset: 0, text }];
+}
+
+/** The chunk containing `offset`, or null. */
+function chunkAt(chunks, offset) {
+  return chunks.find((c) => offset >= c.offset && offset <= c.offset + c.text.length) || null;
+}
+
+module.exports = { detectLanguage, paragraphs, paragraphAt, isProse, chunkParagraph, chunkAt };

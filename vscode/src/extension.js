@@ -12,7 +12,8 @@
  * is ESM and is pulled in with a dynamic import at activation.
  */
 const vscode = require("vscode");
-const { detectLanguage, paragraphs, paragraphAt, isProse } = require("./text.js");
+const { detectLanguage, paragraphs, paragraphAt, isProse, chunkParagraph, chunkAt } =
+  require("./text.js");
 
 let core = null;                 // { requestIssues, requestTransform, anchorIssues, ... }
 let diagnostics;                 // vscode.DiagnosticCollection
@@ -138,22 +139,39 @@ async function checkSpan(doc, text, offset, s, token) {
   });
 }
 
-/** Everything the model should look at in `ranges`, as {text, offset} pieces. */
-function piecesFor(doc, paras, s) {
+/**
+ * What the model should look at, as {text, offset} pieces.
+ *
+ * A long paragraph is split, because latency grows faster than length. When `caret` is
+ * given - any automatic check - only the piece being worked on is sent, which is what
+ * makes editing a long paragraph bearable. An explicit "check the document" passes no
+ * caret and gets everything.
+ */
+function piecesFor(doc, paras, s, caret = null) {
   const pieces = [];
   for (const p of paras) {
     const range = new vscode.Range(p.start, 0, p.end, doc.lineAt(p.end).text.length);
     const text = doc.getText(range);
     if (!isProse(text, p.code)) continue;
-    pieces.push({ text, offset: doc.offsetAt(range.start) });
+
+    const base = doc.offsetAt(range.start);
+    const chunks = chunkParagraph(text, s.chunkMaxChars, languageFor(text));
+    // An automatic check always sends exactly one piece. If the caret is not inside
+    // this paragraph - it sits on the title when a document is first opened - the first
+    // piece is the one worth showing, not all of them.
+    const wanted = caret === null ? chunks : [chunkAt(chunks, caret - base) || chunks[0]];
+    for (const c of wanted) {
+      if (!isProse(c.text, false)) continue;
+      pieces.push({ text: c.text, offset: base + c.offset });
+    }
   }
   return pieces;
 }
 
-async function run(doc, paras, label) {
+async function run(doc, paras, label, caret = null) {
   if (!core) return;
   const s = settings();
-  const pieces = piecesFor(doc, paras, s);
+  const pieces = piecesFor(doc, paras, s, caret);
   if (!pieces.length) {
     vscode.window.setStatusBarMessage("LAITA: nothing to check here", 2500);
     return;
@@ -208,7 +226,7 @@ async function checkParagraph() {
   const lines = ed.document.getText().split(/\r?\n/);
   const p = paragraphAt(lines, ed.selection.active.line);
   if (!p) return vscode.window.setStatusBarMessage("LAITA: no paragraph at the cursor", 2500);
-  await run(ed.document, [p], "checking this paragraph");
+  await run(ed.document, [p], "checking this paragraph", ed.document.offsetAt(ed.selection.active));
 }
 
 async function checkDocument() {
@@ -401,7 +419,8 @@ function scheduleCheck(doc, line, { orFirstProse = false } = {}) {
     const text = textOf(p);
     if (lastSent.get(key) === text) return;
     lastSent.set(key, text);
-    await run(doc, [p], "checking this paragraph");
+    await run(doc, [p], "checking this paragraph",
+              doc.offsetAt(new vscode.Position(line, 0)));
   }, vscode.workspace.getConfiguration("laita").get("debounceMs") || 1500));
 }
 

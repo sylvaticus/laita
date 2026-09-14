@@ -2,7 +2,7 @@
   "name": "laita",
   "displayName": "LAITA - Local AI Text Assistant",
   "description": "Proofread and rewrite text with a language model running locally in Ollama. Nothing leaves your machine.",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "publisher": "sylvaticus",
   "license": "MIT",
   "repository": {

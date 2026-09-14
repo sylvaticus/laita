@@ -102,9 +102,11 @@ from Node and carry no `Origin` header, so Ollama does not refuse them.
 | Clear suggestions | — |
 
 **Checking is automatic**, shortly after you stop typing, for the file types in
-`laita.languages` — Markdown, LaTeX, AsciiDoc, reStructuredText, plain text. It looks at
-the paragraph you are working in, not the whole file, so a long document does not fire a
-request per paragraph. Opening a document checks its first real paragraph, skipping the
+`laita.languages` — Markdown, LaTeX, AsciiDoc, reStructuredText, plain text. It looks at the part of the paragraph you are working in, not the whole file. A
+paragraph longer than `laita.chunkMaxChars` is split on sentence boundaries and only the
+piece holding the cursor is sent, because the model's latency grows faster than the text
+it is given - 419 characters took 4.4 seconds on the development machine, 1119 took
+19.4. Opening a document checks its first real paragraph, skipping the
 title.
 
 Turn that off with `laita.checkOnType` and use the commands instead, or set
