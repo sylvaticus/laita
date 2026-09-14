@@ -348,6 +348,38 @@ that setting — there, a temporary add-on or a signed `.xpi` are the only optio
 
 ---
 
+## 3b. The VS Code extension
+
+Lives in `vscode/`. Nothing is bundled or compiled; `src/extension.js` is CommonJS
+because that is what VS Code's extension host loads, and the shared ESM core is pulled in
+with a dynamic `import()` at activation.
+
+```bash
+cd vscode
+./tools/sync-core.sh     # after ANY change to browser/src/background/{anchor,ollama}.js
+./test/run.sh            # pure logic; core.test.mjs fails if the copies drifted
+npx @vscode/vsce package --no-dependencies      # -> laita-<version>.vsix
+```
+
+Run it from source without packaging: open `vscode/` in VS Code and press **F5**, or
+
+```bash
+code --user-data-dir=/tmp/laita-ud --extensions-dir=/tmp/laita-ext \
+     --extensionDevelopmentPath="$PWD" --new-window --log debug somefile.md
+```
+
+The isolated `--user-data-dir` matters: without it the window joins your normal session.
+Activation shows up in the log as `_doActivateExtension sylvaticus.laita`; anything
+thrown during activation appears in the same file, under
+`<user-data-dir>/logs/*/window1/exthost/exthost.log`.
+
+Two things that warn if you get them wrong, both already handled: `core/package.json`
+must declare `"type": "module"` or node cannot tell what the shared files are, and a
+document selector must carry a `scheme` or it also matches output panels and diff views.
+
+Publishing goes to the Visual Studio Marketplace via `vsce publish`, which needs an Azure
+DevOps personal access token. Unlike the two browser stores, there is no review queue.
+
 ## 4. Restricting Ollama to just this extension
 
 Once the add-on is permanently installed its UUID stops changing, so the

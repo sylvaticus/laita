@@ -28,3 +28,6 @@ package-lock.json
 
 # Scratch
 *.log
+
+# VS Code extension packages
+vscode/*.vsix

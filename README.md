@@ -7,7 +7,9 @@ Differently from integrated spellcheckers or apps like [Harper](https://writewit
 
 **Nothing leaves your machine.** The only network destination is your own Ollama .
 
-The **Firefox extension** is working right now and is fully tested; the **Chrome extension** is experimental. **VSCode** and **LibreOffice extensions** are on their way.
+The **Firefox extension** is working right now and is fully tested; the **Chrome
+extension** and the **VS Code extension** ([`vscode/`](vscode/)) are newer and less
+travelled. A **LibreOffice** path is on its way.
 
 
 

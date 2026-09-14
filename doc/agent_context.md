@@ -111,6 +111,14 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   why the extension sends no `num_ctx` at all.
 - Context size is cheap: 4096 → 32768 costs only ~700 MB with `q8_0` KV cache.
 
+### VS Code extension
+
+`vscode/`, version 0.1.0, not yet published to the Marketplace. Activation verified by
+launching a real VS Code with `--extensionDevelopmentPath` and reading the extension host
+log; the behaviour beyond activation has **not** been exercised against a live Ollama.
+`core/` is a committed copy of two files from `browser/src/background/`; re-run
+`vscode/tools/sync-core.sh` after touching either, or `core.test.mjs` fails.
+
 ### Open items
 
 - Re-upload 0.3.4 to both stores; the Chrome listing still needs its Privacy practices tab
@@ -118,3 +126,6 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 - The Chrome service-worker lifetime question above.
 - AMO 0.2.2 review outcome, after which the listing name should be updated to LAITA.
 - The 16px icon is legible but weak; a hand-drawn simplified mark was offered and not done.
+- The VS Code extension has never been run against a live Ollama, only activated.
+- Language detection is now duplicated between `browser/src/content/common.js` and
+  `vscode/src/text.js`; the first candidate if a real shared `core/` package is extracted.

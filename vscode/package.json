@@ -1,0 +1,73 @@
+{
+  "name": "laita",
+  "displayName": "LAITA - Local AI Text Assistant",
+  "description": "Proofread and rewrite text with a language model running locally in Ollama. Nothing leaves your machine.",
+  "version": "0.1.0",
+  "publisher": "sylvaticus",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/sylvaticus/laita" },
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Linters", "Formatters", "Other"],
+  "keywords": ["spell check", "grammar", "proofreading", "ollama", "local llm"],
+  "icon": "icon.png",
+  "main": "./src/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "laita.checkParagraph", "title": "LAITA: Proofread the paragraph at the cursor" },
+      { "command": "laita.checkDocument", "title": "LAITA: Proofread the whole document" },
+      { "command": "laita.transform", "title": "LAITA: Transform the selection…" },
+      { "command": "laita.clearDiagnostics", "title": "LAITA: Clear suggestions" }
+    ],
+    "keybindings": [
+      { "command": "laita.checkParagraph", "key": "alt+shift+c", "when": "editorTextFocus" },
+      { "command": "laita.transform", "key": "alt+shift+t", "when": "editorHasSelection" }
+    ],
+    "menus": {
+      "editor/context": [
+        { "command": "laita.transform", "when": "editorHasSelection", "group": "1_modification@100" },
+        { "command": "laita.checkParagraph", "when": "editorTextFocus", "group": "1_modification@101" }
+      ]
+    },
+    "configuration": {
+      "title": "LAITA",
+      "properties": {
+        "laita.endpoint": {
+          "type": "string", "default": "http://localhost:11434",
+          "description": "Address of your Ollama server."
+        },
+        "laita.model": {
+          "type": "string", "default": "qwen3.5:9b",
+          "description": "Model to use. A 7-9B instruction model is the sweet spot."
+        },
+        "laita.language": {
+          "type": "string", "default": "auto",
+          "description": "Language of the text, or 'auto' to detect it (e.g. en, fr, it)."
+        },
+        "laita.temperature": { "type": "number", "default": 0, "description": "0 gives the most repeatable corrections." },
+        "laita.numCtx": {
+          "type": "number", "default": 0,
+          "description": "Context window. 0 follows Ollama's own setting, which avoids evicting a model another app has loaded."
+        },
+        "laita.keepAlive": { "type": "string", "default": "10m", "description": "How long Ollama keeps the model loaded. Needs a unit; -1m means indefinitely." },
+        "laita.requestTimeoutMs": { "type": "number", "default": 90000, "description": "Timeout for one request. A transform is allowed longer in proportion to the selection." },
+        "laita.maxChars": { "type": "number", "default": 12000, "description": "Maximum characters one check or transform may send." },
+        "laita.chunkMaxChars": { "type": "number", "default": 700, "description": "Paragraphs longer than this are split on sentence boundaries." },
+        "laita.think": { "type": "boolean", "default": false, "description": "Let reasoning models think before answering. Much slower." },
+        "laita.categories.error": { "type": "boolean", "default": true, "description": "Report outright errors (spelling, agreement, punctuation)." },
+        "laita.categories.style": { "type": "boolean", "default": true, "description": "Report weak style (wordiness, redundancy, passive voice)." },
+        "laita.categories.rephrase": { "type": "boolean", "default": true, "description": "Report better wordings." },
+        "laita.checkOnSave": { "type": "boolean", "default": false, "description": "Proofread the whole document when it is saved." },
+        "laita.languages": {
+          "type": "array", "items": { "type": "string" },
+          "default": ["markdown", "plaintext", "latex", "tex", "asciidoc", "restructuredtext", "quarto"],
+          "description": "Language ids LAITA offers to check. Other files are left alone unless you run a command explicitly."
+        },
+        "laita.dictionary": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Words never to flag." },
+        "laita.extraInstructions": { "type": "string", "default": "", "description": "House style rules appended to the prompt." },
+        "laita.transformDefault": { "type": "string", "default": "polish", "description": "Instruction used when the transform box is submitted empty." }
+      }
+    }
+  },
+  "scripts": { "test": "node --test test/unit" }
+}

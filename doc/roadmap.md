@@ -65,21 +65,36 @@ script are the alternatives. `alarms` was declared in the Chrome manifest in adv
 has been removed again: an unused permission is one more thing to justify to a reviewer,
 and adding it back later is a one-line change.
 
-### VS Code — shares the core, rebuilds the surface
+### VS Code — done
 
-Do not port the overlay. VS Code already provides what `overlay.js` and `card.js`
-laboriously draw:
+In `vscode/`. The surface is native rather than ported, which is the whole point:
 
-| LAITA concept | VS Code equivalent |
+| LAITA concept | What it became |
 | --- | --- |
-| wavy underline | `languages.createDiagnosticCollection` |
-| suggestion card, **Apply** | `CodeActionProvider` quick fix |
+| wavy underline | `DiagnosticCollection` — squiggles, Problems panel, hovers, for free |
+| suggestion card, **Apply** | `CodeActionProvider` quick fix on `Ctrl+.` |
 | transform instruction box | `window.showInputBox` |
-| transform result panel | diff view, or a quick pick |
-| field adapters (`textmap.js`) | `TextDocument` + `WorkspaceEdit` |
+| transform result panel | a modal with **Replace** / **Insert after** |
+| field adapters (`textmap.js`) | `TextDocument` and `WorkspaceEdit` |
+| status pill | a status bar item |
 
-It runs in Node, so `fetch` works and there is **no `Origin` header** — `OLLAMA_ORIGINS`
-is irrelevant, which removes the single biggest setup obstacle.
+`core/anchor.js` and `core/ollama.js` are **copied** from `browser/src/background/` by
+`tools/sync-core.sh`, because a packaged `.vsix` may only contain files from inside
+`vscode/`. `test/unit/core.test.mjs` fails if a copy drifts, and also checks the copies
+still load and work under plain node.
+
+What is *not* shared, and why:
+
+- **Chunking.** The browser works in character offsets because that is what a DOM Range
+  speaks; VS Code speaks (line, character). `src/text.js` finds paragraphs by line
+  instead, which also makes fenced code blocks easy to mark opaque and never send.
+- **Language detection.** The browser can fall back on Firefox's own detector; there is
+  no equivalent in Node, so `src/text.js` keeps the stopword heuristic alone. This is the
+  one genuine duplication and would be the first candidate if a real `core/` package is
+  ever extracted.
+
+Running in Node also removes the single biggest setup obstacle: no `Origin` header is
+sent, so **`OLLAMA_ORIGINS` is irrelevant** for this target.
 
 ### LibreOffice — do not write an extension
 

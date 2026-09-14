@@ -1,0 +1,4 @@
+{
+  "//": "The shared core is ESM. Without this, node cannot tell and warns MODULE_TYPELESS_PACKAGE_JSON on every load. The extension itself is CommonJS, which is what VS Code's extension host requires.",
+  "type": "module"
+}
