@@ -7,11 +7,9 @@ Differently from integrated spellcheckers or apps like [Harper](https://writewit
 
 **Nothing leaves your machine.** The only network destination is your own Ollama .
 
-The **Firefox extension** is working right now and is fully tested; the **Chrome
-extension** and the **VS Code extension** ([`vscode/`](vscode/)) are newer and less
-travelled. A **LibreOffice** path is on its way.
+The **Firefox extension** and the **Chrome extension** are working right now and are fully tested; the **VS Code extension** is newer and less tested. A **LibreOffice** port is on its way.
 
-
+**[What it does](#1-what-it-does) · [Install](#2-install) · [Using it](#3-using-it) · [Options](#4-options) · [Troubleshooting](#5-troubleshooting) · [Privacy](#6-privacy) · [Development](#7-development) · [Licence](#8-licence) · [Acknowledgements](#9-acknowledgements)**
 
 ---
 
@@ -57,18 +55,18 @@ The result can replace the selection, be inserted after it, or be thrown away:
 The language of each field is detected automatically (English and French are the tuned cases; Italian, Spanish, German, Portuguese and Dutch are also recognised), or you can pin one language in the options.
 
 > [!WARNING]
-> Text is not sanitaized before being sent to your Ollama running model. Use it only with text you trust and on non-agentic models.
+> Text is not sanitized before being sent to your Ollama running model. Use it only with text you trust and on non-agentic models.
 
 ---
 
 ## 2. Install
 
-- Install Ollama
-- Pull a model
-- Set Ollama to communicate with this extension
-- Install this extension
+- [Install Ollama](#21-install-ollama)
+- [Pull a model](#22-pull-a-model)
+- [Let Ollama talk to the extension  ⚠️ required](#23-let-ollama-accept-requests-from-the-extension---required)
+- [Install the extension](#24-install-the-extension)
 
-The Firefox extenson requires **Firefox 142** or newer, the Chrome extension requires **Chrome 116** or newer.
+The Firefox extension requires **Firefox 142** or newer, the Chrome extension requires **Chrome 116** or newer.
 
 ### 2.1. Install Ollama
 
