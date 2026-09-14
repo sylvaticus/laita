@@ -320,7 +320,7 @@ const codeActions = {
       never.diagnostics = [d];
       out.push(never);
 
-      const dismiss = new vscode.CodeAction("LAITA: dismiss this one",
+      const dismiss = new vscode.CodeAction("LAITA: dismiss this one for this session",
                                             vscode.CodeActionKind.QuickFix);
       dismiss.command = { command: "laita.dismiss", title: "Dismiss",
                           arguments: [doc.uri, d.range] };
@@ -350,6 +350,59 @@ async function appendToSetting(key, value) {
   const current = c.get(key) || [];
   if (current.includes(value)) return;
   await c.update(key, [...current, value].slice(-500), vscode.ConfigurationTarget.Global);
+}
+
+/** Remove one entry from a list setting. */
+async function removeFromSetting(key, value) {
+  const c = vscode.workspace.getConfiguration("laita");
+  await c.update(key, (c.get(key) || []).filter((v) => v !== value),
+                 vscode.ConfigurationTarget.Global);
+}
+
+/**
+ * Show the personal dictionary as a list you can act on.
+ *
+ * It is an ordinary setting, so it is also visible under Settings and editable in
+ * settings.json - but a word gets into it from a lightbulb, and expecting someone to go
+ * hunting through Settings to take it back out again is not reasonable.
+ */
+async function showDictionary() {
+  const trash = { iconPath: new vscode.ThemeIcon("trash"), tooltip: "Remove from dictionary" };
+  const pick = vscode.window.createQuickPick();
+  pick.title = "LAITA: personal dictionary";
+  pick.placeholder = "Type to filter, or pick the first entry to add a word";
+
+  const refill = () => {
+    const words = [...(vscode.workspace.getConfiguration("laita").get("dictionary") || [])].sort();
+    pick.items = [
+      { label: "$(add) Add a word…", alwaysShow: true },
+      ...words.map((w) => ({ label: w, buttons: [trash] }))
+    ];
+    pick.title = `LAITA: personal dictionary (${words.length} word${words.length === 1 ? "" : "s"})`;
+  };
+  refill();
+
+  pick.onDidTriggerItemButton(async (e) => {
+    await removeFromSetting("dictionary", e.item.label);
+    refill();
+  });
+  pick.onDidAccept(async () => {
+    const chosen = pick.selectedItems[0];
+    if (!chosen) return;
+    if (!chosen.label.startsWith("$(add)")) return;      // a word: nothing to do but look
+    pick.hide();
+    const word = (await vscode.window.showInputBox({
+      title: "LAITA: add a word to the dictionary",
+      prompt: "This word will never be flagged again",
+      validateInput: (v) => (v.trim() ? null : "Enter a word")
+    }))?.trim();
+    if (word) {
+      await appendToSetting("dictionary", word);
+      vscode.window.setStatusBarMessage(`LAITA: "${word}" added`, 3000);
+    }
+  });
+  pick.onDidHide(() => pick.dispose());
+  pick.show();
 }
 
 function refreshStatus(doc) {
@@ -398,6 +451,7 @@ async function activate(context) {
       removeDiagnostic(uri, range);
       vscode.window.setStatusBarMessage("LAITA: that suggestion will not come back", 3000);
     }),
+    vscode.commands.registerCommand("laita.showDictionary", showDictionary),
     vscode.commands.registerCommand("laita.clearIgnored", async () => {
       await vscode.workspace.getConfiguration("laita")
         .update("ignored", [], vscode.ConfigurationTarget.Global);

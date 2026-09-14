@@ -41,6 +41,11 @@ const vscodeStub = {
     showErrorMessage: async () => undefined,
     showInputBox: async () => undefined,
     withProgress: async (_o, fn) => fn({ report() {} }, { onCancellationRequested() {} }),
+    createQuickPick: () => ({
+      items: [], title: "", placeholder: "", selectedItems: [],
+      onDidTriggerItemButton() {}, onDidAccept() {}, onDidHide() {},
+      show() {}, hide() {}, dispose() {}
+    }),
     onDidChangeActiveTextEditor: event("onDidChangeActiveTextEditor")
   },
   workspace: {
@@ -66,7 +71,8 @@ const vscodeStub = {
   DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
   CodeActionKind: { QuickFix: "quickfix" },
   ConfigurationTarget: { Global: 1 },
-  ProgressLocation: { Window: 10, Notification: 15 }
+  ProgressLocation: { Window: 10, Notification: 15 },
+  ThemeIcon: class { constructor(id) { this.id = id; } }
 };
 
 const load = Module._load;

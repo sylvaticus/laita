@@ -26,11 +26,25 @@ any AI assistant offering to fix it. Ours are:
 | **LAITA: change to "…"** | applies the suggestion. Preferred, so `Ctrl+.` then Enter does it |
 | **LAITA: add "…" to the dictionary** | the word is never flagged again, anywhere |
 | **LAITA: never make this suggestion again** | that exact suggestion is dropped for good |
-| **LAITA: dismiss this one** | hides it until the next check |
+| **LAITA: dismiss this one for this session** | hides it until the next check |
 
-The dictionary and the never-suggest list are ordinary settings (`laita.dictionary`,
-`laita.ignored`), so they are editable and syncable. *LAITA: Forget suggestions I told it
-never to make* empties the second one.
+### Managing the dictionary
+
+Run **LAITA: Show the personal dictionary** from the command palette (`Ctrl+Shift+P`). It
+lists every word you have added; the bin icon beside a word removes it, and the first
+entry adds one.
+
+Both lists are ordinary settings, so you can also see and edit them under
+**Settings → Extensions → LAITA**, or directly in `settings.json`:
+
+```jsonc
+"laita.dictionary": ["Lobianco", "Ollama", "quarto"],
+"laita.ignored": ["a1b2c3d4"]          // fingerprints, not readable by design
+```
+
+They are written to your *user* settings rather than the workspace, because a personal
+dictionary follows you rather than the project, and they sync with Settings Sync.
+*LAITA: Forget suggestions I told it never to make* empties the second list.
 
 **Rewrites a selection.** Select text, press `Alt+Shift+T`, and type what you want done —
 `polish`, `translate to French`, `shorten it`, `turn into bullet points`. The result can
