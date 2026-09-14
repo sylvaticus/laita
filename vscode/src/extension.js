@@ -56,11 +56,27 @@ function cacheSet(key, value) {
   while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
 }
 
-const SEVERITY = {
-  error: vscode.DiagnosticSeverity.Warning,      // not Error: this is prose, not a build
-  style: vscode.DiagnosticSeverity.Information,
-  rephrase: vscode.DiagnosticSeverity.Hint
+/**
+ * Category to diagnostic severity.
+ *
+ * Not `Error` for anything: this is prose, not a build, and red is for things that stop
+ * work. Not `Hint` either, which was the first choice for rephrase and was wrong -
+ * VS Code draws a Hint as three dots under the start of the range rather than
+ * underlining it, so a suggestion spanning "too well english" appeared to cover only
+ * the "t". The range was right; the rendering hid it. Configurable, because how loud a
+ * style note should be is a matter of taste.
+ */
+const SEVERITY_NAMES = {
+  error: vscode.DiagnosticSeverity.Error,
+  warning: vscode.DiagnosticSeverity.Warning,
+  info: vscode.DiagnosticSeverity.Information,
+  hint: vscode.DiagnosticSeverity.Hint
 };
+
+function severityFor(type) {
+  const chosen = vscode.workspace.getConfiguration("laita").get("severity." + type);
+  return SEVERITY_NAMES[chosen] ?? vscode.DiagnosticSeverity.Information;
+}
 
 // ---------------------------------------------------------------- settings
 
@@ -114,7 +130,7 @@ async function checkSpan(doc, text, offset, s, token) {
     const range = rangeForIssue(doc, offset, issue);
     if (!range) return [];
     const d = new vscode.Diagnostic(range, issue.message || "Suggested change",
-                                    SEVERITY[issue.type] ?? vscode.DiagnosticSeverity.Information);
+                                    severityFor(issue.type));
     d.source = "LAITA";
     d.code = issue.type;
     fixes.set(d, issue);

@@ -25,7 +25,8 @@ const config = {
   requestTimeoutMs: 90000, maxChars: 12000, chunkMaxChars: 700, dictionary: [],
   ignored: [], extraInstructions: "", language: "auto", debounceMs: 1500,
   checkOnSave: false, transformDefault: "polish",
-  "categories.error": true, "categories.style": true, "categories.rephrase": true
+  "categories.error": true, "categories.style": true, "categories.rephrase": true,
+  "severity.error": "warning", "severity.style": "info", "severity.rephrase": "info"
 };
 const disposable = () => ({ dispose() {} });
 const event = (name) => (fn) => { listeners.push(name); return disposable(); };

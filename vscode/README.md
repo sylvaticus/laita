@@ -11,11 +11,16 @@ you write prose rather than code.
 **Proofreads.** Mistakes appear as ordinary VS Code diagnostics: squiggles in the editor,
 entries in the Problems panel, and a quick fix (`Ctrl+.`) that applies the suggestion.
 
-| Severity | Category | Meaning |
+| Default severity | Category | Meaning |
 | --- | --- | --- |
 | Warning | error | Objectively wrong: spelling, agreement, punctuation |
 | Information | style | Wordy, redundant, needlessly passive |
-| Hint | rephrase | A better word or a more natural formulation |
+| Information | rephrase | A better word or a more natural formulation |
+
+Change any of them with `laita.severity.error`, `.style` and `.rephrase`. Avoid `hint`
+unless you want suggestions to be nearly invisible: VS Code draws a hint as three dots
+at the start of the phrase rather than underlining it, so a suggestion covering several
+words looks like it covers one letter.
 
 On the lightbulb (`Ctrl+.`) every LAITA action is named, because that menu pools
 suggestions from every extension that has an opinion — VS Code's own *View Problem*, and

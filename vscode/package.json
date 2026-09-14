@@ -2,7 +2,7 @@
   "name": "laita",
   "displayName": "LAITA - Local AI Text Assistant",
   "description": "Proofread and rewrite text with a language model running locally in Ollama. Nothing leaves your machine.",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "publisher": "sylvaticus",
   "license": "MIT",
   "repository": {
@@ -213,6 +213,39 @@
             "type": "boolean",
             "default": true,
             "description": "Report better wordings."
+          },
+          "laita.severity.error": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info",
+              "hint"
+            ],
+            "default": "warning",
+            "markdownDescription": "How prominently to mark outright errors. Note that **`hint` is not underlined** — VS Code draws it as three dots at the start of the phrase — so use it only if you want suggestions to be nearly invisible."
+          },
+          "laita.severity.style": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info",
+              "hint"
+            ],
+            "default": "info",
+            "markdownDescription": "How prominently to mark weak style. Note that **`hint` is not underlined** — VS Code draws it as three dots at the start of the phrase — so use it only if you want suggestions to be nearly invisible."
+          },
+          "laita.severity.rephrase": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info",
+              "hint"
+            ],
+            "default": "info",
+            "markdownDescription": "How prominently to mark better wordings. Note that **`hint` is not underlined** — VS Code draws it as three dots at the start of the phrase — so use it only if you want suggestions to be nearly invisible."
           },
           "laita.extraInstructions": {
             "type": "string",

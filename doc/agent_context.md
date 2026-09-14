@@ -46,7 +46,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   rename and is invisible to users, but AMO ties every uploaded version to it. Changing it
   creates a second, unrelated add-on and abandons the listing, its slug and any review in
   flight.
-- All three packages are at **0.3.6**. The two browser manifests must match and
+- All three packages are at **0.3.7**. The two browser manifests must match and
   `dist-chrome.test.mjs` enforces it; the VS Code package is kept in step by convention
   only, with nothing checking it.
 
@@ -56,7 +56,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 | --- | --- | --- |
 | Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts |
 | Listing slug | `local-ai-text-assistant` | — |
-| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.6.zip` | `laita-chrome-0.3.6.zip` |
+| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.7.zip` | `laita-chrome-0.3.7.zip` |
 
 - Neither store will accept a version number it has already seen, in either channel, even
   after the version is deleted.
@@ -114,7 +114,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ### VS Code extension
 
-`vscode/`, version **0.3.6** (numbered in step with the browser manifests rather than
+`vscode/`, version **0.3.7** (numbered in step with the browser manifests rather than
 starting at 0.1.0: three numbers for three targets of one tool is the worse confusion).
 Not published to the Marketplace.
 
@@ -123,8 +123,8 @@ Built and installed like this:
 ```bash
 cd vscode
 ./tools/sync-core.sh                              # only after touching browser/src/background
-npm run package                                   # -> laita-vscode-0.3.6.vsix
-code --install-extension laita-vscode-0.3.6.vsix --force
+npm run package                                   # -> laita-vscode-0.3.7.vsix
+code --install-extension laita-vscode-0.3.7.vsix --force
 ```
 
 `--force` is needed to reinstall the same version. To run it without installing, open
@@ -197,6 +197,10 @@ been exercised by hand in the F5 window but has no automated coverage.
 - qwen3.5:9b reliably claims a missing full stop on a sentence that has one; the
   `alreadyThere` guard in `anchor.js` drops it. Prompt wording did not stop it, a code
   guard did.
+- `DiagnosticSeverity.Hint` is drawn by VS Code as three dots at the start of a range,
+  not as an underline across it. Using it for the rephrase category looked exactly like
+  a broken range and cost two wrong diagnoses before the severity was dumped from a live
+  run. Severities are now settings, defaulting to warning/info/info.
 - The 16px icon is legible but weak; a hand-drawn simplified mark was offered and not done.
 - Language detection is now duplicated between `browser/src/content/common.js` and
   `vscode/src/text.js`; the first candidate if a real shared `core/` package is extracted.
