@@ -30,12 +30,12 @@ const CHAR_FOLD = {
  * Fold typographic variants and collapse whitespace runs, keeping a map from each
  * character of the folded string back to its index in the source string.
  */
-function fold(src) {
+function fold(src, lower = false) {
   let out = "";
   const map = [];
   let pendingSpace = false;
   for (let i = 0; i < src.length; i++) {
-    const ch = CHAR_FOLD[src[i]] ?? src[i];
+    let ch = CHAR_FOLD[src[i]] ?? src[i];
     if (/\s/.test(ch)) {
       pendingSpace = true;
       continue;
@@ -45,8 +45,12 @@ function fold(src) {
       map.push(i > 0 ? i - 1 : i);
     }
     pendingSpace = false;
+    // Case folding is NOT length-preserving: "\u0130".toLowerCase() is two code units. So one
+    // source character can contribute several folded ones, and `map` needs an entry for
+    // each of them or every index after it is wrong.
+    if (lower) ch = ch.toLowerCase();
     out += ch;
-    map.push(i);
+    for (let k = 0; k < ch.length; k++) map.push(i);
   }
   return { text: out, map };
 }
@@ -71,21 +75,30 @@ export function locate(text, needle) {
   const exact = allIndices(text, needle).map((i) => [i, i + needle.length]);
   if (exact.length) return exact;
 
-  const f = fold(text);
-  const n = fold(needle);
-  if (!n.text) return [];
-
-  const toRange = (i) => {
-    const start = f.map[i];
-    const last = f.map[i + n.text.length - 1];
-    if (start === undefined || last === undefined) return null;
-    return [start, last + 1];
+  // Each pass folds both strings the same way and uses the map built by that same pass.
+  // Lower-casing an already-folded string instead would shift every index past a character
+  // whose lower case is longer than itself, and the widened span is then stored as the
+  // issue's `original` - so every later "does this span still hold its original text?"
+  // check compares the wrong text against itself and passes. That is precisely the class
+  // of failure this module exists to prevent.
+  const matches = (lower) => {
+    const f = fold(text, lower);
+    const n = fold(needle, lower);
+    if (!n.text) return [];
+    return allIndices(f.text, n.text)
+      .map((i) => {
+        const start = f.map[i];
+        const last = f.map[i + n.text.length - 1];
+        if (start === undefined || last === undefined) return null;
+        return [start, last + 1];
+      })
+      .filter(Boolean);
   };
 
-  const folded = allIndices(f.text, n.text).map(toRange).filter(Boolean);
+  const folded = matches(false);
   if (folded.length) return folded;
 
-  return allIndices(f.text.toLowerCase(), n.text.toLowerCase()).map(toRange).filter(Boolean);
+  return matches(true);
 }
 
 /**

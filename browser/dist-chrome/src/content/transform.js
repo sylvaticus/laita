@@ -322,11 +322,16 @@ async function copyOutput() {
   } catch {
     // Clipboard permission is not granted everywhere; the old path always works from a
     // click handler.
+    // Into our own closed shadow root, never document.body: a MutationObserver on the page
+    // fires synchronously on insertion, so "append, copy, remove" would hand the user's
+    // draft to any script on the page. This path is taken when the clipboard API is
+    // unavailable, which correlates with unusual pages rather than trustworthy ones.
     const ta = document.createElement("textarea");
     ta.setAttribute("data-laita", "off");
     ta.value = text;
     ta.style.cssText = "position:fixed;top:-9999px;opacity:0";
-    document.body.appendChild(ta);
+    LAITA.Overlay.ensure();
+    LAITA.Overlay.shadow.appendChild(ta);
     ta.select();
     try {
       document.execCommand("copy");

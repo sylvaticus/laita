@@ -17,7 +17,11 @@ const SENSITIVE_TYPES = new Set([
   "radio", "submit", "button", "image", "reset"
 ]);
 
-const SENSITIVE_HINT = /pass|pwd|card|cvc|cvv|secret|token|otp|iban|ssn|credit|security|pin\b|totp|2fa|captcha/i;
+// A denylist of secret-sounding words always misses something, so it fails open. It is
+// the cheap half of the defence; widening it costs nothing, and every word here is one a
+// real field has used.
+const SENSITIVE_HINT =
+  /pass|pwd|card|cvc|cvv|secret|token|otp|iban|ssn|credit|security|pin\b|totp|2fa|captcha|passphrase|mnemonic|seed|recovery|private|bank|sortcode|routing|account|passport|licen[cs]e|insurance|medical|diagnos|patient|tax|social/i;
 const SENSITIVE_AUTOCOMPLETE = /password|cc-|one-time-code|username|email|tel|address|postal|country|name/i;
 
 /** Typography that must be replicated exactly for the mirror to lay text out identically. */
@@ -33,6 +37,18 @@ function attrBlob(el) {
     el.getAttribute("name"), el.getAttribute("id"), el.getAttribute("placeholder"),
     el.getAttribute("aria-label"), el.getAttribute("autocomplete"), el.className
   ].filter(Boolean).join(" ");
+}
+
+/** The element's own attributes plus those of its ancestors. A field named "value" inside
+ *  <fieldset class="payment-details"> says nothing about itself; its container does. Bounded
+ *  so a deep DOM cannot make this expensive. */
+function attrBlobWithAncestors(el, depth = 6) {
+  let blob = attrBlob(el);
+  let node = el.parentElement;
+  for (let i = 0; i < depth && node; i++, node = node.parentElement) {
+    blob += " " + attrBlob(node);
+  }
+  return blob;
 }
 
 /** The visible box we are allowed to paint in: the field, cropped by scrolling ancestors. */
@@ -435,6 +451,16 @@ LAITA.isCheckable = function (el) {
   // pages to opt out, so it has to keep working - a rename must not quietly switch
   // someone's proofreading back on.
   if (el.closest("[data-laita='off'],[data-locaispell='off']")) return false;
+
+  // This runs BEFORE the contenteditable branch, and that order is the whole point. It used
+  // to run after, so every contenteditable host returned true without ever being tested -
+  // a <div contenteditable class="recovery-phrase"> in a wallet or a rich-text field in a
+  // banking UI was read and sent in full, while the README promised the opposite. The
+  // promise has to hold for every kind of field or it is not a promise.
+  if (SENSITIVE_HINT.test(attrBlobWithAncestors(el))) return false;
+  const ac0 = (el.getAttribute("autocomplete") || "").toLowerCase();
+  if (ac0 && ac0 !== "off" && SENSITIVE_AUTOCOMPLETE.test(ac0)) return false;
+
   if (el.isContentEditable) {
     if (el.getAttribute("aria-hidden") === "true") return false;
     return true;
@@ -445,10 +471,7 @@ LAITA.isCheckable = function (el) {
   if (tag === "INPUT") {
     const type = (el.getAttribute("type") || "text").toLowerCase();
     if (SENSITIVE_TYPES.has(type)) return false;
-    const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
-    if (ac && ac !== "off" && SENSITIVE_AUTOCOMPLETE.test(ac)) return false;
   }
-  if (SENSITIVE_HINT.test(attrBlob(el))) return false;
   return true;
 };
 

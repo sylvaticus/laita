@@ -5,9 +5,9 @@ A **multi-app** extension that **proofreads what you type** and **rewrites the t
 
 Differently from integrated spellcheckers or apps like [Harper](https://writewithharper.com/), the judgement comes from an LLM rather than hand-written rules, so it handles style and phrasing as well as hard grammar errors, and it works in any language the model knows.
 
-**Nothing leaves your machine.** The only network destination is your own Ollama .
+**Nothing leaves your machine**, as long as Ollama is running locally on a local model — the default, and the only thing LAITA ever talks to. See [Privacy](#6-privacy) for what that depends on.
 
-The **Firefox extension** and the **Chrome extension** are working right now and are fully tested; the **VS Code extension** is newer and less tested. A **LibreOffice** port is on its way.
+The **Firefox extension** is the most exercised; the **Chrome extension** works and has been used by hand, though one detail of its background lifetime is still unverified (see [`doc/roadmap.md`](doc/roadmap.md)); the **VS Code extension** is newer. A **LibreOffice** port is on its way.
 
 **[What it does](#1-what-it-does) · [Install](#2-install) · [Using it](#3-using-it) · [Options](#4-options) · [Troubleshooting](#5-troubleshooting) · [Privacy](#6-privacy) · [Development](#7-development) · [Licence](#8-licence) · [Acknowledgements](#9-acknowledgements)**
 
@@ -579,15 +579,48 @@ error, its **?** button opens the full message.
 
 ## 6. Privacy
 
-The extension talks to exactly one place: the Ollama endpoint in its options, which
-defaults to `http://localhost:11434`. There is no telemetry, no analytics and no remote
-service. `manifest.json` declares `data_collection_permissions: { "required": ["none"] }`,
-and that is accurate.
+LAITA talks to exactly one place: the Ollama endpoint in its options. There is no
+telemetry, no analytics, no remote service and no second destination.
+`manifest.json` declares `data_collection_permissions: { "required": ["none"] }`, which is
+accurate for the extension itself.
 
-It does read what you type, which is what proofreading is — but only in fields it is
-allowed to touch, and only to send to your own machine. Password fields, payment fields,
-one-time codes and anything whose name suggests a secret are excluded in code and never
-read at all.
+### What "nothing leaves your machine" depends on
+
+It is worth being exact, because the sentence is true of the default configuration rather
+than of the software in the abstract. **Two things have to hold, and you control both:**
+
+1. **The endpoint is on your machine.** It defaults to `http://localhost:11434`. It is a
+   free-text setting, so it *can* be pointed at a server across the internet — and if you
+   do that, your text goes there instead. That is a legitimate thing to want (a beefier
+   machine on your own LAN, say), but it is a decision, and nothing about the interface
+   makes the destination obvious once it is set. If you did not change it, it is local.
+2. **The model is a local one.** Ollama can serve cloud-hosted models as well as ones on
+   your disk. If you configure LAITA with such a model, Ollama forwards your text to that
+   provider — LAITA cannot tell the difference and would not stop you. `ollama list` shows
+   what is actually on your machine.
+
+Put plainly: LAITA adds no network destination of its own. It sends your text to whatever
+you told Ollama to be, and the defaults are entirely local.
+
+### What it reads
+
+It reads what you type, which is what proofreading is — but only in fields it is allowed
+to touch, and only to send to the endpoint above.
+
+Excluded in code, and never read: password, email, telephone and other non-prose input
+types; fields whose autocomplete marks them as credentials, payment details or one-time
+codes; and any field — including rich-text and `contenteditable` ones — whose own name,
+id, placeholder, label or class, **or that of an enclosing container**, suggests a secret,
+a payment, a bank, a recovery phrase, or medical or identity data.
+
+Two honest caveats about that list. It is a denylist of suspicious words, so it fails open
+on anything it has not been taught: a field with a neutral name holding sensitive text is
+read like any other. And it protects fields, not content — if you paste a password into a
+comment box, LAITA proofreads it.
+
+To exclude anything else, add `data-laita="off"` to the field or to any ancestor. Per-site
+pausing is in the toolbar popup, and the checks stop entirely when the extension is
+paused.
 
 ---
 

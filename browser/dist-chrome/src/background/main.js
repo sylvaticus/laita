@@ -222,7 +222,6 @@ async function rememberInstruction(instruction) {
 async function transform({ text, instruction, lang, reqId }) {
   const settings = await getSettings();
   const controller = new AbortController();
-  if (reqId != null) transforms.set(reqId, controller);
   const pinned = Number(settings.numCtx) || 0;
   const needed = estimateTransformTokens(text.length);
   if (pinned > 0 && needed > pinned) {
@@ -237,6 +236,11 @@ async function transform({ text, instruction, lang, reqId }) {
         `set it to 0 to follow Ollama's own setting.`
     };
   }
+
+  // Registered only once every early return is behind us: the delete lives in the finally
+  // below, so anything that returns before this point would leave the controller in the
+  // map for the life of the background page.
+  if (reqId != null) transforms.set(reqId, controller);
 
   // Not settings.requestTimeoutMs: that is sized for a paragraph, and a transform's
   // work scales with the selection.

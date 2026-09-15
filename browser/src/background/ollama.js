@@ -150,7 +150,7 @@ export async function requestIssues({ text, lang, settings, signal }) {
   const body = {
     model: settings.model,
     stream: false,
-    think: settings.think ? undefined : false,
+    think: !!settings.think,
     format: RESPONSE_SCHEMA,
     keep_alive: settings.keepAlive,
     options: runnerOptions(settings),
@@ -248,6 +248,23 @@ export function isTransient(err) {
 
 const LOAD_FAILURE = /llama-server|load failed|unable to load|out of memory|no such file|runner/i;
 
+/** The origin this build actually sends, so the 403 advice is right on each surface.
+ *  Chrome sends chrome-extension://<id>, Firefox moz-extension://<uuid>, and the VS Code
+ *  host is Node and sends no Origin at all - where the old hardcoded moz-extension advice
+ *  was not merely unhelpful but nonsense. */
+function originHint() {
+  try {
+    const url = globalThis.browser?.runtime?.getURL?.("");
+    if (url) {
+      const { protocol, origin } = new URL(url);
+      return protocol === "moz-extension:" ? '"moz-extension://*"' : `"${origin}"`;
+    }
+  } catch {
+    /* fall through to the wildcard */
+  }
+  return '"moz-extension://*,chrome-extension://*"';
+}
+
 /** Turn whatever went wrong into something the user can act on. */
 export function describeError(err) {
   if (err?.stale) return { ok: false, stale: true };
@@ -276,7 +293,7 @@ export function describeError(err) {
       kind: "cors",
       error:
         "Ollama refused the request because it came from a browser extension. Allow it once " +
-        "with OLLAMA_ORIGINS=\"moz-extension://*\" and restart Ollama - see the README."
+        `with OLLAMA_ORIGINS=${originHint()} and restart Ollama - see the README.`
     };
   }
   if (/HTTP 404/.test(msg)) {
@@ -375,7 +392,7 @@ export async function requestTransform({ text, instruction, lang, settings, sign
   const body = {
     model: settings.model,
     stream: false,
-    think: settings.think ? undefined : false,
+    think: !!settings.think,
     keep_alive: settings.keepAlive,
     options: runnerOptions(settings),
     messages: [

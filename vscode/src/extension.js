@@ -398,6 +398,10 @@ function watched(doc) {
  * editing elsewhere and coming back, does not re-send text the model has already seen.
  */
 function scheduleCheck(doc, line, { orFirstProse = false } = {}) {
+  // An untrusted workspace gets commands only, never an automatic check. Opening a folder
+  // is not consent to have its contents sent anywhere, and package.json declares exactly
+  // this behaviour under capabilities.untrustedWorkspaces.
+  if (!vscode.workspace.isTrusted) return;
   if (!watched(doc)) return;
   const key = doc.uri.toString();
   clearTimeout(pending.get(key));
@@ -501,7 +505,11 @@ function removeDiagnostic(uri, range) {
  */
 async function appendToSetting(key, value) {
   const c = vscode.workspace.getConfiguration("laita");
-  const current = c.get(key) || [];
+  // inspect().globalValue, not get(): get() returns the MERGED value, so a workspace that
+  // ships its own laita.dictionary or laita.ignored would have those entries copied into
+  // the user's global settings the first time they add a word - and they would outlive the
+  // workspace. Only ever grow the user's own list.
+  const current = c.inspect(key)?.globalValue || [];
   if (current.includes(value)) return;
   await c.update(key, [...current, value].slice(-500), vscode.ConfigurationTarget.Global);
 }

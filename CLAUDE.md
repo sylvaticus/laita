@@ -22,7 +22,7 @@ reading the code.
 ## Verify changes with
 
 ```bash
-browser/test/run.sh                                    # 24 unit tests, node only
+browser/test/run.sh                                    # 8 unit test files, node only
 (cd browser && npx web-ext lint --self-hosted)        # must stay 0 errors / 0 warnings
 ```
 

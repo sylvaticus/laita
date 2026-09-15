@@ -51,7 +51,14 @@ const vscodeStub = {
     onDidChangeActiveTextEditor: event("onDidChangeActiveTextEditor")
   },
   workspace: {
-    getConfiguration: () => ({ get: (k) => config[k], update: async () => {} }),
+    // The real API exposes this; without it every scheduleCheck would return early and the
+    // activation path below would be tested doing nothing at all.
+    isTrusted: true,
+    getConfiguration: () => ({
+      get: (k) => config[k],
+      inspect: (k) => ({ globalValue: config[k] }),
+      update: async () => {}
+    }),
     onDidChangeTextDocument: event("onDidChangeTextDocument"),
     onDidSaveTextDocument: event("onDidSaveTextDocument"),
     onDidCloseTextDocument: event("onDidCloseTextDocument")

@@ -102,5 +102,30 @@ eq("an ellipsis the original also has is not a truncation",
                             type: "style", message: "x" }),
    "Wait... but see");
 
+// Case folding is not length-preserving, and getting that wrong does not fail loudly: it
+// widens the range, stores the widened text as `original`, and every later guard then
+// compares the wrong text against itself and agrees. These pin the arithmetic.
+// "\u0130".toLowerCase() is two code units; "\uFB01".toUpperCase() is two characters, which is the
+// same bug in the other direction should upper-casing ever be added.
+eq("\u0130 lower-cases to two code units", "\u0130".toLowerCase().length, 2);
+
+const tr = "Bu \u0130stanbul c\u00fcmlesi \u00e7ok k\u00f6t\u00fc yaz\u0131lm\u0131\u015f de\u011fil mi";
+eq("case-fold drift does not widen the range",
+   locate(tr, "i\u0307stanbul c\u00fcmlesi"), [[3, 19]]);
+eq("and the anchored original is exactly what was quoted",
+   anchorIssues(tr, [{ type: "error", original: "i\u0307stanbul c\u00fcmlesi",
+                       replacement: "\u0130stanbul c\u00fcmleleri", message: "agreement" }])
+     .map((i) => tr.slice(i.start, i.end)),
+   ["\u0130stanbul c\u00fcmlesi"]);
+eq("applying it does not eat the following space",
+   (() => {
+     const [i] = anchorIssues(tr, [{ type: "error", original: "i\u0307stanbul c\u00fcmlesi",
+                                     replacement: "\u0130stanbul c\u00fcmleleri", message: "agreement" }]);
+     return tr.slice(0, i.start) + i.replacement + tr.slice(i.end);
+   })(),
+   "Bu \u0130stanbul c\u00fcmleleri \u00e7ok k\u00f6t\u00fc yaz\u0131lm\u0131\u015f de\u011fil mi");
+eq("drift accumulates over several such characters",
+   locate("\u0130\u0130\u0130 hedef c\u00fcmle", "hedef c\u00fcmle"), [[4, 15]]);
+
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

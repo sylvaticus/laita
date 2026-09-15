@@ -102,37 +102,44 @@
           "laita.endpoint": {
             "type": "string",
             "default": "http://localhost:11434",
-            "description": "Address of your Ollama server."
+            "description": "Address of your Ollama server.",
+            "scope": "machine"
           },
           "laita.model": {
             "type": "string",
             "default": "qwen3.5:9b",
-            "description": "Model to use. A 7-9B instruction model is the sweet spot."
+            "description": "Model to use. A 7-9B instruction model is the sweet spot.",
+            "scope": "machine"
           },
           "laita.temperature": {
             "type": "number",
             "default": 0,
-            "description": "0 gives the most repeatable corrections."
+            "description": "0 gives the most repeatable corrections.",
+            "scope": "machine"
           },
           "laita.numCtx": {
             "type": "number",
             "default": 0,
-            "description": "Context window. 0 follows Ollama's own setting, which avoids evicting a model another app has loaded."
+            "description": "Context window. 0 follows Ollama's own setting, which avoids evicting a model another app has loaded.",
+            "scope": "machine"
           },
           "laita.keepAlive": {
             "type": "string",
             "default": "10m",
-            "description": "How long Ollama keeps the model loaded. Needs a unit; -1m means indefinitely."
+            "description": "How long Ollama keeps the model loaded. Needs a unit; -1m means indefinitely.",
+            "scope": "machine"
           },
           "laita.requestTimeoutMs": {
             "type": "number",
             "default": 90000,
-            "description": "Timeout for one request. A transform is allowed longer in proportion to the selection."
+            "description": "Timeout for one request. A transform is allowed longer in proportion to the selection.",
+            "scope": "machine"
           },
           "laita.think": {
             "type": "boolean",
             "default": false,
-            "description": "Let reasoning models think before answering. Much slower."
+            "description": "Let reasoning models think before answering. Much slower.",
+            "scope": "machine"
           }
         }
       },
@@ -250,7 +257,8 @@
           "laita.extraInstructions": {
             "type": "string",
             "default": "",
-            "description": "House style rules appended to the prompt."
+            "description": "House style rules appended to the prompt.",
+            "scope": "machine"
           },
           "laita.transformDefault": {
             "type": "string",
@@ -263,7 +271,8 @@
               "type": "string"
             },
             "default": [],
-            "description": "Words never to flag. Grows when you use 'Add to dictionary'."
+            "description": "Words never to flag. Grows when you use 'Add to dictionary'.",
+            "scope": "application"
           },
           "laita.ignored": {
             "type": "array",
@@ -271,7 +280,8 @@
               "type": "string"
             },
             "default": [],
-            "description": "Fingerprints of suggestions you asked never to see again. Cleared by the 'Forget' command."
+            "description": "Fingerprints of suggestions you asked never to see again. Cleared by the 'Forget' command.",
+            "scope": "application"
           }
         }
       }
@@ -280,5 +290,21 @@
   "scripts": {
     "test": "./test/run.sh",
     "package": "npx --yes @vscode/vsce package --no-dependencies --out laita-vscode-$npm_package_version.vsix"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In an untrusted workspace LAITA never checks automatically. The Ollama endpoint, the model and the extra instructions are machine-scoped, so a workspace cannot redirect your text or steer the prompt.",
+      "restrictedConfigurations": [
+        "laita.endpoint",
+        "laita.model",
+        "laita.numCtx",
+        "laita.keepAlive",
+        "laita.requestTimeoutMs",
+        "laita.think",
+        "laita.temperature",
+        "laita.extraInstructions"
+      ]
+    }
   }
 }
