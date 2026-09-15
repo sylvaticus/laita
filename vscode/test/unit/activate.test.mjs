@@ -29,7 +29,7 @@ const config = {
   "severity.error": "warning", "severity.style": "info", "severity.rephrase": "info"
 };
 const disposable = () => ({ dispose() {} });
-const event = (name) => (fn) => { listeners.push(name); return disposable(); };
+const event = (name) => (_fn) => { listeners.push(name); return disposable(); };
 
 const vscodeStub = {
   window: {

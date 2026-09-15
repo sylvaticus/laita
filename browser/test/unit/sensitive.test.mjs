@@ -37,7 +37,7 @@ function el({ tag = "DIV", attrs = {}, contentEditable = false, parent = null,
     parentElement: parent,
     getAttribute: (k) => (k in attrs ? attrs[k] : null),
     // Only the opt-out selector is ever passed to closest(); walk for the two markers.
-    closest: (sel) => {
+    closest: (_sel) => {
       for (let n = node; n; n = n.parentElement) {
         if (n.getAttribute("data-laita") === "off") return n;
         if (n.getAttribute("data-locaispell") === "off") return n;

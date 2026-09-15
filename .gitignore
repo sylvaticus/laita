@@ -16,12 +16,16 @@ web-ext-artifacts/
 secrets/
 web-ext-config.local.*
 
-# Node, if you ever add tooling here
+# Node tooling lives at the repository root; browser/ and vscode/ stay free of it.
 node_modules/
-package-lock.json
+# package-lock.json IS committed: CI must install the exact versions that were tested,
+# and "web-ext lint reports 0 warnings" is meaningless against a moving target.
 
 # Editors and OS
-.vscode/
+# Not a blanket .vscode/ rule: vscode/.vscode/launch.json is the launch configuration
+# that makes F5 work, and without it the extension appears to do nothing when you press
+# it. That cost an afternoon once already.
+/.vscode/
 .idea/
 *.swp
 .DS_Store

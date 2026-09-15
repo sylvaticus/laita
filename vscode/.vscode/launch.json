@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run LAITA extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "//": "No preLaunchTask: nothing is compiled or bundled, so there is nothing to build first."
+    }
+  ]
+}

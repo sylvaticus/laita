@@ -107,10 +107,40 @@ change rarely. `agent_context.md` is the volatile one.
 
 ## 2. Tests
 
+Once, to install the pinned tooling (eslint and web-ext; nothing that ships depends on it):
+
 ```bash
-browser/test/run.sh                                    # unit tests, node only, no dependencies
-(cd browser && npx web-ext lint --self-hosted)    # must stay 0 errors / 0 warnings
+npm ci                     # exactly what package-lock.json pins, not "whatever is newest"
 ```
+
+Then:
+
+```bash
+npm run check              # everything CI runs: eslint, web-ext lint, both unit suites
+```
+
+or piecemeal:
+
+```bash
+browser/test/run.sh        # unit tests, node only, no dependencies
+vscode/test/run.sh
+npx eslint .               # no-unsanitized is the rule that earns its keep
+npm run lint:ext           # web-ext lint - must stay 0 errors / 0 warnings
+```
+
+Both runners deliberately do **not** stop at the first failing file: they run everything
+and exit with the number of files that failed, so one broken test does not hide four
+others. Each file prints its own pass/fail line.
+
+`.github/workflows/ci.yml` runs all of the above on every push, plus a fourth job that
+regenerates `browser/dist-chrome/` and `vscode/core/` and fails if either differs from
+what was committed. The drift tests catch a copy that fell behind; that job catches the
+other direction, a build script whose output no longer matches the committed copy.
+
+`web-ext lint` is **not** run against `dist-chrome/`: web-ext validates against the
+Firefox specification, so a Chrome manifest fails by design
+(`BACKGROUND_SERVICE_WORKER_NOFALLBACK`, `ADDON_ID_REQUIRED`).
+`test/unit/dist-chrome.test.mjs` checks that package instead.
 
 `browser/test/README.md` describes the browser harnesses: the real extension in headless Firefox
 against a fake Ollama, checking highlight geometry against independently measured DOM

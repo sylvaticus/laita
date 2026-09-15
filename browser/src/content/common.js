@@ -9,6 +9,10 @@
 // first line of common/compat.js.
 globalThis.browser ??= globalThis.chrome;
 
+// Deliberate: `var` at top level creates a property on globalThis, which `let` does not.
+// Every other content script and every test that evals this file reaches LAITA as a
+// global; `let` here makes them all fail at load.
+// eslint-disable-next-line no-var
 var LAITA = {
   clientId: Math.random().toString(36).slice(2) + Date.now().toString(36),
   settings: null,

@@ -53,7 +53,7 @@ function attrBlobWithAncestors(el, depth = 6) {
 
 /** The visible box we are allowed to paint in: the field, cropped by scrolling ancestors. */
 function scrollClipRect(el, base) {
-  let rect = { left: base.left, top: base.top, right: base.right, bottom: base.bottom };
+  const rect = { left: base.left, top: base.top, right: base.right, bottom: base.bottom };
   let node = el.parentElement;
   while (node && node !== document.documentElement) {
     let cs;
