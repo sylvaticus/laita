@@ -73,7 +73,7 @@ manifest be named `manifest.json`, and that name is taken by the Firefox one. Th
 copies files and swaps the manifest; it transforms no code, so the JavaScript Chrome runs
 is byte-identical to `src/`.
 
-**`dist-chrome/` is committed**, so users can download the repository and *Load unpacked*
+**`dist-chrome/` is NOT committed.** It used to be, so users could clone and *Load unpacked*
 without running anything — Chrome refuses `.crx` files from outside the Web Store, so a
 folder is the only way to distribute before a listing exists. The usual objection to
 committing build output is drift, which `test/unit/dist-chrome.test.mjs` catches: it
@@ -133,9 +133,15 @@ and exit with the number of files that failed, so one broken test does not hide 
 others. Each file prints its own pass/fail line.
 
 `.github/workflows/ci.yml` runs all of the above on every push, plus a fourth job that
-regenerates `browser/dist-chrome/` and `vscode/core/` and fails if either differs from
-what was committed. The drift tests catch a copy that fell behind; that job catches the
-other direction, a build script whose output no longer matches the committed copy.
+builds every package - the Firefox zip, the Chrome zip and the `.vsix` - to prove they
+still assemble, which the unit tests never attempt.
+
+`browser/dist-chrome/` and `vscode/core/{anchor,ollama}.js` are **generated and not
+committed**. The tests that check them run their generators first, so a fresh clone needs
+no extra step; `vscode:prepublish` runs `sync-core.sh` before `vsce` packages anything;
+and `.github/workflows/release.yml` builds all three artefacts and attaches them to the
+GitHub release when a `v*` tag is pushed. `vscode/core/package.json` *is* committed - it
+declares those copies as ESM and is hand-written.
 
 `web-ext lint` is **not** run against `dist-chrome/`: web-ext validates against the
 Firefox specification, so a Chrome manifest fails by design
@@ -231,8 +237,9 @@ npx web-ext lint --self-hosted            # from inside browser/, see above
 npx web-ext build --overwrite-dest                  # Firefox -> laita-firefox-$V.zip
 (cd dist-chrome && zip -qr "../web-ext-artifacts/laita-chrome-$V.zip" . -x '.*')
 
-# 5. commit the bump and the rebuilt dist-chrome together
-cd .. && git add -A -- browser && git commit -m "Version $V" && git push
+# 5. commit the bump, tag it, and let the release workflow build and publish
+cd .. && git add -A -- browser vscode && git commit -m "Version $V"
+git tag "v$V" && git push && git push origin "v$V"
 ```
 
 Two packages come out of `browser/web-ext-artifacts/` and they are **not**

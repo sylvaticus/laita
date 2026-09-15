@@ -244,30 +244,43 @@ would download a newer one when you want it.
 
 #### 2.4.2. Chrome
 
-Not in the Chrome Web Store yet, so Chrome loads it from a folder. **You do not need to
-build anything** — the ready-to-load folder is in the repository:
+**From the Chrome Web Store** — the short way, and it updates itself:
 
-1. Download the repository:
-   [**laita-main.zip**](https://github.com/sylvaticus/laita/archive/refs/heads/main.zip)
-   and unzip it (or `git clone https://github.com/sylvaticus/laita`)
+> **[Install LAITA](https://chromewebstore.google.com/detail/kkonkblgjafnampabmfflabkdkggpnjn)**
+
+Then tighten Ollama to just this extension, since the Web Store ID is the same for
+everyone:
+
+```
+OLLAMA_ORIGINS=chrome-extension://kkonkblgjafnampabmfflabkdkggpnjn
+```
+
+**Or load it from a folder** — for a version that is not in the store yet, or to avoid the
+store entirely. **You do not need to build anything:**
+
+1. Download **`laita-chrome-<version>.zip`** from
+   [the latest release](https://github.com/sylvaticus/laita/releases/latest) and unzip it
 2. Open `chrome://extensions`
 3. Turn on **Developer mode** (top right)
-4. Click **Load unpacked** and select the **`browser/dist-chrome`** folder
+4. Click **Load unpacked** and select the unzipped folder
 
-Chrome needs `chrome-extension://*` in `OLLAMA_ORIGINS` — see Step 1. Use the wildcard
-here, not the pinned ID given there: an extension loaded unpacked gets its own local
-ID, not the Web Store one.
+That zip is the same package the Chrome Web Store receives, so what you load by hand is
+what the store reviewed.
+
+For this route Chrome needs the **wildcard** `chrome-extension://*` in `OLLAMA_ORIGINS`,
+not the pinned ID above: an extension loaded unpacked gets its own local ID.
 
 Two things to know about loading unpacked, neither of which is a fault:
 
 - Chrome shows *"Disable developer mode extensions"* warnings on startup. That is Chrome's
   standard notice for anything not installed from the Web Store.
-- It does not update itself. To upgrade, download again, replace the folder, and press
-  **Reload** on the extension's card.
+- It does not update itself. To upgrade, download the new zip, replace the folder, and
+  press **Reload** on the extension's card.
 
-> Rebuilding is only needed if you change the source: `cd browser && ./tools/build-chrome.sh`.
-> `dist-chrome/` is a plain copy of `src/` with the Chrome manifest — no compilation — and a
-> test fails if the two drift apart.
+> Working from a clone instead? `cd browser && ./tools/build-chrome.sh` assembles the same
+> folder at `browser/dist-chrome/`. It is not in the repository — it is generated, and the
+> tests generate it themselves. It is a plain copy of `src/` with the Chrome manifest; no
+> compilation happens anywhere in this project.
 
 > Building it yourself, or working on the code? See
 > [`doc/dev_doc.md`](doc/dev_doc.md) — a development build loads straight from

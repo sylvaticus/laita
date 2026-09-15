@@ -1,0 +1,92 @@
+# Build the three packages and attach them to a GitHub release.
+#
+# This exists because dist-chrome/ is no longer committed. A Chrome user used to clone the
+# repository and "Load unpacked" straight from it; they now download laita-chrome-<v>.zip
+# from a release, unzip it, and load that. The zip is what the Chrome Web Store gets too,
+# so what people load by hand is byte-for-byte what the store reviewed.
+#
+# Trigger: push a tag.   git tag v0.4.0 && git push origin v0.4.0
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (must already exist)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Nothing is published that has not passed everything CI runs.
+      - run: npx eslint .
+      - run: browser/test/run.sh
+      - run: vscode/test/run.sh
+
+      - name: version must match the tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          V="${TAG#v}"
+          for f in browser/manifest.json browser/manifest.chrome.json vscode/package.json; do
+            HAVE=$(node -p "require('./$f').version")
+            if [ "$HAVE" != "$V" ]; then
+              echo "::error::$f is $HAVE but the tag says $V"
+              exit 1
+            fi
+          done
+          echo "all three manifests are $V"
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+
+      - name: build the packages
+        run: |
+          browser/tools/build-chrome.sh
+          vscode/tools/sync-core.sh
+          (cd browser && npx web-ext lint --self-hosted)
+          (cd browser && npx web-ext build --overwrite-dest)
+          (cd browser/dist-chrome && zip -qr "../web-ext-artifacts/laita-chrome-$VERSION.zip" . -x '.*')
+          (cd vscode && npx --yes @vscode/vsce package --no-dependencies \
+              --out "laita-vscode-$VERSION.vsix")
+
+      - name: what is being published
+        run: ls -la browser/web-ext-artifacts/ vscode/*.vsix
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: LAITA ${{ env.VERSION }}
+          generate_release_notes: true
+          body: |
+            ## Installing
+
+            **Chrome** — download `laita-chrome-${{ env.VERSION }}.zip`, unzip it, then
+            `chrome://extensions` → Developer mode → **Load unpacked** → the unzipped folder.
+            Or install from the [Chrome Web Store](https://chromewebstore.google.com/detail/kkonkblgjafnampabmfflabkdkggpnjn).
+
+            **Firefox** — install from [addons.mozilla.org](https://addons.mozilla.org/firefox/addon/local-ai-text-assistant/).
+            `laita-firefox-${{ env.VERSION }}.zip` here is the unsigned package that was submitted;
+            Firefox will not install it directly.
+
+            **VS Code** — `code --install-extension sylvaticus.laita`, or download the `.vsix`
+            and use *Install from VSIX…*.
+
+            All three need [Ollama](https://ollama.com) running locally. See the
+            [README](https://github.com/sylvaticus/laita#readme).
+          files: |
+            browser/web-ext-artifacts/laita-firefox-${{ env.VERSION }}.zip
+            browser/web-ext-artifacts/laita-chrome-${{ env.VERSION }}.zip
+            vscode/laita-vscode-${{ env.VERSION }}.vsix

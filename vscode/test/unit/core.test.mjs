@@ -1,14 +1,21 @@
 /**
- * core/ is copied from the browser extension so a packaged .vsix can contain it. This
- * fails if a copy drifts from its source - fix with tools/sync-core.sh.
+ * core/ holds anchor.js and ollama.js copied from the browser extension, because a
+ * packaged .vsix may only contain files from inside vscode/. The copies are generated,
+ * not committed: tools/sync-core.sh makes them, vscode:prepublish runs it before
+ * packaging, and this runs it before checking that what came out matches the source.
+ *
+ * core/package.json IS committed - it declares the copies as ESM and is not generated.
  */
 import { readFileSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CORE = join(HERE, "../../core");
 const SRC = join(HERE, "../../../browser/src/background");
+
+execFileSync(join(HERE, "../../tools/sync-core.sh"), { stdio: "pipe" });
 
 let pass = 0, fail = 0;
 const ok = (n, c, d = "") => { if (c) pass++; else { fail++; console.log("FAIL " + n + (d ? "\n  " + d : "")); } };

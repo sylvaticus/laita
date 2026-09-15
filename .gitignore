@@ -1,10 +1,19 @@
 # Signed and packaged builds
 web-ext-artifacts/
 
-# browser/dist-chrome/ is deliberately NOT ignored: it is committed so that Chrome users
-# can download the repository and "Load unpacked" without running anything. It is a pure
-# copy of src/ with the Chrome manifest, and test/unit/dist-chrome.test.mjs fails if it
-# drifts out of step.
+# Generated copies. Both were committed once - dist-chrome/ so a Chrome user could clone
+# and "Load unpacked" without running anything, core/ because a .vsix may only contain
+# files from inside vscode/. Between them that was 4,274 lines, just under half of all the
+# JavaScript in the repository, and every source change carried a mechanical second and
+# third copy of itself through every diff and every `git log -p`.
+#
+# They are built instead: browser/tools/build-chrome.sh and vscode/tools/sync-core.sh,
+# both run automatically by the tests that check them, and by vscode:prepublish and the
+# release workflow. Chrome users download the zip from a GitHub release.
+browser/dist-chrome/
+vscode/core/anchor.js
+vscode/core/ollama.js
+# ...but NOT core/package.json, which declares those copies as ESM and is hand-written.
 
 # AMO / signing credentials - never commit these.
 # The JWT issuer and secret from addons.mozilla.org belong outside the repository

@@ -288,6 +288,7 @@
     ]
   },
   "scripts": {
+    "vscode:prepublish": "./tools/sync-core.sh",
     "test": "./test/run.sh",
     "package": "npx --yes @vscode/vsce package --no-dependencies --out laita-vscode-$npm_package_version.vsix"
   },

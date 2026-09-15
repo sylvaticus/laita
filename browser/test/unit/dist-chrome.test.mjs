@@ -1,15 +1,21 @@
 /**
- * dist-chrome/ is committed so Chrome users can "Load unpacked" straight from a
- * download, without Node, Python or a build step. The price of committing build output
- * is that it can silently go stale, so this fails the moment it stops matching src/.
+ * The Chrome package: a copy of src/ with the Chrome manifest, and no code transformed -
+ * which is what lets both stores' "did you generate this code?" question be answered No.
  *
- * Fix a failure by running: cd browser && ./tools/build-chrome.sh
+ * dist-chrome/ is NOT committed. It used to be, so that a Chrome user could clone and
+ * "Load unpacked" without running anything, at the price of a mechanical second copy of
+ * every source change in every diff. Releases now carry the zip instead. So this builds
+ * it first and then checks what came out - which tests the build script rather than a
+ * committed artefact of it.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join, relative } from "node:path";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const DIST = join(ROOT, "dist-chrome");
+
+execFileSync(join(ROOT, "tools/build-chrome.sh"), { stdio: "pipe" });
 
 let pass = 0, fail = 0;
 const ok = (name, cond, detail = "") => {

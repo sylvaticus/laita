@@ -67,25 +67,27 @@ jobs:
       # spec, so a Chrome manifest fails by design - BACKGROUND_SERVICE_WORKER_NOFALLBACK
       # and ADDON_ID_REQUIRED. test/unit/dist-chrome.test.mjs checks that package instead.
 
-  freshness:
-    name: generated copies are in step
+  build:
+    name: the generated packages assemble
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      # dist-chrome/ and vscode/core/ are committed copies. The drift tests already fail
-      # when they disagree, but rebuilding here catches the other direction: a build script
-      # whose output no longer matches what was committed.
+          cache: npm
+      - run: npm ci
+      # dist-chrome/ and vscode/core/ are not in the repository. The unit tests generate
+      # them and check the result, so this job only has to prove the packages themselves
+      # assemble - which the tests never attempt.
       - run: browser/tools/build-chrome.sh
+      - run: npx web-ext build --overwrite-dest
+        working-directory: browser
+      - run: |
+          cd browser/dist-chrome
+          zip -qr ../web-ext-artifacts/laita-chrome-ci.zip . -x '.*'
       - run: vscode/tools/sync-core.sh
-      - name: fail if regenerating changed anything
-        run: |
-          if ! git diff --quiet; then
-            echo "::error::Regenerating the committed copies produced changes."
-            echo "Run browser/tools/build-chrome.sh and vscode/tools/sync-core.sh, then commit."
-            git --no-pager diff --stat
-            exit 1
-          fi
-          echo "committed copies match their sources"
+      - run: npx --yes @vscode/vsce package --no-dependencies --out /tmp/ci.vsix
+        working-directory: vscode
+      - name: show what came out
+        run: ls -la browser/web-ext-artifacts/ /tmp/ci.vsix
