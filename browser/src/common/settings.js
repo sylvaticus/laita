@@ -121,6 +121,32 @@ export async function setSettings(patch) {
 }
 
 /**
+ * Which site is a tab on?
+ *
+ * Asked of the page rather than read from `tab.url`. `tab.url` is only populated for tabs
+ * the extension holds a host permission for, and it deliberately no longer holds one over
+ * every site - reading this string was the only thing `<all_urls>` in `host_permissions`
+ * ever bought. The content script is already on the page and already knows.
+ *
+ * `ask` is injected so this is testable without a browser: it takes a tab id and resolves
+ * to whatever the content script replied.
+ */
+export async function resolveHostname(tab, ask) {
+  if (!tab || tab.id == null) return "";
+  try {
+    const res = await ask(tab.id);
+    if (res?.hostname) return String(res.hostname);
+  } catch {
+    /* no content script here: about:, the add-on stores, a PDF viewer, a discarded tab */
+  }
+  try {
+    return new URL(tab.url).hostname;
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Is this endpoint on the machine the browser is running on?
  *
  * The privacy claim is "nothing leaves your machine", and the endpoint is the one setting

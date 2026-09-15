@@ -100,9 +100,13 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
     install, so the grant may be unchanged — the code no longer depends on it either way.
   - It does **not** silence either store's permission warning; `content_scripts.matches`
     alone triggers that.
-  - **Not verified on a real Firefox or Chrome profile.** The unit tests pin the manifest
-    shape and the hostname path, but nobody has watched a per-site pause work after an
-    upgrade that drops a previously granted permission.
+  - The hostname path is now `resolveHostname` in `common/settings.js` with the messenger
+    injected, so it is unit tested directly (9 cases: the page answering, disagreeing with
+    a stale `tab.url`, no content script, no id, no tab, an empty reply, id 0).
+  - **Still not verified in a real browser:** that Chrome and Firefox keep injecting the
+    content script after an upgrade that drops a previously granted `<all_urls>` host
+    permission. No unit test can see that. Chrome 152 still ignores `--load-extension`
+    (re-confirmed; it ignored the start URL too), so this needs a human.
 
 ### This machine
 

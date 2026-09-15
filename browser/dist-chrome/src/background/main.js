@@ -9,7 +9,7 @@
 // compat first: it aliases `browser` to `chrome` before anything else can look for it.
 import { menus, canRefreshMenus } from "../common/compat.js";
 import {
-  getSettings, setSettings, siteAllowed, DEFAULTS, contentVisibleChange
+  getSettings, setSettings, siteAllowed, DEFAULTS, contentVisibleChange, resolveHostname
 } from "../common/settings.js";
 import {
   requestIssues, requestTransform, probe, describeError, isTransient,
@@ -431,35 +431,10 @@ async function tellActiveTab(payload) {
 const MENU_ID = "laita-transform";
 const TOGGLE_ID = "laita-toggle-site";
 
-function hostnameOf(url) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "";                     // about:, view-source:, a blank tab, or no permission
-  }
-}
-
-/**
- * Which site is this tab on?
- *
- * Asked of the page rather than read from tab.url. `tab.url` is only populated for tabs we
- * hold a host permission for, and the extension deliberately no longer asks for one over
- * every site - the only thing <all_urls> in host_permissions ever bought was this string.
- * The content script is already there and already knows.
- *
- * Falls back to tab.url for the cases a content script cannot answer: it is still
- * populated for localhost, which we do hold, and harmlessly empty elsewhere.
- */
-async function hostnameForTab(tab) {
-  if (!tab?.id) return "";
-  try {
-    const res = await browser.tabs.sendMessage(tab.id, { cmd: "hostname" });
-    if (res?.hostname) return res.hostname;
-  } catch {
-    /* no content script here: about:, the add-on stores, a PDF viewer, a discarded tab */
-  }
-  return hostnameOf(tab.url);
-}
+/** See resolveHostname in common/settings.js; the messaging is the only part that needs
+ *  the extension APIs, so it is the only part that lives here. */
+const hostnameForTab = (tab) =>
+  resolveHostname(tab, (id) => browser.tabs.sendMessage(id, { cmd: "hostname" }));
 
 /**
  * Firefox keeps menu registrations across restarts of a non-persistent background page, so

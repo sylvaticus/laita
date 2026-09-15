@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import {
-  siteAllowed, withDefaults, contentVisibleChange, isLoopbackEndpoint, isClearTextEndpoint
+  siteAllowed, withDefaults, contentVisibleChange, isLoopbackEndpoint, isClearTextEndpoint,
+  resolveHostname
 } from "../../src/common/settings.js";
 
 // common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
@@ -141,6 +142,39 @@ eq("http to loopback never leaves the machine, so it is not cleartext risk",
    isClearTextEndpoint("http://localhost:11434"), false);
 eq("an unparseable endpoint is not reported as cleartext, only as remote",
    isClearTextEndpoint("not a url"), false);
+
+// --- which site is a tab on -------------------------------------------------------------
+// The background used to read tab.url, which needs a host permission over every site. It
+// no longer holds one, so the page is asked instead. If this path is wrong the per-site
+// pause silently degrades to "this page" and does nothing when clicked - the single most
+// likely regression from dropping <all_urls>.
+const replies = (h) => async () => ({ ok: true, hostname: h });
+const throws = () => async () => { throw new Error("Could not establish connection"); };
+
+eq("the content script's answer is used",
+   await resolveHostname({ id: 1, url: "https://example.com/x" }, replies("example.com")),
+   "example.com");
+eq("it is preferred over tab.url when they disagree",
+   await resolveHostname({ id: 1, url: "https://stale.example/" }, replies("fresh.example")),
+   "fresh.example");
+eq("no content script falls back to tab.url",
+   await resolveHostname({ id: 1, url: "https://example.com/x" }, throws()),
+   "example.com");
+eq("no content script and no readable url gives nothing, not a crash",
+   await resolveHostname({ id: 1, url: undefined }, throws()), "");
+eq("an about: page gives nothing",
+   await resolveHostname({ id: 1, url: "about:blank" }, throws()), "");
+eq("a tab with no id is not messaged at all",
+   await resolveHostname({ url: "https://example.com/" }, () => { throw new Error("must not be called"); }),
+   "");
+eq("no tab at all is safe",
+   await resolveHostname(undefined, throws()), "");
+eq("an empty reply falls through to tab.url rather than returning empty",
+   await resolveHostname({ id: 1, url: "https://example.com/" }, async () => ({ ok: true })),
+   "example.com");
+eq("tab id 0 is a real id, not a missing one",
+   await resolveHostname({ id: 0, url: "https://example.com/" }, replies("asked.example")),
+   "asked.example");
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);
