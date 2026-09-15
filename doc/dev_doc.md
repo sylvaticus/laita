@@ -73,13 +73,10 @@ manifest be named `manifest.json`, and that name is taken by the Firefox one. Th
 copies files and swaps the manifest; it transforms no code, so the JavaScript Chrome runs
 is byte-identical to `src/`.
 
-**`dist-chrome/` is NOT committed.** It used to be, so users could clone and *Load unpacked*
-without running anything — Chrome refuses `.crx` files from outside the Web Store, so a
-folder is the only way to distribute before a listing exists. The usual objection to
-committing build output is drift, which `test/unit/dist-chrome.test.mjs` catches: it
-fails if any file differs from `src/`, if a source file is missing from the build, or if
-the two manifests disagree on the version. **Re-run the build script and commit the
-result whenever you change `src/` or a manifest.**
+**`dist-chrome/` is generated and not committed**, and `test/run.sh` builds it before
+running anything, so there is nothing to keep in step by hand.
+`test/unit/dist-chrome.test.mjs` then checks what came out: every file identical to
+`src/`, no source file missing, and the two manifests agreeing on the version.
 
 The icons are generated too: `python3 tools/make-icons.py` rebuilds `icons/icon-*.png`
 from `assets/imgs/laita_logo.png`. They are committed so that a build needs neither
@@ -93,6 +90,36 @@ browser harness is Firefox-only, and Chrome's half of the compatibility layer is
 by `test/unit/chrome-compat.test.mjs`, which fakes each browser's API surface, loads the
 real background module and checks what it registers. Anything beyond that needs a human
 with a Chrome window.
+
+### Loading a released build, rather than a working copy
+
+These are the routes the README used to describe. They are here because they are ways of
+running the extension *outside* a store, which is a developer's problem rather than a
+user's: a user installs from the Chrome Web Store or addons.mozilla.org.
+
+**Chrome, from a release zip.** Download `laita-chrome-<version>.zip` from
+[the releases page](https://github.com/sylvaticus/laita/releases), unzip it, then
+`chrome://extensions` → Developer mode → **Load unpacked** → the unzipped folder. That zip
+is byte-for-byte what the Chrome Web Store receives.
+
+Two consequences, neither of them faults:
+
+- Chrome shows *"Disable developer mode extensions"* warnings on startup — its standard
+  notice for anything not installed from the Web Store.
+- It does not update itself: download the new zip, replace the folder, press **Reload**.
+
+**An unpacked extension gets its own ID**, generated from the folder path, not the Web
+Store one. So it needs the wildcard `chrome-extension://*` in `OLLAMA_ORIGINS`; the
+published ID the README gives will refuse it with a `403`.
+
+**Firefox, from a signed `.xpi`.** `about:addons` → gear icon → *Install Add-on From
+File…*. Only a Mozilla-signed file installs permanently; the `laita-firefox-<v>.zip` on
+the releases page is the **unsigned** package that was submitted to AMO and Firefox will
+not accept it. Producing a signed `.xpi` means `web-ext sign` or an AMO web upload — see
+§3 below.
+
+**VS Code, from source.** Open `vscode/` and press **F5**, or build a `.vsix` with
+`npm run package` — both covered in §3b.
 
 ### Working with an LLM assistant
 

@@ -95,9 +95,14 @@ process**, then restart Ollama. Use the value for the browsers you use:
 
 | Browser | Value |
 | --- | --- |
-| Firefox | `moz-extension://*` |
-| Chrome | `chrome-extension://*` |
-| both | `moz-extension://*,chrome-extension://*` |
+| **Chrome** | `chrome-extension://kkonkblgjafnampabmfflabkdkggpnjn` |
+| **Firefox** | `moz-extension://*` |
+| both | `chrome-extension://kkonkblgjafnampabmfflabkdkggpnjn,moz-extension://*` |
+
+That long string is LAITA's Chrome Web Store ID. It is the same for everyone, so Ollama
+can be told to accept **this extension and nothing else**. Firefox gives no such
+guarantee — see [below](#why-firefox-needs-a-wildcard) — so it takes a wildcard, which
+any extension can use.
 
 The examples below use the Firefox value; substitute as needed. How you set it depends on
 the platform.
@@ -164,47 +169,28 @@ setx OLLAMA_ORIGINS "moz-extension://*"
 > you try one, [an issue](https://github.com/sylvaticus/laita/issues) saying whether
 > it worked would be welcome.
 
-#### Why the wildcard, and how to narrow it safely
+#### Why Firefox needs a wildcard
 
 The `moz-extension://…` origin Firefox sends is **not** the extension's ID. It is a random
 UUID that Firefox generates **per profile**, so it differs on every machine and every
-profile, and there is no value you can publish that would work for everyone. Four runs on
-one machine during development produced four different origins for the same extension.
+profile, and there is no value anyone could publish that would work for you. Four runs on
+one machine produced four different origins for the same extension.
 
-So `moz-extension://*` is the only setting that works out of the box. It does mean *any*
-extension can reach Ollama. To close that, pin **your own** profile's UUID once LAITA is
-permanently installed:
+So `moz-extension://*` is the only setting that works out of the box, and it does mean any
+extension can reach Ollama. To close that, pin **your own** profile's UUID:
 
 1. Open `about:config` and search for `extensions.webextensions.uuids`
 2. Find `locaispell@lobianco.org` in the JSON and copy the UUID next to it
 3. Use `OLLAMA_ORIGINS=moz-extension://<that-uuid>` and restart Ollama
 
-⚠️ Do **not** use the extension ID there — `moz-extension://locaispell@lobianco.org` looks
-plausible and is silently wrong: Ollama accepts the setting and then rejects every real
+⚠️ Do **not** put the extension ID there. `moz-extension://locaispell@lobianco.org` looks
+plausible and is silently wrong: Ollama accepts the setting and then refuses every real
 request with `403`. The variable takes a comma-separated list, so a second profile or
 machine needs its own UUID added.
 
-**Chrome is the opposite, and easier.** Its extension ID is assigned by the Web Store and
-is the same for everyone, so it can simply be written down. If you installed LAITA from
-the Chrome Web Store, use this instead of the wildcard:
-
-```
-OLLAMA_ORIGINS=chrome-extension://kkonkblgjafnampabmfflabkdkggpnjn
-```
-
-Ollama then accepts LAITA and refuses every other extension, with nothing to look up.
-
-Whichever you pin, remember what `OLLAMA_ORIGINS` is: a browser rule. It stops other
-*extensions* from reaching your model — not other programs on the same machine, which
-send no `Origin` at all and are never checked.
-
-Keep the wildcard while loading temporary development builds: those get a fresh UUID on
-every load.
-
-**Chrome is different and easier.** Its origin is `chrome-extension://<id>`, where the id
-is stable for an installed extension (derived from the store listing, or from the folder
-path for an unpacked one). So once LAITA is installed you can read the id from
-`chrome://extensions` and narrow to `chrome-extension://<that-id>` permanently.
+Whatever you pin, remember what `OLLAMA_ORIGINS` is: a browser rule. It stops other
+*extensions* from reaching your model — not other programs on the same machine, which send
+no `Origin` header at all and are never checked.
 
 Whatever your platform, this check should return something other than `403`:
 
@@ -222,69 +208,25 @@ means Ollama was not restarted.
 
 #### 2.4.1. Firefox
 
-**From Firefox Add-ons** — the normal way, and it updates itself:
-
 > **[LAITA on addons.mozilla.org](https://addons.mozilla.org/firefox/addon/local-ai-text-assistant/)**
->
-> The listing is awaiting Mozilla's review. Until it is approved that link will not
-> resolve — use the direct download below in the meantime.
 
-**Or install the signed file directly**, which works today and needs no listing:
+**The listing is still awaiting Mozilla's review, so that link does not resolve yet.**
+Until it does there is no Firefox build you can install — Firefox only accepts add-ons
+signed by Mozilla, and the packages on the releases page are unsigned submissions rather
+than installable files.
 
-1. Download the latest `.xpi` from the
-   [releases page](https://github.com/sylvaticus/laita/releases).
-2. Open `about:addons`
-3. Click the **gear icon** → **Install Add-on From File…**
-4. Choose the `.xpi` you downloaded
-
-Either way the file is signed by Mozilla, so it installs permanently and survives
-restarts. The options page opens the first time. The one difference is updates: a copy
-installed from the directory updates itself, a `.xpi` installed by hand does not, so you
-would download a newer one when you want it.
+The options page opens by itself the first time, and the add-on updates itself from then
+on.
 
 #### 2.4.2. Chrome
 
-**From the Chrome Web Store** — the short way, and it updates itself:
+> **[Install LAITA from the Chrome Web Store](https://chromewebstore.google.com/detail/kkonkblgjafnampabmfflabkdkggpnjn)**
 
-> **[Install LAITA](https://chromewebstore.google.com/detail/kkonkblgjafnampabmfflabkdkggpnjn)**
+It updates itself, and its ID is the one already given in
+[Step 2.3](#23-let-ollama-accept-requests-from-the-extension---required).
 
-Then tighten Ollama to just this extension, since the Web Store ID is the same for
-everyone:
-
-```
-OLLAMA_ORIGINS=chrome-extension://kkonkblgjafnampabmfflabkdkggpnjn
-```
-
-**Or load it from a folder** — for a version that is not in the store yet, or to avoid the
-store entirely. **You do not need to build anything:**
-
-1. Download **`laita-chrome-<version>.zip`** from
-   [the latest release](https://github.com/sylvaticus/laita/releases/latest) and unzip it
-2. Open `chrome://extensions`
-3. Turn on **Developer mode** (top right)
-4. Click **Load unpacked** and select the unzipped folder
-
-That zip is the same package the Chrome Web Store receives, so what you load by hand is
-what the store reviewed.
-
-For this route Chrome needs the **wildcard** `chrome-extension://*` in `OLLAMA_ORIGINS`,
-not the pinned ID above: an extension loaded unpacked gets its own local ID.
-
-Two things to know about loading unpacked, neither of which is a fault:
-
-- Chrome shows *"Disable developer mode extensions"* warnings on startup. That is Chrome's
-  standard notice for anything not installed from the Web Store.
-- It does not update itself. To upgrade, download the new zip, replace the folder, and
-  press **Reload** on the extension's card.
-
-> Working from a clone instead? `cd browser && ./tools/build-chrome.sh` assembles the same
-> folder at `browser/dist-chrome/`. It is not in the repository — it is generated, and the
-> tests generate it themselves. It is a plain copy of `src/` with the Chrome manifest; no
-> compilation happens anywhere in this project.
-
-> Building it yourself, or working on the code? See
-> [`doc/dev_doc.md`](doc/dev_doc.md) — a development build loads straight from
-> `manifest.json` via `about:debugging`, with no signing.
+> Loading an unreleased build, or working on the code? That lives in
+> [`doc/dev_doc.md`](doc/dev_doc.md).
 
 #### 2.4.3. Check the connection
 
@@ -408,13 +350,8 @@ Search for **LAITA** in the Extensions panel, or from a terminal:
 code --install-extension sylvaticus.laita
 ```
 
-It is on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita).
-To build it yourself instead, see [`vscode/`](vscode/):
-
-```bash
-cd vscode && npm run package
-code --install-extension laita-vscode-0.4.0.vsix
-```
+It is on the
+[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita).
 
 Then write. Prose files are checked **as you type**, a paragraph at a time:
 
@@ -479,7 +416,7 @@ Open them from the toolbar popup, or from `about:addons` → Local AI Text Assis
 | *"Ollama does not have that model"* | `ollama pull <model>`. |
 | *"The request to Ollama timed out"* | The model is slow to load, or too large for the machine. Raise the timeout, or use a smaller model. |
 | *"Ollama could not start the model"* | The model does not fit in the GPU next to whatever else is using it. See [errors that come and go](#53-errors-that-come-and-go). |
-| *"was reloaded or updated, so this page is still running the old copy"* | Exactly that: reload the page. Pages open while you reload the extension in `about:debugging` keep the old content scripts, which can no longer reach it. |
+| *"was reloaded or updated, so this page is still running the old copy"* | Exactly that: reload the page. Pages that were already open when the extension updated keep the old content scripts, which can no longer reach it. |
 | *"the background page did not answer"* | Firefox unloaded the extension's background page. Long requests hold it open, so if you see this, reload the tab and report it. |
 | Nothing happens at all | The site may be disabled (check the toolbar popup), the field may be too short, or it may look like a password field. |
 | Highlights sit slightly off | Report it — the field probably uses a layout the mirror does not yet copy. |
@@ -642,11 +579,16 @@ paused.
 
 ## 7. Development
 
-This repository is a monorepo. The Firefox extension is in [`browser/`](browser/); it is
-self-contained and has no build step.
+This repository is a monorepo: [`browser/`](browser/) holds the Firefox and Chrome
+extension, [`vscode/`](vscode/) the editor one. Nothing is compiled anywhere in this
+project.
 
-- [`doc/dev_doc.md`](doc/dev_doc.md) — running a development build, tests, signing,
-  architecture
+**Everything about running, building, packaging or signing LAITA yourself is in
+[`doc/dev_doc.md`](doc/dev_doc.md)** — deliberately, so that this file stays about using
+it.
+
+- [`doc/dev_doc.md`](doc/dev_doc.md) — running from source, loading an unreleased build,
+  tests, signing, releases, architecture
 - [`doc/agent_context.md`](doc/agent_context.md) — handover note for an LLM assistant:
   current state, what is untested, and this machine's quirks
 - [`doc/roadmap.md`](doc/roadmap.md) — Chrome, VS Code and LibreOffice: what can be

@@ -57,29 +57,13 @@ replace the selection or be inserted after it.
 
 Code fences are treated as opaque and never sent to the model.
 
-## Running it from source
+## Installing
 
-Open the `vscode/` folder in VS Code and press **F5**. A second window opens with the
-extension loaded; edit a Markdown file there.
-
-Or from a terminal, without touching your normal setup:
+Search for **LAITA** in the Extensions panel, or from a terminal:
 
 ```bash
-cd vscode
-code --user-data-dir=/tmp/laita-ud --extensions-dir=/tmp/laita-ext \
-     --extensionDevelopmentPath="$PWD" --new-window somefile.md
+code --install-extension sylvaticus.laita
 ```
-
-To install it properly instead:
-
-```bash
-npm run package                                   # -> laita-vscode-0.3.4.vsix
-code --install-extension laita-vscode-0.3.4.vsix
-```
-
-or **Extensions → … → Install from VSIX**. Reload the window afterwards. An extension
-installed this way never updates itself: repackage and reinstall with `--force` to move
-to a newer build.
 
 ## Requirements
 
