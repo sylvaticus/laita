@@ -4,7 +4,10 @@ import {
   runnerOptions,
   estimateTransformTokens,
   buildTransformSystemPrompt,
-  transformTimeoutMs
+  transformTimeoutMs,
+  effectiveContext,
+  looksTruncatedTransform,
+  ASSUMED_CONTEXT
 } from "../../src/background/ollama.js";
 
 // common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
@@ -95,6 +98,66 @@ eq("and is not absurdly generous either", secs(10269) < 900, true);
 eq("grows with the selection", secs(8000) > secs(2000), true);
 eq("respects a raised floor", transformTimeoutMs(400, { requestTimeoutMs: 300000 }) >= 300000, true);
 eq("copes with a missing setting", transformTimeoutMs(1000, undefined) > 0, true);
+
+// --- the context guard -------------------------------------------------------------------
+// This used to run only when numCtx was pinned, and numCtx defaults to 0, so the shipped
+// configuration allowed a transform about twice the size of the window it would run in.
+// The window is read from /api/ps, not /api/show: show reports the architecture's maximum
+// (262144 for qwen3.5), which would make every guard pass.
+const withFetch = async (impl, fn) => {
+  const real = globalThis.fetch;
+  globalThis.fetch = impl;
+  try { return await fn(); } finally { globalThis.fetch = real; }
+};
+const ps = (models) => async () => ({ ok: true, json: async () => ({ models }) });
+const conf = (over = {}) => ({ endpoint: "http://x", model: "m", numCtx: 0, ...over });
+
+eq("a pinned window wins and needs no request",
+   await effectiveContext(conf({ numCtx: 8192 })),
+   { tokens: 8192, source: "pinned" });
+
+eq("an unpinned window is read from the loaded model",
+   await withFetch(ps([{ model: "loaded-a", context_length: 16384 }]),
+     () => effectiveContext(conf({ model: "loaded-a" }))),
+   { tokens: 16384, source: "server" });
+
+eq("a different model being loaded does not count",
+   await withFetch(ps([{ model: "someone-else", context_length: 32768 }]),
+     () => effectiveContext(conf({ model: "not-that-one" }))),
+   { tokens: ASSUMED_CONTEXT, source: "assumed" });
+
+eq("an unloaded model assumes Ollama's default rather than optimism",
+   await withFetch(ps([]), () => effectiveContext(conf({ model: "not-loaded-b" }))),
+   { tokens: ASSUMED_CONTEXT, source: "assumed" });
+
+eq("an unreachable server also assumes the default",
+   await withFetch(async () => { throw new Error("ECONNREFUSED"); },
+     () => effectiveContext(conf({ model: "unreachable-c" }))),
+   { tokens: ASSUMED_CONTEXT, source: "assumed" });
+
+eq("the default maxChars really does overflow the assumed window",
+   estimateTransformTokens(12000) > ASSUMED_CONTEXT, true);
+
+// --- the truncation guard ------------------------------------------------------------------
+const long = "word ".repeat(200);              // 1000 chars
+eq("half the input is treated as truncation",
+   looksTruncatedTransform(long, "word ".repeat(80), "polish"), true);
+eq("a full rewrite is not",
+   looksTruncatedTransform(long, "word ".repeat(190), "polish"), false);
+eq("a trailing ellipsis the original lacks is truncation",
+   looksTruncatedTransform(long, "word ".repeat(180) + "...", "polish"), true);
+eq("but not when the original ends that way too",
+   looksTruncatedTransform(long + "...", "word ".repeat(180) + "...", "polish"), false);
+eq("asking to shorten legitimately returns much less",
+   looksTruncatedTransform(long, "word ".repeat(20), "shorten it"), false);
+eq("so does asking for a summary",
+   looksTruncatedTransform(long, "word ".repeat(10), "summarise in one line"), false);
+eq("and for bullet points",
+   looksTruncatedTransform(long, "a", "turn into bullets"), false);
+eq("short selections are left alone - the ratio is meaningless there",
+   looksTruncatedTransform("Hello there.", "Hi.", "polish"), false);
+eq("translation that shortens a little is fine",
+   looksTruncatedTransform(long, "word ".repeat(120), "translate to French"), false);
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

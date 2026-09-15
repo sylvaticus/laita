@@ -134,6 +134,49 @@ export function estimateTransformTokens(textLength) {
   return Math.ceil((textLength / 3) * 2) + 400;
 }
 
+/** Ollama's own default when OLLAMA_CONTEXT_LENGTH is unset. Assumed rather than guessed
+ *  at random: being wrong low costs the user a refusal they could override, being wrong
+ *  high costs them their text. */
+export const ASSUMED_CONTEXT = 4096;
+
+const ctxCache = new Map();   // model -> { value, at }
+const CTX_TTL_MS = 30000;
+
+/**
+ * The context window a request will actually run in.
+ *
+ * Not from /api/show: its model_info carries the *architecture's* maximum - 262144 for
+ * qwen3.5 - which says nothing about the window the server will give you and would make
+ * every guard pass. /api/ps reports the real one, but only while the model is loaded, so
+ * an unloaded model falls back to Ollama's default rather than to optimism.
+ */
+export async function effectiveContext(settings, signal) {
+  const pinned = Number(settings.numCtx) || 0;
+  if (pinned > 0) return { tokens: pinned, source: "pinned" };
+
+  const cached = ctxCache.get(settings.model);
+  if (cached && Date.now() - cached.at < CTX_TTL_MS) return cached.value;
+
+  let value = { tokens: ASSUMED_CONTEXT, source: "assumed" };
+  try {
+    const base = settings.endpoint.replace(/\/+$/, "");
+    const res = await fetch(base + "/api/ps", { method: "GET", signal });
+    if (res.ok) {
+      const json = await res.json();
+      const running = (json.models || []).find(
+        (m) => m.model === settings.model || m.name === settings.model
+      );
+      if (running && Number(running.context_length) > 0) {
+        value = { tokens: Number(running.context_length), source: "server" };
+      }
+    }
+  } catch {
+    /* an unreachable server is the caller's problem, not this helper's */
+  }
+  ctxCache.set(settings.model, { value, at: Date.now() });
+  return value;
+}
+
 export function buildUserPrompt(text, lang) {
   return (
     `Proofread this ${languageName(lang)} text:\n` +
@@ -366,6 +409,30 @@ function wrapper(s) {
  * `original` is the fragment that was sent: anything it already had (a code fence, its own
  * surrounding quotes) is left alone, so a legitimately quoted selection survives.
  */
+/** Words that make a much shorter answer the point rather than a symptom. */
+const SHORTENING = /\b(short|shorten|shorter|brief|briefly|concise|condense|summar|trim|cut|tighten|abbreviat|tl;?dr|bullet)/i;
+
+/**
+ * Has a transform come back so much shorter than its input that it cannot be a rewrite?
+ *
+ * The proofreading path has had `looksTruncated` since a model answered "..." and deleted
+ * a paragraph. The transform path - written later - never got the equivalent, and it is
+ * the more dangerous of the two: accept("replace") overwrites the whole selection with no
+ * anchoring and no diff to check it against. The usual cause is not malice but arithmetic,
+ * the input being longer than the context window, so the model only ever saw the start.
+ *
+ * Asking for a summary legitimately returns a fraction of the input, so an instruction
+ * that says so disables the check.
+ */
+export function looksTruncatedTransform(original, output, instruction = "") {
+  if (SHORTENING.test(instruction)) return false;
+  const a = String(original).trim().length;
+  const b = String(output).trim().length;
+  if (a < 200) return false;
+  if (/(\.\s*\.\s*\.|\u2026)\s*$/.test(output) && !/(\.\s*\.\s*\.|\u2026)\s*$/.test(original)) return true;
+  return b < a * 0.5;
+}
+
 export function cleanTransformOutput(content, original = "") {
   let out = String(content ?? "")
     .replace(/<think>[\s\S]*?<\/think>/gi, "")

@@ -8,10 +8,13 @@
 
 // compat first: it aliases `browser` to `chrome` before anything else can look for it.
 import { menus, canRefreshMenus } from "../common/compat.js";
-import { getSettings, setSettings, siteAllowed, DEFAULTS } from "../common/settings.js";
+import {
+  getSettings, setSettings, siteAllowed, DEFAULTS, contentVisibleChange
+} from "../common/settings.js";
 import {
   requestIssues, requestTransform, probe, describeError, isTransient,
-  estimateTransformTokens, transformTimeoutMs, PROMPT_VERSION
+  estimateTransformTokens, transformTimeoutMs, PROMPT_VERSION,
+  effectiveContext, looksTruncatedTransform
 } from "./ollama.js";
 import { anchorIssues, hash } from "./anchor.js";
 
@@ -222,18 +225,26 @@ async function rememberInstruction(instruction) {
 async function transform({ text, instruction, lang, reqId }) {
   const settings = await getSettings();
   const controller = new AbortController();
-  const pinned = Number(settings.numCtx) || 0;
+  // This guard used to run only when numCtx was pinned - and numCtx defaults to 0, so in
+  // the shipped configuration it never ran at all. maxChars allows 12000 characters, which
+  // is ~8400 tokens, against a default Ollama window of 4096: the server silently truncated
+  // the input, the model rewrote only the part it saw, and accepting replaced the WHOLE
+  // selection with it. Ten pages in, one page out, no warning.
   const needed = estimateTransformTokens(text.length);
-  if (pinned > 0 && needed > pinned) {
-    // Widening the window for this one request would load a second copy of the model, so
-    // say so rather than quietly returning a truncated rewrite.
+  const ctx = await effectiveContext(settings, controller.signal);
+  if (needed > ctx.tokens) {
+    const where = {
+      pinned: `the ${ctx.tokens} context window pinned in the options`,
+      server: `the ${ctx.tokens} window Ollama has this model loaded with`,
+      assumed: `Ollama's default window of ${ctx.tokens} (the model is not loaded, so its ` +
+               `real window could not be read)`
+    }[ctx.source];
     return {
       ok: false,
       kind: "context",
       error:
-        `This selection needs roughly ${needed} tokens to rewrite, more than the ${pinned} ` +
-        `context window pinned in the options. Select less, raise the context window, or ` +
-        `set it to 0 to follow Ollama's own setting.`
+        `This selection needs roughly ${needed} tokens to rewrite, more than ${where}. ` +
+        `Select less, or raise the window with OLLAMA_CONTEXT_LENGTH and reload the model.`
     };
   }
 
@@ -251,6 +262,20 @@ async function transform({ text, instruction, lang, reqId }) {
       () => requestTransform({ text, instruction, lang, settings, signal: controller.signal }),
       controller.signal
     );
+    // The last line of defence. The size check above uses an estimate, and an estimate that
+    // is 20% optimistic on a long selection still loses the tail. Proofreading has refused
+    // visibly-abbreviated replacements since one destroyed a paragraph; this path replaces
+    // far more text at once and had no equivalent.
+    if (looksTruncatedTransform(text, output, instruction)) {
+      return {
+        ok: false,
+        kind: "truncated",
+        error:
+          `The model returned ${output.trim().length} characters for a ${text.trim().length}-character ` +
+          `selection, which is too short to be a rewrite of it - usually a sign the text did not fit ` +
+          `in the context window. Nothing has been changed. Try a smaller selection.`
+      };
+    }
     return { ok: true, output };
   } finally {
     clearTimeout(timer);
@@ -520,7 +545,8 @@ browser.commands.onCommand.addListener(async (name) => {
   }
 });
 
-browser.storage.onChanged.addListener(async () => {
+browser.storage.onChanged.addListener(async (changes) => {
+  if (!contentVisibleChange(changes)) return;
   const tabs = await browser.tabs.query({});
   for (const tab of tabs) {
     browser.tabs.sendMessage(tab.id, { cmd: "settingsChanged" }).catch(() => {});

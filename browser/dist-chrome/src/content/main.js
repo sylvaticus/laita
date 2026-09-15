@@ -9,6 +9,24 @@
 
   /** @type {InstanceType<any>|null} */
   let adapter = null;
+
+  // The observer follows attach/detach directly rather than being re-checked on a timer.
+  // The timer version ran in every frame of every page for the life of the tab - a dozen
+  // ad iframes meant a dozen of them - whether or not a field was focused and whether or
+  // not the extension was even enabled for the site.
+  //
+  // The liveness half is still a poll, because a field can be removed from the DOM by any
+  // script with no event we can subscribe to, but it now exists only while a field is
+  // actually attached: it starts in attach() and stops in detach(). An idle tab runs
+  // nothing at all.
+  const ro = new ResizeObserver(() => queueReposition());
+  let observed = null;
+  let livenessTimer = null;
+  /** One handle, not one per call: showPill runs once per chunk plus twice more, so a
+   *  five-chunk sweep used to leave seven timers racing to hide the same pill. Declared
+   *  here because detach() below clears it and would otherwise touch it before the
+   *  declaration was evaluated. */
+  let pillHideTimer = null;
   let issues = [];
   let generation = 0;
   let debounceTimer = null;
@@ -43,6 +61,14 @@
       LAITA.Overlay.hidePill();
       issues = [];
     }
+    if (observed) {
+      ro.unobserve(observed);
+      observed = null;
+    }
+    clearInterval(livenessTimer);
+    livenessTimer = null;
+    clearTimeout(pillHideTimer);
+    pillHideTimer = null;
     adapter?.destroy();
     adapter = null;
     lastCheckedText = null;
@@ -59,6 +85,11 @@
     if (!next) return;
     detach();
     adapter = next;
+    observed = el;
+    ro.observe(el);
+    livenessTimer = setInterval(() => {
+      if (adapter && !adapter.isAlive()) detach();
+    }, 700);
     LAITA.log("attached to", el);
     if (LAITA.settings.triggerMode === "auto") schedule(0);
   }
@@ -213,8 +244,18 @@
     reportStatus();
   }
 
+  function hidePillIn(ms) {
+    clearTimeout(pillHideTimer);
+    pillHideTimer = setTimeout(() => {
+      pillHideTimer = null;
+      if (busyChunks === 0 && !lastError) LAITA.Overlay.hidePill();
+    }, ms);
+  }
+
   function showPill() {
     if (!adapter?.isAlive()) return;
+    clearTimeout(pillHideTimer);
+    pillHideTimer = null;
     if (lastError) {
       LAITA.Overlay.showPill(adapter, {
         text: "LAITA: error",
@@ -233,15 +274,11 @@
         text: `${issues.length} suggestion${issues.length > 1 ? "s" : ""}`,
         onClose: cancelCheck
       });
-      setTimeout(() => {
-        if (busyChunks === 0 && !lastError) LAITA.Overlay.hidePill();
-      }, 1800);
+      hidePillIn(1800);
       return;
     }
     LAITA.Overlay.showPill(adapter, { text: "No issues", onClose: cancelCheck });
-    setTimeout(() => {
-      if (busyChunks === 0 && !lastError) LAITA.Overlay.hidePill();
-    }, 1200);
+    hidePillIn(1200);
   }
 
   function reportStatus() {
@@ -381,16 +418,6 @@
   addEventListener("scroll", queueReposition, { capture: true, passive: true });
   addEventListener("resize", queueReposition, { passive: true });
 
-  const ro = new ResizeObserver(queueReposition);
-  let observed = null;
-  setInterval(() => {
-    if (adapter?.el !== observed) {
-      if (observed) ro.unobserve(observed);
-      observed = adapter?.el || null;
-      if (observed) ro.observe(observed);
-    }
-    if (adapter && !adapter.isAlive()) detach();
-  }, 700);
 
   browser.runtime.onMessage.addListener(async (msg) => {
     if (msg.cmd === "checkNow") {

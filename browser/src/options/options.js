@@ -1,3 +1,8 @@
+// compat first, and before settings.js: this page calls `browser` directly, and on
+// Chrome that name does not exist until compat.js aliases it onto `chrome`. The
+// background module and the content scripts each do their own aliasing; these two
+// pages were simply missed.
+import "../common/compat.js";
 import { DEFAULTS, getSettings, setSettings } from "../common/settings.js";
 
 const $ = (id) => document.getElementById(id);

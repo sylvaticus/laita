@@ -74,14 +74,82 @@ export function withDefaults(stored) {
   return out;
 }
 
+/**
+ * Resolved settings, cached.
+ *
+ * getSettings() is on every hot path there is - every chunk, every transform, every badge
+ * update, and setBadge runs on every status message from every content script in every
+ * frame. Each uncached call deserialised the entire store: a dictionary of up to 300
+ * words, up to 500 ignored fingerprints and the whole transform history, several times per
+ * keystroke. The storage.onChanged listener below keeps this honest, and it is the same
+ * event every other part of the extension already reacts to.
+ */
+let cached = null;
+let inflight = null;
+
+/** Settings changed underneath us - through this module or any other page.
+ *  Guarded because this module is also imported by unit tests, where there is no
+ *  extension API at all, and by pages that may load before compat.js has aliased
+ *  `browser` onto `chrome`. */
+try {
+  globalThis.browser?.storage?.onChanged?.addListener(() => {
+    cached = null;
+    inflight = null;
+  });
+} catch {
+  /* no extension storage here; getSettings will simply not cache */
+}
+
 export async function getSettings() {
-  const stored = await browser.storage.local.get(null);
-  return withDefaults(stored);
+  if (cached) return cached;
+  // Concurrent callers before the first read lands must not each issue their own.
+  if (!inflight) {
+    inflight = browser.storage.local.get(null).then((stored) => {
+      cached = withDefaults(stored);
+      inflight = null;
+      return cached;
+    });
+  }
+  return inflight;
 }
 
 export async function setSettings(patch) {
+  cached = null;
+  inflight = null;
   await browser.storage.local.set(patch);
   return getSettings();
+}
+
+/** Settings a content script actually reads. The dictionary and the ignored list are used
+ *  only when the background builds a prompt or filters a reply, so a change to either
+ *  needs no tab to hear about it. */
+export const CONTENT_VISIBLE = new Set([
+  "enabled", "sites", "siteMode", "siteOverrides", "categories", "colors",
+  "debounceMs", "minChars", "maxChars", "chunkMaxChars", "showBadge", "debug",
+  "transformDefault", "language", "triggerMode", "transformHistory"
+]);
+
+/**
+ * Should a storage change be announced to every tab?
+ *
+ * Comparing VALUES, not key names, is the whole point. The options page collects every
+ * field into one patch and writes it 350 ms after each keystroke, so onChanged always
+ * reports every key - a name-based filter lets the storm straight through. Typing one
+ * sentence into "Extra instructions" used to make every frame of every open tab re-read
+ * the entire store, several times a second.
+ */
+export function contentVisibleChange(changes) {
+  if (!changes) return true;            // no detail supplied: assume it matters
+  const same = (a, b) => {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;                     // unserialisable is not a reason to skip it
+    }
+  };
+  return Object.entries(changes).some(
+    ([k, c]) => CONTENT_VISIBLE.has(k) && !same(c?.oldValue, c?.newValue)
+  );
 }
 
 /**

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { siteAllowed, withDefaults } from "../../src/common/settings.js";
+import { siteAllowed, withDefaults, contentVisibleChange } from "../../src/common/settings.js";
 
 // common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
 (0, eval)(readFileSync(new URL("../../src/content/common.js", import.meta.url).pathname, "utf8"));
@@ -67,6 +67,38 @@ const offRight = LAITA.pillPosition({ left: 900, top: 100, width: 400, height: 5
 eq("never runs off the right edge", offRight.left + size.width <= view.width - 4, true);
 const offLeft = LAITA.pillPosition({ left: -300, top: 100, width: 200, height: 50 }, size, view);
 eq("never runs off the left edge", offLeft.left >= 4, true);
+
+// --- the settings broadcast -----------------------------------------------------------
+// Every settings write used to wake every frame of every open tab to re-read the whole
+// store. The trap: the options page collects EVERY field into one patch and saves it 350ms
+// after each keystroke, so onChanged always names every key. Filtering on key names alone
+// therefore changes nothing at all - the values have to be compared.
+const chg = (o) => Object.fromEntries(
+  Object.entries(o).map(([k, [a, b]]) => [k, { oldValue: a, newValue: b }]));
+
+eq("a real change to a watched key broadcasts",
+   contentVisibleChange(chg({ enabled: [true, false] })), true);
+eq("the whole-patch save with nothing actually changed does not",
+   contentVisibleChange(chg({
+     enabled: [true, true], debounceMs: [1500, 1500], model: ["m", "m"],
+     extraInstructions: ["a", "ab"], dictionary: [[], []]
+   })), false);
+eq("...but the same save does broadcast once a watched value moves",
+   contentVisibleChange(chg({
+     enabled: [true, true], debounceMs: [1500, 900], extraInstructions: ["a", "ab"]
+   })), true);
+eq("a dictionary addition alone stays in the background",
+   contentVisibleChange(chg({ dictionary: [["a"], ["a", "b"]] })), false);
+eq("so does an ignored fingerprint",
+   contentVisibleChange(chg({ ignored: [[], ["ff00"]] })), false);
+eq("a per-site pause reaches the tabs",
+   contentVisibleChange(chg({ siteOverrides: [{}, { "x.com": "off" }] })), true);
+eq("nested objects are compared by value, not identity",
+   contentVisibleChange(chg({ categories: [{ error: true }, { error: true }] })), false);
+eq("and a nested change is caught",
+   contentVisibleChange(chg({ categories: [{ error: true }, { error: false }] })), true);
+eq("no detail at all is treated as significant",
+   contentVisibleChange(undefined), true);
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);
