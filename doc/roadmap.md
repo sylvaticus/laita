@@ -96,20 +96,109 @@ What is *not* shared, and why:
 Running in Node also removes the single biggest setup obstacle: no `Origin` header is
 sent, so **`OLLAMA_ORIGINS` is irrelevant** for this target.
 
-### LibreOffice — do not write an extension
+### LibreOffice — a LanguageTool server, not an extension
 
 Two reasons. UNO extensions are Python, Basic or Java, so **no** JavaScript is reusable —
 the anchoring and prompts would have to be reimplemented and then kept in step by hand.
 
-And LibreOffice can already talk to a **remote LanguageTool server** (Tools ▸ Options ▸
-Languages ▸ LanguageTool Server, on 7.4 and later — verify on your version). A small local
-HTTP service implementing the LanguageTool API and proxying to Ollama would therefore give
-LibreOffice support **with no extension at all**, and the same service would serve the
+And LibreOffice can already talk to a **remote LanguageTool server**. A small local HTTP
+service implementing the LanguageTool API and proxying to Ollama therefore gives
+LibreOffice support **with no extension at all**, and the same service serves the
 LanguageTool add-ons for Thunderbird, Obsidian and others for free. That service is Node,
 so it shares the core.
 
-This is the highest reward per line of code of the three, and it is the one that needs no
-new UI.
+**Verified on LibreOffice 26.2.5.2 (Ubuntu 26.04)**, replacing the earlier "7.4 and
+later — verify on your version":
+
+- `share/registry/lingucomponent.xcd` registers exactly one grammar checker,
+  `org.openoffice.lingu.LanguageToolGrammarChecker`, with a hardcoded list of ~45
+  locales. A document in any other language never produces a request.
+- `share/registry/main.xcd` defines its settings under
+  `Linguistic/GrammarChecking/LanguageTool`: `BaseURL`, `IsEnabled` (**default false**),
+  `Username`, `ApiKey`, `SSLCertVerify`, `RestProtocol`.
+- **That checker is a client with nothing behind it.** No server ships with LibreOffice,
+  `languagetool` is not in the Ubuntu archive, and the only checker installed by default
+  is Hunspell spelling. Every LibreOffice user wanting grammar checking must already
+  supply a server URL — which is exactly the slot we fill.
+
+The name misleads: "LanguageTool Grammar Checker" in the options dialog is an HTTP caller,
+not a checker.
+
+#### What the ecosystem looks like
+
+The **client** half is large and stable — LibreOffice, OnlyOffice, MS Word, Google Docs,
+Obsidian, Zettlr, TeXstudio, Emacs, Vim, Sublime, VS Code (LTeX+), Thunderbird, Trados —
+and nearly all accept a custom server URL, because self-hosting is normal practice.
+
+The **server** half is nearly empty. Almost everything calling itself "self-hosted
+LanguageTool" is the official Java server in Docker. The one genuine third-party
+implementation in use is
+[`ltapiserv-rs`](https://github.com/cpg314/ltapiserv-rs) (Rust, nlprule + symspell, ~27
+stars). It is worth knowing for two reasons: it proves a third-party server drops into
+the real clients (tested against the official browser extensions, `flycheck-languagetool`
+and `ltex-ls`), and it ships exactly the way we would — one binary, a systemd *user*
+service, deb/Arch packages, Docker.
+
+**Nobody has put an LLM behind this API.** The nearest projects are adjacent, not the
+same: [`lm-writing-tool`](https://github.com/peteole/lm-writing-tool) is an independent
+reinvention of our VS Code extension, paragraph chunking and all, and does not use the
+LanguageTool API at all.
+
+That gap is an opportunity, but "nobody has done it" deserves a suspicious question, and
+there is a plausible answer: **speed**. Every one of those clients was written against a
+checker answering in milliseconds. We measured 0.7 s for 139 characters and 19.4 s for
+1119, growing worse than linearly. The risk is not compatibility, it is a client that
+spins, times out, or queues requests while the user keeps typing.
+
+#### Shipping is where this plan is weakest
+
+| | Adapter service | Python UNO extension |
+| --- | --- | --- |
+| Build cost | low — reuses `anchor.js` and `ollama.js` unchanged | high — reimplement ~600 lines in Python, then keep two copies honest forever |
+| Ship cost | **high** — a binary per platform, code signing, an autostart mechanism per OS, plus the LibreOffice setting | **low** — one `.oxt`, double-click, all platforms, no runtime |
+| Transform feature | impossible — the protocol has no slot for it | possible |
+| Reach | Thunderbird, Obsidian, Zettlr and the rest for free | LibreOffice only |
+
+The adapter is cheap to write and awkward to ship; the extension is the reverse. The
+choice here was made on code, and it still looks right — a duplicated core is the thing
+that actually rots — but if "a non-technical colleague must be able to install it" ever
+becomes the deciding constraint, the `.oxt` wins and this section should change.
+
+Distribution, if the adapter wins: `npx` first (no signing, no binaries, works
+everywhere, costs a Node install), then a `node:sea` single-file binary (~100 MB, needs
+an Apple Developer account and a Windows certificate to avoid Gatekeeper and SmartScreen
+warnings). Autostart is a systemd user unit, a launchd LaunchAgent, or a Startup-folder
+shortcut, all installable without root. Bind **127.0.0.1 only** — it is an
+unauthenticated endpoint in front of an LLM.
+
+The last step, setting `BaseURL`, can be automated by a **configuration-only `.oxt`**:
+an extension containing an `.xcu` and no code at all. Do *not* write
+`registrymodifications.xcu` directly — LibreOffice rewrites it on exit.
+
+#### The first experiment, before any LAITA code
+
+Run the official server locally and put a logging proxy in front of it:
+
+```
+LibreOffice  ->  :8082 logging proxy  ->  :8081 official LanguageTool
+```
+
+```bash
+docker run -d --name lt -p 8081:8010 meyay/languagetool
+# or, from https://languagetool.org/download/ (needs Java 17+):
+java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081
+```
+
+Then Tools ▸ Options ▸ Languages and Locales ▸ Writing Aids ▸ LanguageTool Server:
+enable, Base URL `http://localhost:8081/v2`.
+
+That one capture answers everything currently inferred rather than known: whether
+LibreOffice appends `/check` to the base URL, how much text arrives per request and how
+often, the exact JSON shape of a working reply (to imitate rather than reverse-engineer),
+and what LibreOffice does when a reply takes fifteen seconds.
+
+This remains the highest reward per line of code of the three, and the only one needing
+no new UI.
 
 ## Repository layout
 

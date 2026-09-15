@@ -34,7 +34,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ---
 
-## State — last updated 2026-09-14
+## State — last updated 2026-09-15
 
 ### Identity
 
@@ -54,7 +54,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 | | Firefox (AMO) | Chrome Web Store | VS Code Marketplace |
 | --- | --- | --- | --- |
-| Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts | **0.3.9 published 2026-09-14** |
+| Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts | **0.3.9 live since 2026-09-14** |
 | Listing id | slug `local-ai-text-assistant` | — | `sylvaticus.laita` |
 | Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.9.zip` | `laita-chrome-0.3.9.zip` | — |
 
@@ -195,6 +195,33 @@ Verified end to end against a live Ollama: opening a markdown file produces exac
 `POST /api/chat`. Everything past that — quick fixes, the dictionary, transforms — has
 been exercised by hand in the F5 window but has no automated coverage.
 
+### LibreOffice — the next target, nothing built yet
+
+The plan and its reasoning are in `roadmap.md`; only the volatile parts belong here.
+Checked on **LibreOffice 26.2.5.2, Ubuntu 26.04**, by reading the shipped registry:
+
+- The built-in `LanguageToolGrammarChecker` is a **client with no server behind it**,
+  disabled by default, and `languagetool` is not in the Ubuntu archive. Nothing local
+  checks grammar on this machine today; Hunspell does spelling only. The empty
+  `BaseURL` setting is the whole opportunity.
+- No LLM-backed LanguageTool server exists anywhere. `ltapiserv-rs` (Rust, ~27 stars) is
+  the only third-party server in use and proves the clients accept one.
+
+**Inferred, not measured — and the next session should measure these before writing
+anything:**
+
+1. Whether LibreOffice appends `/check` to `BaseURL` or wants the full path.
+2. How much text arrives per request, and how often.
+3. Whether plain `http` on localhost is accepted (there is an `SSLCertVerify` setting,
+   which suggests yes, but that is not proof).
+4. **What LibreOffice does when a reply takes fifteen seconds.** This is the one that
+   could sink the plan: every LanguageTool client was written against a checker that
+   answers in milliseconds, and our own curve is 0.7 s at 139 characters, 19.4 s at 1119.
+
+The agreed first step is a logging proxy between LibreOffice and a real LanguageTool
+server, which answers all four at once and yields a known-good reply to imitate. Nothing
+has been installed for this yet — no Docker image pulled, no server downloaded.
+
 ### Open items
 
 - Upload **0.3.9** to both browser stores — neither has yet seen a version under the
@@ -215,5 +242,9 @@ been exercised by hand in the F5 window but has no automated coverage.
   a broken range and cost two wrong diagnoses before the severity was dumped from a live
   run. Severities are now settings, defaulting to warning/info/info.
 - The 16px icon is legible but weak; a hand-drawn simplified mark was offered and not done.
+- If the LibreOffice adapter is built, packaging is its hard part, not the code: a
+  background service needs a per-OS autostart and, for a signed binary, an Apple
+  Developer account and a Windows certificate. A configuration-only `.oxt` remains the
+  friendliest way to set `BaseURL` — an extension with no code in it.
 - Language detection is now duplicated between `browser/src/content/common.js` and
   `vscode/src/text.js`; the first candidate if a real shared `core/` package is extracted.
