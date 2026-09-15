@@ -20,8 +20,15 @@ const CANNED = {
  */
 const transformAnswer = (parsed) => {
   const user = parsed.messages?.[parsed.messages.length - 1]?.content ?? "";
-  const m = user.match(/<<<TEXT\n([\s\S]*)\nTEXT>>>/);
-  const fragment = m ? m[1] : "";
+  // The fence carries a per-request random tag, and the backreference requires the closing
+  // marker to carry the SAME one - so this also asserts the fence is well formed. It used
+  // to be the fixed string <<<TEXT ... TEXT>>>, which a page could write into a field to
+  // end the quoted block early and have the rest read as instructions.
+  const m = user.match(/<<<TEXT_([0-9a-f]+)\n([\s\S]*)\nTEXT_\1>>>/);
+  if (!m) {
+    return "MOCK ERROR: the user prompt is not inside a well-formed tagged fence";
+  }
+  const fragment = m[2];
   return `Here is the polished text:\n"${fragment.replace(/e/g, "E")}"`;
 };
 

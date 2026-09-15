@@ -102,12 +102,31 @@ export function buildSystemPrompt(settings, lang) {
  * this returns must be identical for proofreading and transforming, or the extension
  * would fight itself the same way.
  */
-export function runnerOptions(settings) {
+/**
+ * A model that fails to stop was bounded only by the request timeout, which for a
+ * transform can be eleven minutes. Both jobs have a natural ceiling - a proofreading
+ * reply is JSON with at most 12 issues, a transform is a rewrite of its input - so an
+ * answer far past that is a runaway, not a long answer, and waiting out the timeout for
+ * it helps nobody.
+ *
+ * Generous on purpose: this is a backstop against nonsense, not a length policy. Ollama
+ * treats num_predict as a maximum and stops naturally well before it.
+ */
+export function runnerOptions(settings, { predictTokens } = {}) {
   const options = { temperature: Number(settings.temperature) || 0 };
   const pinned = Number(settings.numCtx) || 0;
   if (pinned > 0) options.num_ctx = pinned;
+  if (predictTokens > 0) options.num_predict = Math.ceil(predictTokens);
   return options;
 }
+
+/** Room for the rewrite plus half again, floored so a short selection is never squeezed. */
+export function transformPredictTokens(textLength) {
+  return Math.max(512, Math.ceil((textLength / 3) * 1.5));
+}
+
+/** 12 issues, each carrying a quote, a replacement and a short message. */
+export const ISSUES_PREDICT_TOKENS = 2048;
 
 /**
  * How long to allow a transform, in milliseconds.
@@ -226,7 +245,7 @@ export async function requestIssues({ text, lang, settings, signal }) {
     think: !!settings.think,
     format: RESPONSE_SCHEMA,
     keep_alive: settings.keepAlive,
-    options: runnerOptions(settings),
+    options: runnerOptions(settings, { predictTokens: ISSUES_PREDICT_TOKENS }),
     messages: [
       { role: "system", content: buildSystemPrompt(settings, lang) },
       { role: "user", content: buildUserPrompt(text, lang) }
@@ -502,7 +521,7 @@ export async function requestTransform({ text, instruction, lang, settings, sign
     stream: false,
     think: !!settings.think,
     keep_alive: settings.keepAlive,
-    options: runnerOptions(settings),
+    options: runnerOptions(settings, { predictTokens: transformPredictTokens(text.length) }),
     messages: [
       { role: "system", content: buildTransformSystemPrompt(settings, lang, instruction) },
       { role: "user", content: buildTransformUserPrompt(text) }

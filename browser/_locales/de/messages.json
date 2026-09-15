@@ -1,0 +1,30 @@
+{
+  "categoryError": {
+    "message": "Fehler",
+    "description": "Badge on a suggestion that is a hard grammar or spelling mistake."
+  },
+  "categoryStyle": {
+    "message": "Stil",
+    "description": "Badge on a suggestion about style rather than correctness."
+  },
+  "categoryRephrase": {
+    "message": "Umformulieren",
+    "description": "Badge on a suggestion that rewrites a phrase."
+  },
+  "actionApply": {
+    "message": "Anwenden",
+    "description": "Button: replace the highlighted text with the suggestion."
+  },
+  "actionDismiss": {
+    "message": "Verwerfen",
+    "description": "Button: hide this one suggestion for now."
+  },
+  "actionNever": {
+    "message": "Nie vorschlagen",
+    "description": "Button: never make this exact suggestion again."
+  },
+  "actionDictionary": {
+    "message": "Zum Wörterbuch hinzufügen",
+    "description": "Button: add the highlighted word to the personal dictionary."
+  }
+}

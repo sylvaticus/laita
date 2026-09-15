@@ -10,7 +10,9 @@ import {
   ASSUMED_CONTEXT,
   fenceText,
   buildUserPrompt,
-  buildTransformUserPrompt
+  buildTransformUserPrompt,
+  transformPredictTokens,
+  ISSUES_PREDICT_TOKENS
 } from "../../src/background/ollama.js";
 
 // common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
@@ -196,6 +198,23 @@ eq("proofreading uses the fence", /<<<TEXT_[0-9a-f]+/.test(buildUserPrompt("x", 
 eq("transform uses the fence", /<<<TEXT_[0-9a-f]+/.test(buildTransformUserPrompt("x")), true);
 eq("the proofreading prompt still names the language",
    buildUserPrompt("x", "fr").startsWith("Proofread this French text:"), true);
+
+// --- the runaway bound -------------------------------------------------------------------
+// Without num_predict a model that fails to stop was bounded only by the request timeout,
+// which for a transform can be eleven minutes.
+eq("a short selection still gets room to work",
+   transformPredictTokens(50) >= 512, true);
+eq("a long selection gets room for the rewrite plus half again",
+   transformPredictTokens(9000) > (9000 / 3), true);
+eq("the bound grows with the input", transformPredictTokens(20000) > transformPredictTokens(9000), true);
+eq("proofreading has a fixed ceiling - 12 issues, not a rewrite",
+   ISSUES_PREDICT_TOKENS > 0 && ISSUES_PREDICT_TOKENS < transformPredictTokens(100000), true);
+eq("no bound means no num_predict at all",
+   "num_predict" in runnerOptions({ temperature: 0 }), false);
+eq("a bound is passed through as an integer",
+   runnerOptions({ temperature: 0 }, { predictTokens: 1024.4 }).num_predict, 1025);
+eq("num_ctx is still absent unless pinned",
+   "num_ctx" in runnerOptions({ temperature: 0, numCtx: 0 }, { predictTokens: 10 }), false);
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

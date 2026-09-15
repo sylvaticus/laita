@@ -84,15 +84,24 @@
       <div class="row">
         <label for="debounceMs">Typing pause before checking (ms)</label>
         <input id="debounceMs" type="number" min="300" max="20000" step="100">
+        <small>How long you have to stop typing before a check starts. Shorter means more
+        requests for text you are still changing, and the model does not answer instantly
+        either — a paragraph takes seconds, not milliseconds.</small>
       </div>
       <div class="row">
         <label for="minChars">Ignore fields shorter than (characters)</label>
         <input id="minChars" type="number" min="1" max="500" step="1">
+        <small>Keeps search boxes, usernames and one-line forms out of it. There is nothing
+        useful to say about three words, and asking costs a round trip anyway.</small>
       </div>
       <div class="row">
         <label for="chunkMaxChars">Maximum chunk size (characters)</label>
         <input id="chunkMaxChars" type="number" min="120" max="4000" step="50">
-        <small>Longer paragraphs are split on sentence boundaries.</small>
+        <small>Longer paragraphs are split on sentence boundaries. This is the setting that
+        decides how fast checking feels: the model slows down <i>faster</i> than the text
+        grows — measured here, 139 characters took 0.7&nbsp;s and 1119 took 19.4&nbsp;s —
+        so two small requests beat one large one. Raise it only if suggestions are missing
+        context that spans sentences.</small>
       </div>
       <div class="row">
         <label for="maxChars">Maximum characters per check</label>
@@ -186,7 +195,13 @@
     <p class="note">Pausing on a site from the right-click menu, <b>Alt+Shift+X</b> or the
     toolbar button overrides these lists for that one hostname, so a pause holds whatever the
     policy above says. Clear those overrides under <i>Maintenance</i>.</p>
-    <p class="note">Local AI Text Assistant never touches password fields, payment fields, or any field whose name suggests a secret. You can also add <code>data-laita="off"</code> to any element to exclude it and everything inside it.</p>
+    <p class="note">LAITA never reads password, payment or one-time-code fields, nor any
+    field — including rich-text ones — whose own name, label or class, <b>or that of an
+    enclosing container</b>, suggests a secret, a payment, a bank, a recovery phrase, or
+    medical or identity data. That list is a denylist, so it cannot be complete: a field
+    with an innocuous name holding sensitive text is read like any other, and it protects
+    fields rather than content. Add <code>data-laita="off"</code> to any element to
+    exclude it and everything inside it.</p>
   </section>
 
   <section>

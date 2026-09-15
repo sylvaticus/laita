@@ -21,7 +21,7 @@ _(the following screenshots are based on the Firefox extension)_
 
 Problems get a coloured wavy underline. Click one for the explanation and the fix.
 
-![An error highlight: the card explains "Use 'I' instead of 'me' as the subject" and offers to replace "me" with "I"](assets/imgs/screenshot_locaispell_firefox5.png)
+![An error highlight: the card explains "Use 'I' instead of 'me' as the subject" and offers to replace "me" with "I"](assets/imgs/screenshot_laita_firefox5.png)
 
 Three kinds of problem, each with its own colour:
 
@@ -31,7 +31,7 @@ Three kinds of problem, each with its own colour:
 | 🟡 yellow | **style** | Not wrong, but weak: wordiness, redundancy, needless passive, repetition. |
 | 🔵 blue | **rephrase** | A better word or a more natural formulation. |
 
-![A rephrase suggestion: "too well english" becomes "very well English"](assets/imgs/screenshot_locaispell_firefox4.png)
+![A rephrase suggestion: "too well english" becomes "very well English"](assets/imgs/screenshot_laita_firefox4.png)
 
 Each card offers **Apply**, **Dismiss**, **Never suggest** — and **Add to dictionary** when
 the text is a single word.
@@ -40,15 +40,15 @@ the text is a single word.
 
 Select text, right-click, and pick **Transform…**:
 
-![The Firefox context menu showing the Local AI Text Assistant submenu with "Transform…" and "Pause spell check on this site"](assets/imgs/screenshot_locaispell_firefox3.png)
+![The Firefox context menu showing the Local AI Text Assistant submenu with "Transform…" and "Pause spell check on this site"](assets/imgs/screenshot_laita_firefox3.png)
 
 Type what you want done with it. Press Enter on an empty box for the default, `polish`:
 
-![The transform box, a single line containing the word "polish", with the hint "Enter to run · Esc to cancel · ↑ ↓ for recent"](assets/imgs/screenshot_locaispell_firefox2.png)
+![The transform box, a single line containing the word "polish", with the hint "Enter to run · Esc to cancel · ↑ ↓ for recent"](assets/imgs/screenshot_laita_firefox2.png)
 
 The result can replace the selection, be inserted after it, or be thrown away:
 
-![The transform result: "Sorry, me don't speak too well english." rewritten as "Sorry, I don't speak English very well.", with buttons Accept & replace, Reject, Accept & append](assets/imgs/screenshot_locaispell_firefox1.png)
+![The transform result: "Sorry, me don't speak too well english." rewritten as "Sorry, I don't speak English very well.", with buttons Accept & replace, Reject, Accept & append](assets/imgs/screenshot_laita_firefox1.png)
 
 `translate to French`, `shorten it`, `make it more formal`, `turn into bullet points` — the instruction is free text, so anything the model understands works.
 

@@ -11,7 +11,7 @@ OUT=dist-chrome
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
-cp -r src icons LICENSE "$OUT/"
+cp -r src icons _locales LICENSE "$OUT/"
 cp manifest.chrome.json "$OUT/manifest.json"
 
 # Fail loudly rather than shipping a manifest that points at a missing file.

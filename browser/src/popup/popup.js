@@ -15,16 +15,18 @@ async function activeTab() {
   return tab;
 }
 
+/** @returns {Promise<boolean>} whether a check is still running, so the caller knows
+ *  whether there is any point asking again. */
 async function refreshField(tab) {
-  if (!tab) return;
+  if (!tab) return false;
   const res = await browser.tabs.sendMessage(tab.id, { cmd: "getFieldState" }).catch(() => null);
   if (!res) {
-    $("field").textContent = "Local AI Text Assistant is not running on this page.";
-    return;
+    $("field").textContent = "LAITA is not running on this page.";
+    return false;
   }
   if (!res.hasField) {
     $("field").textContent = "Click into a text field, then press Check.";
-    return;
+    return false;
   }
   if (res.error) $("field").textContent = res.error;
   else if (res.busy) $("field").textContent = "Checking…";
@@ -33,6 +35,7 @@ async function refreshField(tab) {
       `${res.count} suggestion${res.count === 1 ? "" : "s"} in the focused field` +
       (res.lang ? ` (${res.lang})` : "");
   }
+  return !!res.busy;
 }
 
 async function init() {
@@ -109,8 +112,27 @@ async function init() {
       : probe?.error || "Cannot reach Ollama.";
   }
 
+  // Poll only while the popup is on screen and the field is actually busy. The old
+  // unconditional 1s timer kept running against a settled field for as long as the popup
+  // stayed open, asking a content script the same question forever. A popup closes when it
+  // loses focus, so this is small either way - but "small and pointless" is still pointless.
   refreshField(tab);
-  setInterval(() => refreshField(tab), 1000);
+  let poll = null;
+  const stopPolling = () => {
+    clearInterval(poll);
+    poll = null;
+  };
+  const tick = async () => {
+    const busy = await refreshField(tab);
+    if (!busy) stopPolling();
+  };
+  const startPolling = () => {
+    if (poll === null) poll = setInterval(tick, 1000);
+  };
+  startPolling();
+  addEventListener("pagehide", stopPolling);
+  // A check can start while the popup is open - the Check button below does exactly that.
+  $("check").addEventListener("click", startPolling);
 }
 
 init();

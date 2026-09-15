@@ -1,19 +1,45 @@
 /** The popup card shown when a highlight is clicked. Lives inside the overlay's shadow root. */
 
-const LABEL = {
-  error: { en: "Error", fr: "Erreur", it: "Errore", es: "Error", de: "Fehler" },
-  style: { en: "Style", fr: "Style", it: "Stile", es: "Estilo", de: "Stil" },
-  rephrase: { en: "Rephrase", fr: "Reformuler", it: "Riformulare", es: "Reformular", de: "Umformulieren" }
+/**
+ * Interface text, from _locales/ via the platform's own mechanism.
+ *
+ * This used to be five hardcoded tables keyed on `lang` - the detected language of the
+ * TEXT. That is backwards, and produced exactly the wrong result in the common case: a
+ * French speaker proofreading English prose got English buttons, and an English speaker
+ * proofreading French prose got French ones. Interface language follows the reader;
+ * content language follows the content. browser.i18n keys on the browser's UI locale,
+ * which is the reader.
+ *
+ * The model works in 25 languages and the interface is translated into 5. Adding a sixth
+ * is now a file in _locales/, with no code change - which is the other reason to use the
+ * platform mechanism rather than an object literal.
+ *
+ * The fallback matters: content scripts in a page that failed to load the extension's
+ * i18n data, and the test harness, both see getMessage return "".
+ */
+const FALLBACK = {
+  categoryError: "Error",
+  categoryStyle: "Style",
+  categoryRephrase: "Rephrase",
+  actionApply: "Apply",
+  actionDismiss: "Dismiss",
+  actionNever: "Never suggest",
+  actionDictionary: "Add to dictionary"
 };
 
-const ACTIONS = {
-  apply: { en: "Apply", fr: "Appliquer", it: "Applica", es: "Aplicar", de: "Anwenden" },
-  dismiss: { en: "Dismiss", fr: "Ignorer", it: "Ignora", es: "Descartar", de: "Verwerfen" },
-  never: { en: "Never suggest", fr: "Ne plus proposer", it: "Non proporre piu", es: "No sugerir mas", de: "Nie vorschlagen" },
-  dict: { en: "Add to dictionary", fr: "Ajouter au dictionnaire", it: "Aggiungi al dizionario", es: "Anadir al diccionario", de: "Zum Worterbuch" }
+const t = (key) => {
+  try {
+    return browser.i18n.getMessage(key) || FALLBACK[key] || key;
+  } catch {
+    return FALLBACK[key] || key;
+  }
 };
 
-const t = (table, lang) => table[lang] || table.en;
+const CATEGORY_KEY = {
+  error: "categoryError",
+  style: "categoryStyle",
+  rephrase: "categoryRephrase"
+};
 
 LAITA.Card = {
   current: null,
@@ -34,7 +60,7 @@ LAITA.Card = {
 
     const head = el("div", "head");
     head.append(
-      el("span", "badge", t(LABEL[issue.type], lang)),
+      el("span", "badge", t(CATEGORY_KEY[issue.type] || "categoryError")),
       el("span", "lang", lang || ""),
       el("div", "spacer")
     );
@@ -54,21 +80,21 @@ LAITA.Card = {
     body.appendChild(diff);
 
     const actions = el("div", "actions");
-    actions.appendChild(button(t(ACTIONS.apply, lang), "primary", () => {
+    actions.appendChild(button(t("actionApply"), "primary", () => {
       this.hide();
       opts.onApply?.(issue);
     }));
-    actions.appendChild(button(t(ACTIONS.dismiss, lang), "", () => {
+    actions.appendChild(button(t("actionDismiss"), "", () => {
       this.hide();
       opts.onDismiss?.(issue);
     }));
-    actions.appendChild(button(t(ACTIONS.never, lang), "", () => {
+    actions.appendChild(button(t("actionNever"), "", () => {
       this.hide();
       opts.onNever?.(issue);
     }));
     // Only offer the dictionary for something that actually looks like a single word.
     if (/^[\p{L}\p{M}'-]{2,40}$/u.test(issue.original)) {
-      actions.appendChild(button(t(ACTIONS.dict, lang), "", () => {
+      actions.appendChild(button(t("actionDictionary"), "", () => {
         this.hide();
         opts.onDictionary?.(issue);
       }));

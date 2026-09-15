@@ -1,0 +1,30 @@
+{
+  "categoryError": {
+    "message": "Error",
+    "description": "Badge on a suggestion that is a hard grammar or spelling mistake."
+  },
+  "categoryStyle": {
+    "message": "Estilo",
+    "description": "Badge on a suggestion about style rather than correctness."
+  },
+  "categoryRephrase": {
+    "message": "Reformular",
+    "description": "Badge on a suggestion that rewrites a phrase."
+  },
+  "actionApply": {
+    "message": "Aplicar",
+    "description": "Button: replace the highlighted text with the suggestion."
+  },
+  "actionDismiss": {
+    "message": "Descartar",
+    "description": "Button: hide this one suggestion for now."
+  },
+  "actionNever": {
+    "message": "No sugerir más",
+    "description": "Button: never make this exact suggestion again."
+  },
+  "actionDictionary": {
+    "message": "Añadir al diccionario",
+    "description": "Button: add the highlighted word to the personal dictionary."
+  }
+}
