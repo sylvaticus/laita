@@ -47,6 +47,27 @@ if (existsSync(DIST)) {
   ok("versions agree across manifests", manifest.version === firefox.version,
      `chrome ${manifest.version} vs firefox ${firefox.version}`);
 
+  // <all_urls> in host_permissions let the background fetch any origin on the internet,
+  // which is what turned a mis-set endpoint from a mistake into a form-field keylogger.
+  // Content scripts are declared separately and keep their own <all_urls> matches; the
+  // only thing the host permission bought was fetch-anywhere, and a remote endpoint now
+  // asks for its origin through permissions.request instead.
+  for (const [name, m] of [["chrome", manifest], ["firefox", firefox]]) {
+    ok(`${name}: no <all_urls> host permission`,
+       !(m.host_permissions || []).includes("<all_urls>"),
+       JSON.stringify(m.host_permissions));
+    ok(`${name}: loopback is still reachable without asking`,
+       (m.host_permissions || []).includes("http://localhost/*") &&
+       (m.host_permissions || []).includes("http://127.0.0.1/*"),
+       JSON.stringify(m.host_permissions));
+    ok(`${name}: a remote endpoint can still be granted on request`,
+       (m.optional_host_permissions || []).length > 0,
+       JSON.stringify(m.optional_host_permissions));
+    ok(`${name}: content scripts still run everywhere`,
+       m.content_scripts[0].matches.includes("<all_urls>"),
+       JSON.stringify(m.content_scripts[0].matches));
+  }
+
   // a manifest pointing at a file that is not there is the failure users would hit first
   const refs = [manifest.background.service_worker, manifest.options_ui.page,
                 manifest.action.default_popup, ...manifest.content_scripts[0].js,

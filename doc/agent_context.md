@@ -86,11 +86,23 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   152, including with `--disable-features=DisableLoadExtensionCommandLineSwitch`. The
   extension never appears among the debugger targets. `test/unit/chrome-compat.test.mjs`
   fakes both API surfaces instead.
-- `<all_urls>` cannot be replaced by `activeTab`: automatic proofreading has no user
-  gesture to hang off. `<all_urls>` in *`host_permissions`* is, separately, nearly
-  unnecessary — it is used only to read `tab.url` for the per-site pause, which the
-  content script could report instead. Removing it would not silence the store warning,
-  because `content_scripts.matches` alone triggers it.
+- `<all_urls>` in `content_scripts.matches` cannot be replaced by `activeTab`: automatic
+  proofreading has no user gesture to hang off. It stays.
+- **`<all_urls>` was removed from `host_permissions` at 0.4.0.** It was used only to read
+  `tab.url` for the per-site pause; the content script now answers a `hostname` message
+  instead, and `hostnameForTab` falls back to `tab.url` where a content script cannot run.
+  A remote endpoint asks for its own origin through `permissions.request` against
+  `optional_host_permissions: ["*://*/*"]`.
+  - **What this actually buys differs by browser, and the difference is not documented
+    anywhere obvious.** On Chrome it is a real reduction: `content_scripts.matches` never
+    granted fetch-anywhere, so the background can no longer reach arbitrary origins. On
+    Firefox 127+, host permissions listed in `content_scripts` are *also* granted at
+    install, so the grant may be unchanged — the code no longer depends on it either way.
+  - It does **not** silence either store's permission warning; `content_scripts.matches`
+    alone triggers that.
+  - **Not verified on a real Firefox or Chrome profile.** The unit tests pin the manifest
+    shape and the hostname path, but nobody has watched a per-site pause work after an
+    upgrade that drops a previously granted permission.
 
 ### This machine
 

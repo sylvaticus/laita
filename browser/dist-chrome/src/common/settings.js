@@ -120,6 +120,52 @@ export async function setSettings(patch) {
   return getSettings();
 }
 
+/**
+ * Is this endpoint on the machine the browser is running on?
+ *
+ * The privacy claim is "nothing leaves your machine", and the endpoint is the one setting
+ * that can make it false. It is free text, so this is the only place that can tell the
+ * difference between the default and a server on the internet - and the answer drives a
+ * confirmation, a permission request and a visible marker rather than being advisory.
+ *
+ * Deliberately strict: anything it cannot parse is treated as remote. A malformed
+ * endpoint that is waved through is exactly the case this exists to catch.
+ */
+export function isLoopbackEndpoint(endpoint) {
+  let url;
+  try {
+    url = new URL(String(endpoint || "").trim());
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+
+  // URL lower-cases the hostname but KEEPS the brackets on an IPv6 literal, so
+  // "http://[::1]/" gives "[::1]" rather than "::1".
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  if (host === "::1" || host === "0:0:0:0:0:0:0:1") return true;
+  // The whole 127.0.0.0/8 block, not just 127.0.0.1.
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (v4) {
+    const parts = v4.slice(1).map(Number);
+    if (parts.some((n) => n > 255)) return false;
+    return parts[0] === 127;
+  }
+  return false;
+}
+
+/** Is the text sent in clear over a network? Loopback http never leaves the machine, so
+ *  it is not the same risk as http to another host. */
+export function isClearTextEndpoint(endpoint) {
+  if (isLoopbackEndpoint(endpoint)) return false;
+  try {
+    return new URL(String(endpoint || "").trim()).protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 /** Settings a content script actually reads. The dictionary and the ignored list are used
  *  only when the background builds a prompt or filters a reply, so a change to either
  *  needs no tab to hear about it. */

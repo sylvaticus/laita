@@ -326,7 +326,8 @@ Before submitting:
       the listing page wants a raster version.
 - [ ] **Screenshots and a description.** `assets/imgs/` has five screenshots; the
       description field is empty by default and is what a stranger reads first.
-- [ ] **Re-read the permission story.** This add-on asks for `<all_urls>` and reads what
+- [ ] **Re-read the permission story.** This add-on matches `<all_urls>` in
+      `content_scripts` and reads what
       the user types, so expect scrutiny. In its favour: everything stays on the user's
       machine, the manifest declares
       `data_collection_permissions: { "required": ["none"] }`, and password and payment

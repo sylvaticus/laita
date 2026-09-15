@@ -435,8 +435,30 @@ function hostnameOf(url) {
   try {
     return new URL(url).hostname;
   } catch {
-    return "";                     // about:, view-source:, a blank tab
+    return "";                     // about:, view-source:, a blank tab, or no permission
   }
+}
+
+/**
+ * Which site is this tab on?
+ *
+ * Asked of the page rather than read from tab.url. `tab.url` is only populated for tabs we
+ * hold a host permission for, and the extension deliberately no longer asks for one over
+ * every site - the only thing <all_urls> in host_permissions ever bought was this string.
+ * The content script is already there and already knows.
+ *
+ * Falls back to tab.url for the cases a content script cannot answer: it is still
+ * populated for localhost, which we do hold, and harmlessly empty elsewhere.
+ */
+async function hostnameForTab(tab) {
+  if (!tab?.id) return "";
+  try {
+    const res = await browser.tabs.sendMessage(tab.id, { cmd: "hostname" });
+    if (res?.hostname) return res.hostname;
+  } catch {
+    /* no content script here: about:, the add-on stores, a PDF viewer, a discarded tab */
+  }
+  return hostnameOf(tab.url);
 }
 
 /**
@@ -470,7 +492,7 @@ browser.runtime.onInstalled.addListener(installMenus);
 
 /** Word the pause/resume item for whichever site the given tab is on. */
 async function toggleTitleFor(tab) {
-  const hostname = hostnameOf(tab?.url);
+  const hostname = await hostnameForTab(tab);
   const settings = await getSettings();
   const running = !!hostname && settings.enabled && siteAllowed(settings, hostname);
   const where = hostname || "this page";
@@ -524,7 +546,7 @@ menus.onClicked.addListener(async (info, tab) => {
     return;
   }
   if (info.menuItemId === TOGGLE_ID) {
-    const hostname = hostnameOf(tab.url);
+    const hostname = await hostnameForTab(tab);
     if (!hostname) return;
     await handlers.toggleSite({ hostname });
     await browser.tabs.sendMessage(tab.id, { cmd: "settingsChanged" }).catch(() => {});
@@ -538,7 +560,7 @@ browser.commands.onCommand.addListener(async (name) => {
     await tellActiveTab({ cmd: "transformSelection" });
   } else if (name === "toggle-site") {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    const hostname = hostnameOf(tab?.url);
+    const hostname = await hostnameForTab(tab);
     if (!hostname) return;
     await handlers.toggleSite({ hostname });
     await browser.tabs.sendMessage(tab.id, { cmd: "settingsChanged" }).catch(() => {});

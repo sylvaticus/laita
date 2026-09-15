@@ -3,7 +3,9 @@
 // background module and the content scripts each do their own aliasing; these two
 // pages were simply missed.
 import "../common/compat.js";
-import { getSettings, setSettings, siteAllowed } from "../common/settings.js";
+import {
+  getSettings, setSettings, siteAllowed, isLoopbackEndpoint, isClearTextEndpoint
+} from "../common/settings.js";
 
 const $ = (id) => document.getElementById(id);
 let hostname = "";
@@ -35,13 +37,42 @@ async function refreshField(tab) {
 
 async function init() {
   const tab = await activeTab();
+  // Ask the page. tab.url is only populated for tabs we hold a host permission for, and
+  // the extension no longer asks for one over every site.
   try {
-    hostname = new URL(tab.url).hostname;
+    const res = await browser.tabs.sendMessage(tab.id, { cmd: "hostname" });
+    hostname = res?.hostname || "";
   } catch {
     hostname = "";
   }
+  if (!hostname) {
+    try {
+      hostname = new URL(tab.url).hostname;
+    } catch {
+      hostname = "";
+    }
+  }
 
   const settings = await getSettings();
+
+  // A non-local endpoint is the one setting that makes "nothing leaves your machine"
+  // false, and nothing else in the interface would show it. It is a legitimate choice -
+  // a bigger machine on your own network - but it should never be a quiet one.
+  if (!isLoopbackEndpoint(settings.endpoint)) {
+    const warn = $("remoteEndpoint");
+    if (warn) {
+      let host = settings.endpoint;
+      try {
+        host = new URL(settings.endpoint).host;
+      } catch {
+        /* show the raw string if it will not parse */
+      }
+      warn.textContent = isClearTextEndpoint(settings.endpoint)
+        ? `Sending your text to ${host}, unencrypted`
+        : `Sending your text to ${host}`;
+      warn.hidden = false;
+    }
+  }
   $("enabled").checked = settings.enabled;
   $("site").checked = siteAllowed(settings, hostname);
   $("siteLabel").textContent = hostname ? `Enabled on ${hostname}` : "Enabled on this site";

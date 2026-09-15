@@ -28,3 +28,19 @@ body {
 .btn.primary { background: #111827; border-color: #111827; color: #fff; }
 @media (prefers-color-scheme: dark) { .btn.primary { background: #e5e7eb; border-color: #e5e7eb; color: #111827; } }
 kbd { font: 11px ui-monospace, monospace; opacity: .6; margin-left: 4px; }
+
+/* Shown only when the endpoint is not on this machine. Deliberately loud: it contradicts
+   the extension's headline promise, so it should not look like an ordinary status line. */
+.remote {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #c0392b;
+  background: #fdecea;
+  color: #7b241c;
+  font-size: 12px;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .remote { background: #3b1513; color: #f5b7b1; border-color: #e74c3c; }
+}

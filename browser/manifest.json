@@ -22,8 +22,10 @@
   ],
   "host_permissions": [
     "http://localhost/*",
-    "http://127.0.0.1/*",
-    "<all_urls>"
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
   ],
   "background": {
     "scripts": [

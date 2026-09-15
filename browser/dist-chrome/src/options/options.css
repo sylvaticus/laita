@@ -58,3 +58,19 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; padding: 10px 24px; text
 }
 .saved.on { opacity: 1; }
 @media (max-width: 640px) { .grid, .cats { grid-template-columns: 1fr; } }
+
+/* Shown whenever the endpoint is not on this machine. It contradicts the extension's
+   headline promise, so it stays visible rather than flashing once at save time. */
+.warn {
+  margin: 4px 0 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #c0392b;
+  background: #fdecea;
+  color: #7b241c;
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .warn { background: #3b1513; color: #f5b7b1; border-color: #e74c3c; }
+}

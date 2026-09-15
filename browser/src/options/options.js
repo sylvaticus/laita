@@ -3,7 +3,9 @@
 // background module and the content scripts each do their own aliasing; these two
 // pages were simply missed.
 import "../common/compat.js";
-import { DEFAULTS, getSettings, setSettings } from "../common/settings.js";
+import {
+  DEFAULTS, getSettings, setSettings, isLoopbackEndpoint, isClearTextEndpoint
+} from "../common/settings.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -96,9 +98,86 @@ function flashSaved() {
   flashSaved.t = setTimeout(() => el.classList.remove("on"), 1100);
 }
 
+/**
+ * Sending your text somewhere other than this machine is a decision, not a typo.
+ *
+ * The endpoint is free text and the extension's headline promise is that nothing leaves
+ * the machine. Before a non-loopback endpoint takes effect the user is asked, by name, and
+ * the host permission needed to reach it is requested there and then - so the choice also
+ * appears in the browser's own permission UI rather than only in ours. Declining restores
+ * the previous value instead of half-applying the change.
+ *
+ * Returns the endpoint to actually save.
+ */
+async function confirmEndpoint(next, previous) {
+  if (!next || next === previous || isLoopbackEndpoint(next)) return next;
+
+  let host = next;
+  try {
+    host = new URL(next).host;
+  } catch {
+    /* unparseable: show it verbatim, and it is treated as remote either way */
+  }
+  const clear = isClearTextEndpoint(next)
+    ? "\n\nThis address is plain http, so the text will travel unencrypted."
+    : "";
+  const ok = confirm(
+    `"${host}" is not on this computer.\n\n` +
+    `Everything LAITA proofreads or rewrites will be sent there, and the promise that ` +
+    `nothing leaves your machine no longer applies.${clear}\n\n` +
+    `Use this endpoint?`
+  );
+  if (!ok) {
+    $("endpoint").value = previous ?? DEFAULTS.endpoint;
+    return previous ?? DEFAULTS.endpoint;
+  }
+
+  // Reaching a host we hold no permission for fails silently in fetch, so ask for it here,
+  // where there is a user gesture to hang the request off.
+  try {
+    const origin = new URL(next).origin + "/*";
+    const granted = await browser.permissions.request({ origins: [origin] });
+    if (!granted) {
+      alert(
+        `Permission to contact ${host} was not granted, so requests to it would fail.\n\n` +
+        `Keeping the previous endpoint.`
+      );
+      $("endpoint").value = previous ?? DEFAULTS.endpoint;
+      return previous ?? DEFAULTS.endpoint;
+    }
+  } catch {
+    /* an unparseable origin cannot be requested; the confirmation above stands */
+  }
+  return next;
+}
+
 async function save() {
-  settings = await setSettings(collect());
+  const patch = collect();
+  patch.endpoint = await confirmEndpoint(patch.endpoint, settings?.endpoint);
+  settings = await setSettings(patch);
+  renderEndpointWarning();
   flashSaved();
+}
+
+/** A standing marker for as long as the endpoint is not local. */
+function renderEndpointWarning() {
+  const el = $("endpointWarning");
+  if (!el) return;
+  const endpoint = $("endpoint").value;
+  if (isLoopbackEndpoint(endpoint)) {
+    el.hidden = true;
+    return;
+  }
+  let host = endpoint;
+  try {
+    host = new URL(endpoint).host;
+  } catch {
+    /* verbatim */
+  }
+  el.textContent = isClearTextEndpoint(endpoint)
+    ? `Your text is sent to ${host}, unencrypted. It does not stay on this machine.`
+    : `Your text is sent to ${host}. It does not stay on this machine.`;
+  el.hidden = false;
 }
 
 function scheduleSave() {
@@ -133,11 +212,16 @@ async function probe() {
 async function init() {
   settings = await getSettings();
   fill();
+  renderEndpointWarning();
 
   for (const [id] of SCALARS) {
     $(id).addEventListener("change", scheduleSave);
-    $(id).addEventListener("input", scheduleSave);
+    // Not the endpoint: saving it can raise a confirmation, and the debounced save fires
+    // 350ms after each keystroke - which would interrupt you halfway through typing a
+    // hostname. It saves when you leave the field or press Enter, like a form.
+    if (id !== "endpoint") $(id).addEventListener("input", scheduleSave);
   }
+  $("endpoint").addEventListener("input", renderEndpointWarning);
   for (const el of document.querySelectorAll("[data-cat],[data-color]")) {
     el.addEventListener("change", scheduleSave);
   }

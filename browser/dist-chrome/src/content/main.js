@@ -430,6 +430,11 @@
     if (msg.cmd === "transformSelection") {
       return LAITA.Transform.open();
     }
+    // The background page used to read tab.url, which needs a host permission over every
+    // site. It no longer holds one, and does not need to: the page knows where it is.
+    if (msg.cmd === "hostname") {
+      return { ok: true, hostname: location.hostname };
+    }
     if (msg.cmd === "settingsChanged") {
       const wasActive = LAITA.active;
       await loadSettings();

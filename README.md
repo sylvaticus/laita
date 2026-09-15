@@ -589,11 +589,14 @@ accurate for the extension itself.
 It is worth being exact, because the sentence is true of the default configuration rather
 than of the software in the abstract. **Two things have to hold, and you control both:**
 
-1. **The endpoint is on your machine.** It defaults to `http://localhost:11434`. It is a
-   free-text setting, so it *can* be pointed at a server across the internet — and if you
-   do that, your text goes there instead. That is a legitimate thing to want (a beefier
-   machine on your own LAN, say), but it is a decision, and nothing about the interface
-   makes the destination obvious once it is set. If you did not change it, it is local.
+1. **The endpoint is on your machine.** It defaults to `http://localhost:11434`, and the
+   extension holds permission to reach *only* loopback addresses. Pointing it at anything
+   else — a beefier machine on your own network, say — is a legitimate thing to want, and
+   it is treated as the decision it is: the options page names the host and asks you to
+   confirm, the browser asks separately for permission to contact it, and for as long as
+   the endpoint is not local both the options page and the toolbar popup say so in plain
+   words. If you never changed it, it is local, and the extension cannot reach anywhere
+   else even if something rewrote the setting behind your back.
 2. **The model is a local one.** Ollama can serve cloud-hosted models as well as ones on
    your disk. If you configure LAITA with such a model, Ollama forwards your text to that
    provider — LAITA cannot tell the difference and would not stop you. `ollama list` shows

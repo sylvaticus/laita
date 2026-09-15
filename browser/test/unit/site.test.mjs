@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
-import { siteAllowed, withDefaults, contentVisibleChange } from "../../src/common/settings.js";
+import {
+  siteAllowed, withDefaults, contentVisibleChange, isLoopbackEndpoint, isClearTextEndpoint
+} from "../../src/common/settings.js";
 
 // common.js declares `var LAITA`, so it has to be evaluated in the global sloppy scope.
 (0, eval)(readFileSync(new URL("../../src/content/common.js", import.meta.url).pathname, "utf8"));
@@ -99,6 +101,46 @@ eq("and a nested change is caught",
    contentVisibleChange(chg({ categories: [{ error: true }, { error: false }] })), true);
 eq("no detail at all is treated as significant",
    contentVisibleChange(undefined), true);
+
+// --- the endpoint classification --------------------------------------------------------
+// The endpoint is free text and it is the single setting that can make "nothing leaves
+// your machine" false. Anything this cannot parse must be treated as remote: a malformed
+// endpoint waved through is exactly the case the check exists to catch.
+const local = (u) => eq(`local: ${u}`, isLoopbackEndpoint(u), true);
+const remote = (u) => eq(`remote: ${u}`, isLoopbackEndpoint(u), false);
+
+local("http://localhost:11434");
+local("http://127.0.0.1:11434");
+local("https://localhost");
+local("http://LOCALHOST:11434");           // the URL parser lower-cases it
+local("http://dev.localhost:3000");
+local("http://127.5.6.7");                  // the whole 127/8 block, not just .0.1
+local("http://[::1]:11434");
+local("http://[0:0:0:0:0:0:0:1]/");
+local("  http://localhost:11434  ");        // stray whitespace from a paste
+
+remote("http://192.168.1.5:11434");         // the LAN is not this machine
+remote("https://collector.attacker.example");
+remote("http://127.0.0.1.evil.com");        // the classic prefix trick
+remote("http://localhost.evil.com");
+remote("http://0.0.0.0:11434");             // binds locally, is not a loopback destination
+remote("http://[2001:db8::1]");
+remote("ftp://localhost");                  // only http(s) is ever fetched
+remote("file:///etc/passwd");
+remote("http://999.0.0.1");                 // not a valid v4 address
+remote("not a url");
+remote("");
+remote(undefined);
+remote(null);
+
+eq("plain http to another host is cleartext",
+   isClearTextEndpoint("http://192.168.1.5:11434"), true);
+eq("https to another host is not",
+   isClearTextEndpoint("https://ollama.example"), false);
+eq("http to loopback never leaves the machine, so it is not cleartext risk",
+   isClearTextEndpoint("http://localhost:11434"), false);
+eq("an unparseable endpoint is not reported as cleartext, only as remote",
+   isClearTextEndpoint("not a url"), false);
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);
