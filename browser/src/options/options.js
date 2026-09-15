@@ -4,7 +4,8 @@
 // pages were simply missed.
 import "../common/compat.js";
 import {
-  DEFAULTS, getSettings, setSettings, isLoopbackEndpoint, isClearTextEndpoint
+  DEFAULTS, getSettings, setSettings, isLoopbackEndpoint, isClearTextEndpoint,
+  clampSetting, LIMITS
 } from "../common/settings.js";
 
 const $ = (id) => document.getElementById(id);
@@ -62,14 +63,39 @@ function syncSiteLabel() {
   );
 }
 
+/** Say what was changed and why, next to the field it happened to. */
+function noteAdjusted(id, typed, used) {
+  const row = $(id)?.closest(".row");
+  if (!row) return;
+  let note = row.querySelector(".adjusted");
+  if (!note) {
+    note = document.createElement("p");
+    note.className = "adjusted";
+    row.appendChild(note);
+  }
+  const range = LIMITS[id];
+  note.textContent = range
+    ? `"${typed}" is outside ${range[0]}\u2013${range[1]}; using ${used}.`
+    : `"${typed}" is not a number; using ${used}.`;
+  clearTimeout(note._t);
+  note._t = setTimeout(() => note.remove(), 6000);
+}
+
 function collect() {
   const patch = {};
   for (const [id, kind] of SCALARS) {
     const el = $(id);
     if (kind === "bool") patch[id] = el.checked;
     else if (kind === "number") {
-      const n = Number(el.value);
-      patch[id] = Number.isFinite(n) ? n : DEFAULTS[id];
+      // Anything out of range is pulled back into it rather than accepted: concurrency 100
+      // against a server that serialises, debounceMs 0 (a request per keystroke) and a
+      // negative temperature were all taken without comment. And a value that is silently
+      // rewritten has to say so, or the field just appears to eat what you typed.
+      const before = el.value.trim();
+      const after = clampSetting(id, before === "" ? DEFAULTS[id] : before);
+      patch[id] = after;
+      if (before !== "" && String(after) !== before) noteAdjusted(id, before, after);
+      el.value = after;
     } else patch[id] = el.value;
   }
   patch.categories = {};

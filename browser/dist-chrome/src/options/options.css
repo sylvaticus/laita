@@ -74,3 +74,12 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; padding: 10px 24px; text
 @media (prefers-color-scheme: dark) {
   .warn { background: #3b1513; color: #f5b7b1; border-color: #e74c3c; }
 }
+
+/* Shown for a few seconds when a typed number was pulled into range. A field that
+   silently rewrites what you typed reads as a bug. */
+.adjusted {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #8a6d1f;
+}
+@media (prefers-color-scheme: dark) { .adjusted { color: #e0c36a; } }

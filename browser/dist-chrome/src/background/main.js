@@ -30,7 +30,12 @@ function cacheKey(text, lang, s) {
     PROMPT_VERSION, s.model, lang, cats, s.temperature,
     hash((s.dictionary || []).join(",")), hash(s.extraInstructions || "")
   ].join("|");
-  return profile + "|" + hash(text) + "|" + text.length;
+  // Two hashes over different views of the text, not one. A single FNV-1a-32 is a 32-bit
+  // space, and a collision here does not degrade quietly - it applies another chunk's
+  // suggestions to this chunk. Anchoring drops quotes it cannot find, so the damage is
+  // bounded, but the cost of making a collision implausible is a second hash.
+  return profile + "|" + hash(text) + "|" + hash(text.split("").reverse().join("")) +
+         "|" + text.length;
 }
 
 function cacheGet(key) {
@@ -88,7 +93,14 @@ class StaleError extends Error {
   }
 }
 
-/** Newest generation seen per content-script client, and the requests still in flight. */
+/** Newest generation seen per content-script client, and the requests still in flight.
+ *
+ *  `clientId` is minted once per content-script instance, i.e. once per frame per page
+ *  load, so this map gained an entry for every frame ever loaded and never lost one. It is
+ *  now bounded the same way the response cache is: insertion-ordered, oldest evicted. A
+ *  client whose entry is evicted has not been heard from in GENERATIONS_MAX frames and its
+ *  requests are long finished. */
+const GENERATIONS_MAX = 500;
 const generations = new Map();
 const inFlight = new Set();
 
@@ -99,7 +111,11 @@ function isStale(clientId, gen) {
 function noteGeneration(clientId, gen) {
   if (clientId == null || gen == null) return;
   if (gen <= (generations.get(clientId) ?? 0)) return;
+  generations.delete(clientId);                 // re-insert so the newest is last
   generations.set(clientId, gen);
+  while (generations.size > GENERATIONS_MAX) {
+    generations.delete(generations.keys().next().value);
+  }
   for (const req of inFlight) {
     if (req.clientId === clientId && req.gen < gen) req.controller.abort();
   }

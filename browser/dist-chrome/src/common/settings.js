@@ -66,10 +66,68 @@ export const DEFAULTS = {
 };
 
 /** Deep-ish merge that only walks the one level of nested objects we actually have. */
+/**
+ * Ranges for the numeric settings.
+ *
+ * These MUST match the min/max on the matching inputs in options.html. The spinner already
+ * enforced them, but nothing did when a value arrived any other way - typed over,
+ * restored from a synced profile, or written straight into storage - and every consumer
+ * then trusted it: concurrency 100 against a server that serialises, debounceMs 0 (a
+ * request per keystroke), a negative temperature. options.test.mjs fails if the two
+ * drift apart.
+ */
+export const LIMITS = {
+  temperature:      [0, 1],
+  numCtx:           [0, 131072],
+  concurrency:      [1, 8],
+  requestTimeoutMs: [5000, 3600000],
+  debounceMs:       [300, 20000],
+  minChars:         [1, 500],
+  chunkMaxChars:    [120, 4000],
+  maxChars:         [500, 200000]
+};
+
+export function clampSetting(key, value) {
+  const range = LIMITS[key];
+  if (!range) return value;
+  // Number("") and Number("  ") are 0, which would clamp to the minimum and look like a
+  // deliberate choice. An empty field means "I have not said", so it takes the default.
+  if (value === "" || value === null || value === undefined ||
+      (typeof value === "string" && value.trim() === "")) {
+    return DEFAULTS[key];
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULTS[key];
+  return Math.min(range[1], Math.max(range[0], n));
+}
+
+/**
+ * Merge stored settings over the defaults, without trusting what is stored.
+ *
+ * Every consumer assumes the shapes hold - `s.ignored.includes(fp)`,
+ * `s.dictionary.slice(0, 300).join(", ")` - so a store that has been corrupted, restored
+ * from another version, or hand-edited turns each of those into a TypeError that surfaces
+ * as an unhelpful "something went wrong". Taking the default for anything of the wrong
+ * type makes the store self-healing instead.
+ */
 export function withDefaults(stored) {
   const out = { ...DEFAULTS, ...(stored || {}) };
   for (const key of ["categories", "colors", "siteOverrides"]) {
-    out[key] = { ...DEFAULTS[key], ...((stored && stored[key]) || {}) };
+    const from = stored && stored[key];
+    const usable = from && typeof from === "object" && !Array.isArray(from) ? from : {};
+    out[key] = { ...DEFAULTS[key], ...usable };
+  }
+  for (const [key, fallback] of Object.entries(DEFAULTS)) {
+    const v = out[key];
+    if (Array.isArray(fallback)) {
+      if (!Array.isArray(v)) out[key] = [...fallback];
+    } else if (typeof fallback === "number") {
+      out[key] = clampSetting(key, v);
+    } else if (typeof fallback === "boolean") {
+      if (typeof v !== "boolean") out[key] = fallback;
+    } else if (typeof fallback === "string") {
+      if (typeof v !== "string") out[key] = fallback;
+    }
   }
   return out;
 }

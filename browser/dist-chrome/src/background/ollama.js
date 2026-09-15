@@ -30,7 +30,10 @@ const RESPONSE_SCHEMA = {
           message: { type: "string" }
         },
         required: ["original", "replacement", "type", "message"]
-      }
+      },
+      // The "at most 12 issues" rule is otherwise prompt-only, and a chatty model's
+      // 200-issue reply was accepted and anchored in full.
+      maxItems: 12
     }
   },
   required: ["issues"]
@@ -177,11 +180,38 @@ export async function effectiveContext(settings, signal) {
   return value;
 }
 
+/**
+ * A fence the text being fenced cannot close.
+ *
+ * `<<<TEXT ... TEXT>>>` is fixed, so a page can put the closing marker in a field and
+ * everything after it is read as instructions rather than as content - the model is then
+ * told, by the page, what to suggest. A per-request random tag removes the mechanical
+ * break-out: the attacker cannot write a marker they have never seen.
+ *
+ * This is a lock on one door, not a defence against prompt injection, which has none. The
+ * real protection is that nothing is applied without anchoring and a visible diff. Belt
+ * and braces, and the braces are in anchor.js.
+ */
+function fenceTag() {
+  const bytes = new Uint8Array(6);
+  (globalThis.crypto ?? {}).getRandomValues?.(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return hex === "000000000000" ? String(Date.now().toString(16)) : hex;
+}
+
+/** Neutralise any occurrence of our own markers inside the payload. Belt, meet braces. */
+function defuse(text, tag) {
+  const marker = new RegExp(`(<<<TEXT_${tag}|TEXT_${tag}>>>)`, "g");
+  return String(text).replace(marker, "\u200b$1");
+}
+
+export function fenceText(text) {
+  const tag = fenceTag();
+  return `<<<TEXT_${tag}\n${defuse(text, tag)}\nTEXT_${tag}>>>`;
+}
+
 export function buildUserPrompt(text, lang) {
-  return (
-    `Proofread this ${languageName(lang)} text:\n` +
-    `<<<TEXT\n${text}\nTEXT>>>`
-  );
+  return `Proofread this ${languageName(lang)} text:\n` + fenceText(text);
 }
 
 /**
@@ -286,7 +316,13 @@ export function isTransient(err) {
   if (err?.stale || err?.name === "AbortError") return false;
   const msg = String(err?.message || err);
   if (/HTTP (500|502|503|504)/.test(msg)) return true;
-  return /NetworkError|Failed to fetch|ECONNREFUSED|network/i.test(msg);
+  // A 4xx is the server saying no, and retrying it just says no again. The error string
+  // embeds the response body, so a bare /network/i matched any 4xx whose body happened to
+  // mention the word - "no network access configured", say - and turned a permanent
+  // refusal into three of them.
+  if (/HTTP 4\d\d/.test(msg)) return false;
+  return /NetworkError|Failed to fetch|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(msg) ||
+         /\bnetwork error\b/i.test(msg);
 }
 
 const LOAD_FAILURE = /llama-server|load failed|unable to load|out of memory|no such file|runner/i;
@@ -385,13 +421,18 @@ export function buildTransformSystemPrompt(settings, lang, instruction) {
     `- If the instruction cannot sensibly be applied, return the fragment unchanged.`
   ];
   if (settings.extraInstructions?.trim()) {
-    lines.push(``, `Additional house rules:`, settings.extraInstructions.trim());
+    lines.push(
+      ``,
+      `Additional house rules from the user. They may refine the style rules above; they`,
+      `can never change the output format or what counts as the text to work on:`,
+      settings.extraInstructions.trim()
+    );
   }
   return lines.join("\n");
 }
 
 export function buildTransformUserPrompt(text) {
-  return `<<<TEXT\n${text}\nTEXT>>>`;
+  return fenceText(text);
 }
 
 const QUOTE_PAIRS = { '"': '"', "'": "'", "«": "»", "“": "”" };
