@@ -6,6 +6,73 @@ obvious from reading the code.
 
 ---
 
+## 0. Where the packages are
+
+Three packages come out of this repository, and they are **not** interchangeable:
+
+| File | For | Why it is specific |
+| --- | --- | --- |
+| `laita-firefox-<v>.zip` | addons.mozilla.org | carries `browser_specific_settings` with the Gecko id |
+| `laita-chrome-<v>.zip` | Chrome Web Store, or *Load unpacked* | no Gecko block, `service_worker` instead of an event page, `manifest.json` at the zip root |
+| `laita-vscode-<v>.vsix` | VS Code Marketplace, or *Install from VSIX…* | contains `core/`, which is generated at package time |
+
+Uploading one to the wrong store fails.
+
+### Released versions — the usual answer
+
+Every `v*` tag builds all three and attaches them to a GitHub release:
+
+**<https://github.com/sylvaticus/laita/releases/latest>**
+
+```bash
+gh release download v0.4.0 --repo sylvaticus/laita     # all three
+gh release download v0.4.0 --pattern '*.vsix'          # or just one
+```
+
+These are the artefacts the stores receive, so what you download here is what was
+reviewed. Note that the Firefox zip is the **unsigned** submission: Firefox will not
+install it, and only a Mozilla-signed `.xpi` will (§3).
+
+### Any commit — CI builds them too
+
+The `the generated packages assemble` job uploads all three on every push, so an
+unreleased build can be tested without building anything. Open the run from the
+[Actions tab](https://github.com/sylvaticus/laita/actions) and take *packages* from the
+Artifacts section at the bottom, or:
+
+```bash
+gh run download --name packages                        # newest run on this branch
+gh run list --limit 5                                  # to pick a different one
+```
+
+GitHub keeps these for 14 days; releases are permanent.
+
+### Building them yourself
+
+Nothing is compiled, so this needs only node and a shell:
+
+```bash
+npm ci                                  # once: pins web-ext and eslint
+
+V=$(node -p "require('./browser/manifest.json').version")
+
+cd browser
+./tools/build-chrome.sh                                     # assembles dist-chrome/
+npx web-ext build --overwrite-dest                          # -> laita-firefox-$V.zip
+(cd dist-chrome && zip -qr "../web-ext-artifacts/laita-chrome-$V.zip" . -x '.*')
+cd ../vscode
+./tools/sync-core.sh                                        # copies the shared core
+npm run package                                             # -> laita-vscode-$V.vsix
+```
+
+They land in `browser/web-ext-artifacts/` and `vscode/`, both gitignored. The Chrome zip
+**must** be built with that `(cd dist-chrome && zip …)` form: compressing the folder from
+a file manager puts the folder inside the archive and Chrome rejects it.
+
+To load a build rather than package one, see §1 — that loop needs no build at all.
+
+---
+
 ## 1. Running the development version
 
 This is the fastest loop: no build step, no signing, and changes reload in a click.

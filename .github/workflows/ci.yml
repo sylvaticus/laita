@@ -89,5 +89,20 @@ jobs:
       - run: vscode/tools/sync-core.sh
       - run: npx --yes @vscode/vsce package --no-dependencies --out /tmp/ci.vsix
         working-directory: vscode
-      - name: show what came out
-        run: ls -la browser/web-ext-artifacts/ /tmp/ci.vsix
+      - name: name them after the version, not after the run
+        run: |
+          V=$(node -p "require('./browser/manifest.json').version")
+          mkdir -p packages
+          cp browser/web-ext-artifacts/laita-firefox-*.zip "packages/laita-firefox-$V.zip"
+          mv browser/web-ext-artifacts/laita-chrome-ci.zip "packages/laita-chrome-$V.zip"
+          mv /tmp/ci.vsix "packages/laita-vscode-$V.vsix"
+          ls -la packages/
+
+      # So an unreleased build can be tested without building anything. Kept for 14 days:
+      # these are for trying a commit, not for distributing - releases are permanent.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: packages/*
+          retention-days: 14
+          if-no-files-found: error
