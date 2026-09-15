@@ -413,7 +413,7 @@ To build it yourself instead, see [`vscode/`](vscode/):
 
 ```bash
 cd vscode && npm run package
-code --install-extension laita-vscode-0.3.9.vsix
+code --install-extension laita-vscode-0.4.0.vsix
 ```
 
 Then write. Prose files are checked **as you type**, a paragraph at a time:

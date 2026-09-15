@@ -50,7 +50,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   upload and identical for every user — so unlike Firefox's per-profile UUID it can be
   published, and the README does. An unpacked `dist-chrome/` load gets a different local
   ID, which is why development still needs the wildcard.
-- All three packages are at **0.3.9**. The two browser manifests must match and
+- All three packages are at **0.4.0**. The two browser manifests must match and
   `dist-chrome.test.mjs` enforces it; the VS Code package is kept in step by convention
   only, with nothing checking it - except at release time, where the workflow refuses to
   publish unless all three match the tag.
@@ -63,9 +63,9 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 | | Firefox (AMO) | Chrome Web Store | VS Code Marketplace |
 | --- | --- | --- | --- |
-| Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts | **0.3.9 live since 2026-09-14** |
+| Consumed versions | 0.1.0, 0.2.0, 0.2.1 unlisted; **0.2.2 submitted listed, in human review** | 0.3.2, 0.3.3 uploaded as drafts | 0.3.9 live since 2026-09-14; **0.4.0 tagged** |
 | Listing id | slug `local-ai-text-assistant` | — | `sylvaticus.laita` |
-| Ready to upload | `browser/web-ext-artifacts/laita-firefox-0.3.9.zip` | `laita-chrome-0.3.9.zip` | — |
+| Ready to upload | attached to the **v0.4.0 GitHub release** by `release.yml`, along with the Chrome zip and the `.vsix` | | |
 
 - Neither store will accept a version number it has already seen, in either channel, even
   after the version is deleted.
@@ -147,7 +147,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ### VS Code extension
 
-`vscode/`, version **0.3.9** (numbered in step with the browser manifests rather than
+`vscode/`, version **0.4.0** (numbered in step with the browser manifests rather than
 starting at 0.1.0: three numbers for three targets of one tool is the worse confusion).
 **Published to the Marketplace as `sylvaticus.laita` on 2026-09-14**, the first of the
 three surfaces to be publicly listed under the LAITA name.
@@ -157,8 +157,8 @@ Built and installed like this:
 ```bash
 cd vscode
 ./tools/sync-core.sh                              # only after touching browser/src/background
-npm run package                                   # -> laita-vscode-0.3.9.vsix
-code --install-extension laita-vscode-0.3.9.vsix --force
+npm run package                                   # -> laita-vscode-0.4.0.vsix
+code --install-extension laita-vscode-0.4.0.vsix --force
 ```
 
 `--force` is needed to reinstall the same version. To run it without installing, open
@@ -249,7 +249,7 @@ has been installed for this yet — no Docker image pulled, no server downloaded
 
 ### Open items
 
-- Upload **0.3.9** to both browser stores — neither has yet seen a version under the
+- Upload **0.4.0** to both browser stores — neither has yet seen a version under the
   LAITA name. The Chrome listing still needs its Privacy practices tab completed and the
   publisher email verified.
 - The Marketplace listing has no screenshots and reuses the browser README; the artwork
