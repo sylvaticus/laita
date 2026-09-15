@@ -184,6 +184,20 @@ plausible and is silently wrong: Ollama accepts the setting and then rejects eve
 request with `403`. The variable takes a comma-separated list, so a second profile or
 machine needs its own UUID added.
 
+**Chrome is the opposite, and easier.** Its extension ID is assigned by the Web Store and
+is the same for everyone, so it can simply be written down. If you installed LAITA from
+the Chrome Web Store, use this instead of the wildcard:
+
+```
+OLLAMA_ORIGINS=chrome-extension://kkonkblgjafnampabmfflabkdkggpnjn
+```
+
+Ollama then accepts LAITA and refuses every other extension, with nothing to look up.
+
+Whichever you pin, remember what `OLLAMA_ORIGINS` is: a browser rule. It stops other
+*extensions* from reaching your model — not other programs on the same machine, which
+send no `Origin` at all and are never checked.
+
 Keep the wildcard while loading temporary development builds: those get a fresh UUID on
 every load.
 
@@ -240,7 +254,9 @@ build anything** — the ready-to-load folder is in the repository:
 3. Turn on **Developer mode** (top right)
 4. Click **Load unpacked** and select the **`browser/dist-chrome`** folder
 
-Chrome needs `chrome-extension://*` in `OLLAMA_ORIGINS` — see Step 1.
+Chrome needs `chrome-extension://*` in `OLLAMA_ORIGINS` — see Step 1. Use the wildcard
+here, not the pinned ID given there: an extension loaded unpacked gets its own local
+ID, not the Web Store one.
 
 Two things to know about loading unpacked, neither of which is a fault:
 

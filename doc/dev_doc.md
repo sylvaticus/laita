@@ -439,8 +439,23 @@ No other extension can then reach Ollama. It is per profile: another profile or 
 machine has a different UUID and needs its own entry, and the variable accepts a
 comma-separated list.
 
-**Keep the wildcard while developing.** A temporary add-on gets a fresh UUID on every
-load, so a narrowed origin refuses it.
+Chrome is the easy case: the Web Store assigns the ID and it is identical for every
+user, so the README can print it outright —
+`OLLAMA_ORIGINS=chrome-extension://kkonkblgjafnampabmfflabkdkggpnjn`. Verified by probing a
+throwaway Ollama pinned to that origin: the real ID reached the API, another
+`chrome-extension://` ID, a `moz-extension://` origin and an ordinary web origin were all
+refused with `403`.
+
+**Keep the wildcard while developing — on both browsers.** A Firefox temporary add-on
+gets a fresh UUID on every load, and a Chrome extension loaded unpacked from
+`dist-chrome/` gets a locally generated ID that is *not* the store one. Pin either
+published origin and your own development builds stop working, with the same `403` and no
+hint as to why. Narrow the origin only on a profile where LAITA is permanently installed
+from the store.
+
+`OLLAMA_ORIGINS` is a CORS setting, so it constrains browsers and nothing else: a request
+carrying no `Origin` header is allowed through regardless. It is a way to keep other
+extensions out, not a security boundary around Ollama.
 
 ---
 

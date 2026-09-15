@@ -46,6 +46,10 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   rename and is invisible to users, but AMO ties every uploaded version to it. Changing it
   creates a second, unrelated add-on and abandons the listing, its slug and any review in
   flight.
+- **The Chrome Web Store ID is `kkonkblgjafnampabmfflabkdkggpnjn`**, assigned at first
+  upload and identical for every user — so unlike Firefox's per-profile UUID it can be
+  published, and the README does. An unpacked `dist-chrome/` load gets a different local
+  ID, which is why development still needs the wildcard.
 - All three packages are at **0.3.9**. The two browser manifests must match and
   `dist-chrome.test.mjs` enforces it; the VS Code package is kept in step by convention
   only, with nothing checking it.
