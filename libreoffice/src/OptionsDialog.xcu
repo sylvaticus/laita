@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Puts a LAITA page in the Tools > Options tree. `Id` must be the extension's
+     identifier from description.xml or the page never appears; OptionsPage is resolved
+     against %origin%, the installed extension directory. -->
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
+                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                    oor:name="OptionsDialog" oor:package="org.openoffice.Office">
+  <node oor:name="Nodes">
+    <node oor:name="org.lobianco.laita" oor:op="fuse">
+      <prop oor:name="Label">
+        <value xml:lang="en">LAITA - Local AI Text Assistant</value>
+      </prop>
+      <node oor:name="Leaves">
+        <node oor:name="org.lobianco.laita.general" oor:op="fuse">
+          <prop oor:name="Id">
+            <value>org.lobianco.laita</value>
+          </prop>
+          <prop oor:name="Label">
+            <value xml:lang="en">Settings</value>
+          </prop>
+          <prop oor:name="OptionsPage">
+            <value>%origin%/dialog/options.xdl</value>
+          </prop>
+          <prop oor:name="EventHandlerService">
+            <value>org.lobianco.laita.OptionsHandler</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+  </node>
+</oor:component-data>

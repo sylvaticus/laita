@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The toolbar. Four commands, each a URL in the protocol ProtocolHandler.xcu routes.
+     A toolbar rather than only a menu because the right-click menu is not always ours to
+     use: a grammar suggestion's menu belongs to LibreOffice, and the transform needs
+     somewhere of its own. -->
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
+                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                    oor:name="Addons" oor:package="org.openoffice.Office">
+  <node oor:name="AddonUI">
+    <node oor:name="OfficeToolBar">
+      <node oor:name="org.lobianco.laita.toolbar" oor:op="replace">
+        <prop oor:name="Title" oor:type="xs:string">
+          <value xml:lang="en">LAITA</value>
+        </prop>
+        <node oor:name="m1" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>org.lobianco.laita.command:checkdocument</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en">Check this document</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="m2" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>org.lobianco.laita.command:stop</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en">Stop checking</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="m3" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>org.lobianco.laita.command:transform</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en">Transform selection</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="m4" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string">
+            <value>org.lobianco.laita.command:options</value>
+          </prop>
+          <prop oor:name="Title" oor:type="xs:string">
+            <value xml:lang="en">LAITA options</value>
+          </prop>
+          <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+      </node>
+    </node>
+  </node>
+</oor:component-data>

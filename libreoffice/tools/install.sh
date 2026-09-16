@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Rebuild and reinstall the probe, refusing to do it while LibreOffice is running.
+# Rebuild and reinstall the extension, refusing to do it while LibreOffice is running.
 #
 # LibreOffice keeps a background soffice.bin alive after the last window closes, and a
 # newly registered extension is not picked up until that process exits. Installing over a
@@ -42,12 +42,14 @@ export PATH="$CLEAN_PATH"
 
 ./tools/build-oxt.sh >/dev/null
 UNOPKG=/usr/lib/libreoffice/program/unopkg
-"$UNOPKG" remove org.lobianco.laita.probe >/dev/null 2>&1 || true
-"$UNOPKG" add -f laita-probe.oxt
+"$UNOPKG" remove org.lobianco.laita.probe >/dev/null 2>&1 || true   # the old probe
+"$UNOPKG" remove org.lobianco.laita >/dev/null 2>&1 || true
+"$UNOPKG" add -f laita.oxt
 echo -n "  "; "$UNOPKG" list 2>&1 | grep -m1 'is registered'
-rm -f ~/laita-probe.log
-printf 'delay=0\nclaim_paragraph=1\n' > ~/.laita-probe
-echo "  log cleared, delay=0"
+rm -f ~/laita-libreoffice.log
 echo
-echo "Now open Writer and type a sentence containing the word 'the'."
-echo "Then: cat ~/laita-probe.log"
+echo "Open Writer. The first time, enable LAITA for your language in"
+echo "  Tools > Options > Languages and Locales > Writing Aids"
+echo "    > Available Language Modules > Edit... > pick your language > tick LAITA"
+echo
+echo "Then: tail -f ~/laita-libreoffice.log"

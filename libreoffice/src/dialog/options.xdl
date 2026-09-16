@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
+<!-- The options page. withtitlebar="false" because it is embedded in the Tools > Options
+     tree rather than shown as a dialog; the ids here are what OptionsHandler looks up. -->
+<dlg:window xmlns:dlg="http://openoffice.org/2000/dialog"
+            xmlns:script="http://openoffice.org/2000/script"
+            dlg:id="options" dlg:left="0" dlg:top="0" dlg:width="260" dlg:height="215"
+            dlg:closeable="false" dlg:moveable="false" dlg:withtitlebar="false">
+ <dlg:bulletinboard>
+
+  <dlg:fixedline dlg:id="l1" dlg:tab-index="0" dlg:left="4" dlg:top="3" dlg:width="252" dlg:height="10" dlg:value="Ollama"/>
+  <dlg:text dlg:id="tEndpoint" dlg:tab-index="1" dlg:left="8" dlg:top="17" dlg:width="70" dlg:height="10" dlg:value="Endpoint"/>
+  <dlg:textfield dlg:id="Endpoint" dlg:tab-index="2" dlg:left="80" dlg:top="15" dlg:width="172" dlg:height="12"/>
+  <dlg:text dlg:id="tModel" dlg:tab-index="3" dlg:left="8" dlg:top="32" dlg:width="70" dlg:height="10" dlg:value="Model"/>
+  <dlg:textfield dlg:id="Model" dlg:tab-index="4" dlg:left="80" dlg:top="30" dlg:width="172" dlg:height="12"/>
+  <dlg:text dlg:id="tKeep" dlg:tab-index="5" dlg:left="8" dlg:top="47" dlg:width="70" dlg:height="10" dlg:value="Keep loaded for"/>
+  <dlg:textfield dlg:id="KeepAlive" dlg:tab-index="6" dlg:left="80" dlg:top="45" dlg:width="60" dlg:height="12"/>
+  <dlg:checkbox dlg:id="Think" dlg:tab-index="7" dlg:left="146" dlg:top="46" dlg:width="106" dlg:height="10" dlg:value="Let the model think" dlg:checked="false"/>
+
+  <dlg:fixedline dlg:id="l2" dlg:tab-index="8" dlg:left="4" dlg:top="63" dlg:width="252" dlg:height="10" dlg:value="When to check"/>
+  <dlg:checkbox dlg:id="Enabled" dlg:tab-index="9" dlg:left="8" dlg:top="77" dlg:width="120" dlg:height="10" dlg:value="Enabled" dlg:checked="true"/>
+  <dlg:checkbox dlg:id="CheckAsYouType" dlg:tab-index="10" dlg:left="132" dlg:top="77" dlg:width="120" dlg:height="10" dlg:value="Check as you type" dlg:checked="true"/>
+  <dlg:text dlg:id="tDeb" dlg:tab-index="11" dlg:left="8" dlg:top="92" dlg:width="110" dlg:height="10" dlg:value="Typing pause before checking (ms)"/>
+  <dlg:textfield dlg:id="DebounceMs" dlg:tab-index="12" dlg:left="192" dlg:top="90" dlg:width="60" dlg:height="12"/>
+  <dlg:text dlg:id="tMin" dlg:tab-index="13" dlg:left="8" dlg:top="107" dlg:width="110" dlg:height="10" dlg:value="Ignore paragraphs shorter than"/>
+  <dlg:textfield dlg:id="MinChars" dlg:tab-index="14" dlg:left="192" dlg:top="105" dlg:width="60" dlg:height="12"/>
+  <dlg:text dlg:id="tMax" dlg:tab-index="15" dlg:left="8" dlg:top="122" dlg:width="110" dlg:height="10" dlg:value="Maximum characters per check"/>
+  <dlg:textfield dlg:id="MaxChars" dlg:tab-index="16" dlg:left="192" dlg:top="120" dlg:width="60" dlg:height="12"/>
+
+  <dlg:fixedline dlg:id="l3" dlg:tab-index="17" dlg:left="4" dlg:top="138" dlg:width="252" dlg:height="10" dlg:value="What to suggest"/>
+  <dlg:checkbox dlg:id="CatError" dlg:tab-index="18" dlg:left="8" dlg:top="152" dlg:width="76" dlg:height="10" dlg:value="Errors" dlg:checked="true"/>
+  <dlg:checkbox dlg:id="CatStyle" dlg:tab-index="19" dlg:left="88" dlg:top="152" dlg:width="76" dlg:height="10" dlg:value="Style" dlg:checked="true"/>
+  <dlg:checkbox dlg:id="CatRephrase" dlg:tab-index="20" dlg:left="168" dlg:top="152" dlg:width="84" dlg:height="10" dlg:value="Rephrasings" dlg:checked="true"/>
+  <dlg:text dlg:id="tExtra" dlg:tab-index="21" dlg:left="8" dlg:top="169" dlg:width="244" dlg:height="10" dlg:value="Extra instructions for the model"/>
+  <dlg:textfield dlg:id="ExtraInstructions" dlg:tab-index="22" dlg:left="8" dlg:top="181" dlg:width="244" dlg:height="26" dlg:multiline="true"/>
+
+ </dlg:bulletinboard>
+</dlg:window>

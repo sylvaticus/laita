@@ -2,11 +2,11 @@
 <description xmlns="http://openoffice.org/extensions/description/2006"
              xmlns:d="http://openoffice.org/extensions/description/2006"
              xmlns:xlink="http://www.w3.org/1999/xlink">
-  <identifier value="org.lobianco.laita.probe" />
+  <identifier value="org.lobianco.laita" />
   <display-name>
-    <name lang="en">LAITA probe (measurement only, not the real thing)</name>
+    <name lang="en">LAITA - Local AI Text Assistant</name>
   </display-name>
-  <version value="0.0.1" />
+  <version value="0.4.0" />
   <publisher>
     <name lang="en" xlink:href="https://github.com/sylvaticus/laita">Antonello Lobianco</name>
   </publisher>

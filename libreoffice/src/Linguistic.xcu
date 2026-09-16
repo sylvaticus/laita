@@ -3,17 +3,18 @@
   Registers the proofreader as a grammar checker. The node name must be exactly the
   implementation name the Python class reports, or LibreOffice silently never calls it.
 
-  Locales is a fixed list: a document in a language not named here never produces a call,
-  no matter what the model could do with it.
+  Locales is fixed at install time: a document in a language not named here is never
+  checked, and the extension is never called, so it cannot even say why. It must agree
+  with LOCALES in laita.py - test_wiring.py checks that it does.
 -->
 <oor:component-data oor:name="Linguistic" oor:package="org.openoffice.Office"
                     xmlns:oor="http://openoffice.org/2001/registry"
                     xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <node oor:name="ServiceManager">
     <node oor:name="GrammarCheckers">
-      <node oor:name="org.lobianco.laita.Probe" oor:op="fuse">
+      <node oor:name="org.lobianco.laita.Proofreader" oor:op="fuse">
         <prop oor:name="Locales" oor:type="oor:string-list">
-          <value>en-US en-GB en fr-FR fr it-IT it de-DE de es-ES es</value>
+          <value>en-US en-GB en fr-FR fr it-IT it de-DE de es-ES es pt-PT pt-BR pt nl-NL nl</value>
         </prop>
       </node>
     </node>
