@@ -210,6 +210,29 @@ def main():
           'JOB_IMPL = "org.lobianco.laita.StartupJob"' in py, True)
     check("Jobs.xcu is shipped", "Jobs.xcu" in listed, True)
 
+    # --- Ignore All must reach the ignore list -------------------------------------------
+    # LibreOffice passes aRuleIdentifier back to ignoreRule(). If that id names the
+    # CATEGORY rather than the suggestion, "Ignore All" silences every error in the
+    # document instead of the one the user pointed at - and it would look like it worked.
+    check("the rule id carries the fingerprint",
+          'err.aRuleIdentifier = "LAITA:%s:%s" % (issue["type"], issue["fp"])' in py, True)
+    check("ignoreRule reads the last field back out",
+          'str(rule).split(":")[-1]' in py, True)
+    check("...and writes it to the persistent ignore list",
+          "settings_store.write(self.ctx, ignored=" in py, True)
+    check("resetIgnoreRules does NOT wipe the stored list",
+          "def resetIgnoreRules" in py and
+          py.index("def resetIgnoreRules") < py.index("class ContextMenu") and
+          "ignored=" not in py[py.index("def resetIgnoreRules"):
+                               py.index("def doProofreading")], True)
+
+    # Every context-menu command must be one the dispatcher handles - same contract as
+    # the toolbar, and just as silent when it is wrong.
+    menu_commands = set(re.findall(r'PROTOCOL \+ "(\w+)"', py))
+    for command in sorted(menu_commands):
+        check("the dispatcher handles the menu command %r" % command,
+              command in handled, True)
+
     # --- the settings schema and the Python defaults must line up -------------------------
     sys.path.insert(0, os.path.join(SRC, "pythonpath"))
     import laita_settings as S

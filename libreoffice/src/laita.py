@@ -111,10 +111,38 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
         return False
 
     def ignoreRule(self, rule, locale):
-        pass
+        """LibreOffice's own "Ignore All", wired to LAITA's persistent ignore list.
+
+        No UI of ours is involved: the entry is already in the context menu, and the
+        rule identifier we put on the error comes back here. Its last field is the
+        issue fingerprint, which is what the browser stores too - so the two surfaces
+        agree on what "never suggest this again" means.
+        """
+        try:
+            fp = str(rule).split(":")[-1]
+            if not fp:
+                return
+            s = settings_store.read(self.ctx)
+            if fp in s["ignored"]:
+                return
+            settings_store.write(self.ctx, ignored=(list(s["ignored"]) + [fp])[-500:])
+            log("ignoring %s from now on" % fp)
+            self.engine.forget()
+            self._answer_ready("")
+        except Exception:
+            log("ignoreRule failed\n%s" % traceback.format_exc())
 
     def resetIgnoreRules(self):
-        pass
+        """Called when LibreOffice wants a clean slate for a document.
+
+        Deliberately does NOT clear the stored list: "never suggest this again" outlives
+        a document, exactly as it does in the browser. Only the cache is dropped, so the
+        next look re-applies the list.
+        """
+        try:
+            self.engine.forget()
+        except Exception:
+            pass
 
     # --- asking LibreOffice to look again -------------------------------------------------
     def addLinguServiceEventListener(self, listener):
@@ -228,7 +256,11 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
         err.nErrorStart = start
         err.nErrorLength = end - start
         err.nErrorType = uno.getConstantByName("com.sun.star.text.TextMarkupType.PROOFREADING")
-        err.aRuleIdentifier = "LAITA_%s" % issue["type"].upper()
+        # The fingerprint, not the category. LibreOffice passes this back to
+        # ignoreRule() when the user picks "Ignore All", so making it identify the
+        # SUGGESTION means that menu entry does what it says. A category id here would
+        # have silenced every error in the document instead.
+        err.aRuleIdentifier = "LAITA:%s:%s" % (issue["type"], issue["fp"])
         err.aShortComment = issue["message"] or "LAITA suggestion"
         err.aFullComment = "%s\n\n%s -> %s" % (issue["message"], issue["original"],
                                                issue["replacement"])
@@ -295,8 +327,30 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             self._say("LAITA has stopped checking. Use Check document to resume.")
         elif command == "transform":
             self._transform()
+        elif command == "adddictionary":
+            self._add_to_dictionary()
         elif command == "options":
             self._open_options()
+
+    def _add_to_dictionary(self):
+        word = selected_word(self.ctx)
+        if not word:
+            self._tell("LAITA", "Select a single word first, then add it to the "
+                                "dictionary.")
+            return
+        s = settings_store.read(self.ctx)
+        if word in s["dictionary"]:
+            self._tell("LAITA", '"%s" is already in the dictionary.' % word)
+            return
+        settings_store.write(self.ctx, dictionary=(list(s["dictionary"]) + [word])[-300:])
+        log("added %r to the dictionary" % word)
+        # The dictionary goes into the prompt, so every cached answer was produced
+        # without it and is now out of date.
+        pr = Proofreader.instance
+        if pr:
+            pr.engine.forget()
+            pr._answer_ready("")
+        self._tell("LAITA", '"%s" will no longer be flagged.' % word)
 
     def _selection(self):
         """The selected text range in the current document, or None.
@@ -408,10 +462,10 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 DialogHandler(self.ctx, on_run=run, on_append=append))
             dialog.getControl("Selected").setText(selected)
             combo = dialog.getControl("Instruction")
-            history = [s["transformDefault"]] + [h for h in s.get("ignored", []) if False]
-            for item in dict.fromkeys(history):
-                combo.addItems((item,), combo.getItemCount())
-            combo.setText(s["transformDefault"])
+            offered = list(dict.fromkeys(list(s["transformHistory"]) +
+                                         [s["transformDefault"]]))
+            combo.addItems(tuple(offered), 0)
+            combo.setText(offered[0] if offered else s["transformDefault"])
             if dialog.execute() == 1 and state["output"].strip():
                 # Accept & replace. The range was captured before the dialog opened, so
                 # this replaces what the user selected even if the cursor has moved.
@@ -570,14 +624,16 @@ def save_from(ctx, window):
     log("settings saved: %s" % sorted(changes))
 
 
+HISTORY_MAX = 20
+
+
 def remember_instruction(ctx, instruction):
-    """Keep the last few instructions, most recent first, for the dropdown."""
+    """Keep the last instructions, most recent first, for the dropdown."""
     if not instruction:
         return
     s = settings_store.read(ctx)
-    if instruction == s["transformDefault"]:
-        return
-    settings_store.write(ctx, transformDefault=instruction)
+    history = [instruction] + [h for h in s["transformHistory"] if h != instruction]
+    settings_store.write(ctx, transformHistory=history[:HISTORY_MAX])
 
 
 def test_connection(ctx, window):
@@ -657,6 +713,23 @@ class DialogHandler(unohelper.Base, XDialogEventHandler):
         return ("onTest", "onRun", "onAppend")
 
 
+def selected_word(ctx):
+    """The selection, if it is a single word worth putting in a dictionary."""
+    try:
+        desktop = ctx.ServiceManager.createInstanceWithContext(
+            "com.sun.star.frame.Desktop", ctx)
+        doc = desktop.getCurrentComponent()
+        selection = doc.getCurrentSelection()
+        if selection is None or not selection.getCount():
+            return None
+        text = selection.getByIndex(0).getString().strip()
+        if not text or len(text) > 48 or " " in text or "\n" in text:
+            return None
+        return text
+    except Exception:
+        return None
+
+
 class ContextMenu(unohelper.Base, XContextMenuInterceptor):
     """Adds LAITA's entry to the right-click menu.
 
@@ -674,12 +747,21 @@ class ContextMenu(unohelper.Base, XContextMenuInterceptor):
             factory = container  # the container is also the factory for its own entries
 
             sep = factory.createInstance("com.sun.star.ui.ActionTriggerSeparator")
+            container.insertByIndex(container.getCount(), sep)
+
             item = factory.createInstance("com.sun.star.ui.ActionTrigger")
             item.setPropertyValue("Text", "LAITA: Transform selection")
             item.setPropertyValue("CommandURL", PROTOCOL + "transform")
-
-            container.insertByIndex(container.getCount(), sep)
             container.insertByIndex(container.getCount(), item)
+
+            # Offered only for something that looks like a single word, because that is
+            # all a dictionary entry can usefully be.
+            word = selected_word(self.ctx)
+            if word:
+                add = factory.createInstance("com.sun.star.ui.ActionTrigger")
+                add.setPropertyValue("Text", 'LAITA: add "%s" to the dictionary' % word)
+                add.setPropertyValue("CommandURL", PROTOCOL + "adddictionary")
+                container.insertByIndex(container.getCount(), add)
             # CONTINUE_MODIFIED: keep our addition and let everyone else contribute too.
             return uno.Enum("com.sun.star.ui.ContextMenuInterceptorAction",
                             "CONTINUE_MODIFIED")

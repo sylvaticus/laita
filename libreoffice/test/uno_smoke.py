@@ -66,5 +66,15 @@ check("clamping applies through the real store", S.read(ctx)["debounceMs"], 300)
 S.write(ctx, minChars=original["minChars"], debounceMs=original["debounceMs"])    # noqa: F821
 check("restored", S.read(ctx)["minChars"], original["minChars"])   # noqa: F821
 
+# String lists need a typed uno.Any through uno.invoke; a plain list is refused with
+# "configmgr inappropriate property value", and for a while that failure was swallowed
+# so the dictionary appeared to save and read back empty.
+for key in ("dictionary", "ignored", "transformHistory"):
+    S.write(ctx, **{key: ["alpha", "beta"]})                       # noqa: F821
+    check("%s round-trips" % key, S.read(ctx)[key], ["alpha", "beta"])  # noqa: F821
+    check("...without a recorded problem", S.last_write_problems(), [])
+    S.write(ctx, **{key: original[key]})                           # noqa: F821
+    check("%s restored" % key, S.read(ctx)[key], original[key])    # noqa: F821
+
 print("%s" % ("all passed" if not fails else "%d FAILED" % len(fails)))
 raise SystemExit(1 if fails else 0)

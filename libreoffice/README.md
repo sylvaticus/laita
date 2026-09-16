@@ -91,5 +91,11 @@ has to look.
 - **Addons.xcu cannot add to the text context menu.** It does the menu bar and toolbars
   only. A right-click entry needs an `XContextMenuInterceptor`, which lives on a
   document's controller - so `Jobs.xcu` runs a job per document to register it.
+- **An `oor:string-list` cannot be written with a plain Python list.** The
+  configuration refuses it with *"configmgr inappropriate property value"*, and pyuno
+  will not take a `uno.Any` as an ordinary argument - it needs
+  `uno.invoke(node, "setPropertyValue", (prop, uno.Any("[]string", tuple(...))))`.
+  Nothing in the error says any of that, and with the exception swallowed it looks
+  exactly like a value that quietly did not stick.
 - **`print()` goes nowhere.** A log file is the only reliable channel, the same lesson the
   VS Code port taught.

@@ -32,6 +32,7 @@ DEFAULTS = {
     "ignored": [],
     "extraInstructions": "",
     "transformDefault": "polish",
+    "transformHistory": [],
 }
 
 # setting key -> (group in Settings.xcs, property name)
@@ -53,6 +54,7 @@ _MAP = {
     "ignored": ("Suggestions", "Ignored"),
     "extraInstructions": ("Suggestions", "ExtraInstructions"),
     "transformDefault": ("Suggestions", "TransformDefault"),
+    "transformHistory": ("Suggestions", "TransformHistory"),
 }
 _CATEGORY_PROP = {"error": "CategoryError", "style": "CategoryStyle",
                   "rephrase": "CategoryRephrase"}
@@ -80,6 +82,23 @@ def clamp(key, value):
     except (TypeError, ValueError):
         return DEFAULTS[key]
     return max(low, min(high, n))
+
+
+# Anything that went wrong in the last write, for a caller that wants to know.
+_problems = []
+
+
+def _set_string_list(node, prop, value):
+    """Write an oor:string-list.
+
+    A plain Python list or tuple is refused with "configmgr inappropriate property
+    value": the configuration wants a typed sequence, and pyuno will not accept a
+    uno.Any as a normal argument - hence uno.invoke. Nothing about the error says any of
+    this, and the failure looks exactly like a value that did not stick.
+    """
+    import uno
+    uno.invoke(node, "setPropertyValue",
+               (prop, uno.Any("[]string", tuple(str(v) for v in value))))
 
 
 def _access(ctx, updatable=False):
@@ -127,6 +146,7 @@ def write(ctx, **changes):
         root = _access(ctx, updatable=True)
     except Exception:
         return False
+    del _problems[:]
     touched = False
     for key, value in changes.items():
         if key == "categories":
@@ -136,8 +156,8 @@ def write(ctx, **changes):
                     if cat in value:
                         node.setPropertyValue(prop, bool(value[cat]))
                 touched = True
-            except Exception:
-                pass
+            except Exception as err:
+                _problems.append("categories: %r" % (err,))
             continue
         if key not in _MAP:
             continue
@@ -145,15 +165,24 @@ def write(ctx, **changes):
         try:
             node = root.getByName(group)
             if isinstance(DEFAULTS[key], list):
-                node.setPropertyValue(prop, tuple(value))
+                _set_string_list(node, prop, value)
             else:
                 node.setPropertyValue(prop, clamp(key, value))
             touched = True
-        except Exception:
-            pass
+        except Exception as err:
+            # Logged rather than swallowed. A silent failure here reported success and
+            # then read back an empty list, which is how the dictionary and the ignore
+            # list appeared to save and did not.
+            _problems.append("%s: %r" % (key, err))
     if touched:
         try:
             root.commitChanges()
-        except Exception:
+        except Exception as err:
+            _problems.append("commit: %r" % (err,))
             return False
-    return touched
+    return touched and not _problems
+
+
+def last_write_problems():
+    """Why the last write did not do what was asked, if it did not."""
+    return list(_problems)

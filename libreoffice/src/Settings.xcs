@@ -44,6 +44,9 @@
       <prop oor:name="Ignored" oor:type="oor:string-list"><value></value></prop>
       <prop oor:name="ExtraInstructions" oor:type="xs:string"><value></value></prop>
       <prop oor:name="TransformDefault" oor:type="xs:string"><value>polish</value></prop>
+      <!-- Most recent first, capped. The browser keeps 20 and offers them with the
+           up and down arrows; here they fill the dropdown. -->
+      <prop oor:name="TransformHistory" oor:type="oor:string-list"><value></value></prop>
     </group>
   </component>
 </oor:component-schema>
