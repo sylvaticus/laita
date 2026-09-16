@@ -131,9 +131,22 @@ def main():
 
     # The standalone dialog needs the buttons that make execute() mean something.
     standalone = read("dialog", "options_dialog.xdl")
-    # The Test button is only useful if the macro name it calls is one the handler says
-    # it supports - a mismatch there is silent, the button simply does nothing.
-    macros = set(re.findall(r'script:macro-name="(\w+)"', standalone))
+    # The event binding has exactly one spelling that works, found by bisecting against a
+    # live LibreOffice: script:language="UNO", the vnd.sun.star.UNO: prefix, and NO
+    # script:location. Anything else throws WrappedTargetRuntimeException when the dialog
+    # is created, naming neither the event nor the control. Pinned here because the error
+    # gives no clue and the correct form is not guessable.
+    events = re.findall(r"<script:event[^>]*/>", standalone)
+    check("the Test button has an event binding", len(events) > 0, True)
+    for ev in events:
+        check("the binding declares language UNO", 'script:language="UNO"' in ev, True)
+        check("...and carries no script:location", "script:location" not in ev, True)
+        check("...and uses the vnd.sun.star.UNO: prefix",
+              'script:macro-name="vnd.sun.star.UNO:' in ev, True)
+
+    # The macro name must be one the handler says it supports; a mismatch is silent.
+    macros = {m.split(":")[-1] for m in
+              re.findall(r'script:macro-name="([\w.:]+)"', standalone)}
     supported = set(re.findall(r'return \("(\w+)",\)', py))
     for macro in sorted(macros):
         check("the dialog handler supports %r" % macro, macro in supported, True)
