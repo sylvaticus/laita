@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Where LAITA's settings live.
+
+  A schema, not just defaults: LibreOffice stores the values in the user profile and
+  hands them back through ConfigurationProvider, so they survive restarts and appear in
+  the options page without any file of our own. The probe read a dotfile in $HOME, which
+  was fine for a probe and wrong for users.
+-->
+<oor:component-schema xmlns:oor="http://openoffice.org/2001/registry"
+                      xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                      oor:name="Settings" oor:package="org.lobianco.laita" xml:lang="en-US">
+  <info><desc>Settings for LAITA, the Local AI Text Assistant.</desc></info>
+  <templates/>
+  <component>
+    <group oor:name="Ollama">
+      <info><desc>Which model answers, and where it runs.</desc></info>
+      <prop oor:name="Endpoint" oor:type="xs:string"><value>http://localhost:11434</value></prop>
+      <prop oor:name="Model" oor:type="xs:string"><value>qwen3.5:9b</value></prop>
+      <prop oor:name="Temperature" oor:type="xs:double"><value>0</value></prop>
+      <prop oor:name="NumCtx" oor:type="xs:int"><value>0</value></prop>
+      <prop oor:name="KeepAlive" oor:type="xs:string"><value>10m</value></prop>
+      <prop oor:name="RequestTimeoutMs" oor:type="xs:int"><value>90000</value></prop>
+      <prop oor:name="Think" oor:type="xs:boolean"><value>false</value></prop>
+    </group>
+    <group oor:name="Checking">
+      <info><desc>When LAITA runs and how much it sends.</desc></info>
+      <prop oor:name="Enabled" oor:type="xs:boolean"><value>true</value></prop>
+      <prop oor:name="CheckAsYouType" oor:type="xs:boolean"><value>true</value></prop>
+      <prop oor:name="DebounceMs" oor:type="xs:int"><value>1500</value></prop>
+      <prop oor:name="MinChars" oor:type="xs:int"><value>25</value></prop>
+      <prop oor:name="MaxChars" oor:type="xs:int"><value>12000</value></prop>
+      <prop oor:name="ChunkMaxChars" oor:type="xs:int"><value>700</value></prop>
+    </group>
+    <group oor:name="Suggestions">
+      <info><desc>What LAITA offers.</desc></info>
+      <prop oor:name="CategoryError" oor:type="xs:boolean"><value>true</value></prop>
+      <prop oor:name="CategoryStyle" oor:type="xs:boolean"><value>true</value></prop>
+      <prop oor:name="CategoryRephrase" oor:type="xs:boolean"><value>true</value></prop>
+      <prop oor:name="Dictionary" oor:type="oor:string-list"><value></value></prop>
+      <prop oor:name="Ignored" oor:type="oor:string-list"><value></value></prop>
+      <prop oor:name="ExtraInstructions" oor:type="xs:string"><value></value></prop>
+      <prop oor:name="TransformDefault" oor:type="xs:string"><value>polish</value></prop>
+    </group>
+  </component>
+</oor:component-schema>

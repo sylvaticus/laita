@@ -1,0 +1,145 @@
+# -*- encoding: UTF-8 -*-
+"""
+The engine exists for one measured reason: LibreOffice calls doProofreading on every
+keystroke, and the probe showed that asking the model each time means 17 inferences for
+a 17-character sentence. These tests replay that exact typing pattern and assert the
+model is asked once.
+
+Time is injected, so nothing here sleeps.
+"""
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "src", "pythonpath"))
+
+from laita_engine import Engine  # noqa: E402
+
+fails, passes = [], 0
+
+
+def check(name, got, want):
+    global passes
+    if got == want:
+        passes += 1
+    else:
+        fails.append("%s\n    got  %r\n    want %r" % (name, got, want))
+
+
+class FakeTimer:
+    """A threading.Timer that fires only when a test says so."""
+    pending = []
+
+    def __init__(self, delay, fn, args=()):
+        self.delay, self.fn, self.args, self.cancelled = delay, fn, list(args), False
+        self.daemon = True
+
+    def start(self):
+        FakeTimer.pending.append(self)
+
+    def cancel(self):
+        self.cancelled = True
+
+    @classmethod
+    def run_all(cls):
+        due, cls.pending = cls.pending, []
+        for t in due:
+            if not t.cancelled:
+                t.fn(*t.args)
+
+    @classmethod
+    def reset(cls):
+        cls.pending = []
+
+
+SETTINGS = {"debounceMs": 1500}
+
+
+def engine(answers=None, **kw):
+    FakeTimer.reset()
+    asked = []
+
+    def proofread(text, lang):
+        asked.append(text)
+        if isinstance(answers, Exception):
+            raise answers
+        return (answers or {}).get(text, [{"original": text, "start": 0, "end": 1}])
+
+    ready = []
+    e = Engine(proofread, on_ready=ready.append, timer_factory=FakeTimer, **kw)
+    return e, asked, ready
+
+
+def main():
+    # --- the measured problem: one inference for a sentence, not one per keystroke ----
+    e, asked, ready = engine()
+    typed = "This is the test."
+    for i in range(1, len(typed) + 1):
+        check("while typing, lookup has nothing for %r" % typed[:i], e.lookup(typed[:i]), None)
+        e.request(typed[:i], "en", SETTINGS)
+    check("no model call while the text is still moving", asked, [])
+    FakeTimer.run_all()
+    check("exactly one model call once it settles", len(asked), 1)
+    check("...and it was for the final text", asked[0], typed)
+    check("the answer is cached", e.lookup(typed) is not None, True)
+    check("on_ready fired once, for that text", ready, [typed])
+
+    # --- a cached answer is instant and never re-asked --------------------------------
+    e.request(typed, "en", SETTINGS)
+    FakeTimer.run_all()
+    check("a cached text is not asked about again", len(asked), 1)
+
+    # --- an intermediate prefix must not be answered with the final text's issues -----
+    check("a prefix is still unknown", e.lookup("This is the"), None)
+
+    # --- failure is swallowed: a raise would become a modal dialog --------------------
+    boom = RuntimeError("ollama is down")
+    e2, asked2, ready2 = engine(answers=boom)
+    e2.request("hello world", "en", SETTINGS)
+    FakeTimer.run_all()
+    check("a failure does not propagate", isinstance(e2.last_error, RuntimeError), True)
+    check("...and is cached as no issues, so it is not retried in a loop",
+          e2.lookup("hello world"), [])
+    check("...and still reports ready", ready2, ["hello world"])
+
+    # --- stop / start -----------------------------------------------------------------
+    e3, asked3, _ = engine()
+    e3.request("some text here", "en", SETTINGS)
+    e3.stop()
+    FakeTimer.run_all()
+    check("stop cancels pending work", asked3, [])
+    e3.start()
+    e3.request("some text here", "en", SETTINGS)
+    FakeTimer.run_all()
+    check("start resumes it", len(asked3), 1)
+
+    # --- forget ------------------------------------------------------------------------
+    check("cached before forget", e3.lookup("some text here") is not None, True)
+    e3.forget()
+    check("forget empties the cache", e3.lookup("some text here"), None)
+
+    # --- eviction keeps the cache bounded ---------------------------------------------
+    e4, asked4, _ = engine()
+    for i in range(260):
+        e4.request("text number %d" % i, "en", SETTINGS)
+        FakeTimer.run_all()
+    check("the cache is bounded", len(e4._cache) <= 200, True)
+    check("the newest is kept", e4.lookup("text number 259") is not None, True)
+    check("the oldest is evicted", e4.lookup("text number 0"), None)
+
+    # --- busy reports honestly ----------------------------------------------------------
+    e5, _, _ = engine()
+    check("idle to begin with", e5.busy, False)
+    e5.request("pending text", "en", SETTINGS)
+    check("busy once something is pending", e5.busy, True)
+    FakeTimer.run_all()
+    check("idle again afterwards", e5.busy, False)
+
+    print("%d passed, %d failed" % (passes, len(fails)))
+    for f in fails:
+        print("  FAIL " + f)
+    return 1 if fails else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
