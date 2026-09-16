@@ -38,6 +38,28 @@ CACHE_MAX = 200
 MIN_SHARED_PREFIX = 20
 
 
+def _shared_ends(a, b):
+    """How much of two strings is unchanged, counting from both ends.
+
+    A shared prefix alone is not enough, and getting this wrong was visible: applying a
+    suggestion in the MIDDLE of a paragraph leaves a long shared suffix but only a short
+    shared prefix, so the previous answer was rejected and every underline in that
+    paragraph blinked out until the model answered again. One edit anywhere leaves the
+    text either side of it intact, which is what this measures.
+    """
+    prefix = 0
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        prefix += 1
+    # Do not let the two ends count the same characters twice on a short string.
+    limit = min(len(a), len(b)) - prefix
+    suffix = 0
+    while suffix < limit and a[len(a) - 1 - suffix] == b[len(b) - 1 - suffix]:
+        suffix += 1
+    return prefix + suffix
+
+
 class Engine:
     def __init__(self, proofread, on_ready=None, log=None, timer_factory=None):
         """
@@ -80,15 +102,11 @@ class Engine:
             for candidate, issues in self._cache.items():
                 if candidate == text:
                     return issues
-                shared = 0
-                for a, b in zip(candidate, text):
-                    if a != b:
-                        break
-                    shared += 1
+                shared = _shared_ends(candidate, text)
                 shortest = min(len(candidate), len(text))
                 # Two conditions, and the floor must never exceed the text itself:
-                # deleting the end of a paragraph makes it shorter than MIN_SHARED_PREFIX,
-                # and it would then be unable to match the answer it just had.
+                # deleting from a paragraph makes it shorter than MIN_SHARED_PREFIX, and
+                # it would then be unable to match the answer it had a moment earlier.
                 floor = min(MIN_SHARED_PREFIX, shortest)
                 if shortest and shared >= floor and shared >= shortest * 0.6 \
                         and shared > best_len:

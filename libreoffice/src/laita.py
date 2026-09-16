@@ -29,7 +29,7 @@ from com.sun.star.linguistic2 import XLinguServiceEventBroadcaster, LinguService
 from com.sun.star.linguistic2.LinguServiceEventFlags import PROOFREAD_AGAIN
 from com.sun.star.lang import XServiceInfo, XServiceName, XServiceDisplayName, Locale
 from com.sun.star.frame import XDispatchProvider, XDispatch
-from com.sun.star.awt import XContainerWindowEventHandler
+from com.sun.star.awt import XContainerWindowEventHandler, XDialogEventHandler
 
 import laita_anchor as anchor
 import laita_ollama as ollama
@@ -297,8 +297,9 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         try:
             provider = self.ctx.ServiceManager.createInstanceWithContext(
                 "com.sun.star.awt.DialogProvider", self.ctx)
-            dialog = provider.createDialog(
-                "vnd.sun.star.extension://org.lobianco.laita/dialog/options_dialog.xdl")
+            dialog = provider.createDialogWithHandler(
+                "vnd.sun.star.extension://org.lobianco.laita/dialog/options_dialog.xdl",
+                DialogHandler(self.ctx))
             load_into(self.ctx, dialog)
             if dialog.execute() == 1:          # 1 is OK, 0 is Cancel or the close box
                 save_from(self.ctx, dialog)
@@ -361,8 +362,33 @@ CHECKS = [
 CATEGORIES = [("error", "CatError"), ("style", "CatStyle"), ("rephrase", "CatRephrase")]
 
 
+def fill_models(ctx, window, settings=None):
+    """Offer the models Ollama actually has, without losing what is configured.
+
+    The combobox stays editable on purpose: a model can be pulled while the dialog is
+    open, and Ollama may be unreachable when it opens - in which case the list is empty
+    and the configured name is still shown rather than blanked.
+    """
+    combo = window.getControl("Model")
+    if not combo:
+        return None
+    settings = settings or settings_store.read(ctx)
+    try:
+        models = ollama.list_models(settings)
+    except Exception as err:
+        log("could not list models: %s" % ollama.describe_error(err))
+        return None
+    try:
+        combo.removeItems(0, combo.getItemCount())
+        combo.addItems(tuple(models), 0)
+    except Exception:
+        pass
+    return models
+
+
 def load_into(ctx, window):
     s = settings_store.read(ctx)
+    fill_models(ctx, window, s)
     for key, name, _ in FIELDS:
         ctrl = window.getControl(name)
         if ctrl:
@@ -406,6 +432,57 @@ def save_from(ctx, window):
     if Proofreader.instance:
         Proofreader.instance.engine.forget()
     log("settings saved: %s" % sorted(changes))
+
+
+def test_connection(ctx, window):
+    """Answer the Test button, in the dialog rather than in a message box."""
+    status = window.getControl("Status")
+
+    def say(text):
+        if status:
+            status.setText(text)
+        log("connection test: %s" % text)
+
+    # Test what is on screen, not what was last saved: the point is to try a change.
+    probe_settings = dict(settings_store.read(ctx))
+    for key, name, _ in FIELDS:
+        ctrl = window.getControl(name)
+        if ctrl and key in ("endpoint", "model"):
+            probe_settings[key] = ctrl.getText()
+
+    say("Contacting Ollama...")
+    try:
+        result = ollama.probe(probe_settings)
+    except Exception as err:
+        say(ollama.describe_error(err))
+        return
+    models = result["models"]
+    if result["hasModel"]:
+        say("Connected. %d model%s available, \"%s\" is one of them."
+            % (len(models), "" if len(models) == 1 else "s", probe_settings["model"]))
+    else:
+        say("Connected, but \"%s\" is not installed. Available: %s"
+            % (probe_settings["model"], ", ".join(models) or "none"))
+    fill_models(ctx, window, probe_settings)
+
+
+class DialogHandler(unohelper.Base, XDialogEventHandler):
+    """Button clicks inside the standalone options dialog."""
+
+    def __init__(self, ctx):
+        self.ctx = ctx
+
+    def callHandlerMethod(self, dialog, event, method):
+        try:
+            if method == "onTest":
+                test_connection(self.ctx, dialog)
+                return True
+        except Exception:
+            log("dialog handler failed\n%s" % traceback.format_exc())
+        return False
+
+    def getSupportedMethodNames(self):
+        return ("onTest",)
 
 
 class OptionsHandler(unohelper.Base, XContainerWindowEventHandler, XServiceInfo):

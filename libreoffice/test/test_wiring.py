@@ -131,6 +131,18 @@ def main():
 
     # The standalone dialog needs the buttons that make execute() mean something.
     standalone = read("dialog", "options_dialog.xdl")
+    # The Test button is only useful if the macro name it calls is one the handler says
+    # it supports - a mismatch there is silent, the button simply does nothing.
+    macros = set(re.findall(r'script:macro-name="(\w+)"', standalone))
+    supported = set(re.findall(r'return \("(\w+)",\)', py))
+    for macro in sorted(macros):
+        check("the dialog handler supports %r" % macro, macro in supported, True)
+    check("the Test button calls something", len(macros) > 0, True)
+    check("the dialog offers the model list and a status line",
+          'dlg:id="Model"' in standalone and 'dlg:id="Status"' in standalone, True)
+    check("the model control is a dropdown, not a plain field",
+          '<dlg:combobox dlg:id="Model"' in standalone, True)
+
     check("the dialog has an OK button", 'dlg:button-type="ok"' in standalone, True)
     check("the dialog has a Cancel button", 'dlg:button-type="cancel"' in standalone, True)
     check("...and a title bar, being a dialog rather than a page",

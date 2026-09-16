@@ -193,6 +193,45 @@ def request_issues(text, lang, settings, timeout=None):
     return parse_issues((payload.get("message") or {}).get("content", ""))
 
 
+def list_models(settings, timeout=10):
+    """Every model Ollama has, for the options dialog to offer.
+
+    Separate from probe() because the dialog wants the list even when the configured
+    model is not in it - that is precisely the case worth showing.
+    """
+    base = str(settings.get("endpoint") or "").rstrip("/")
+    req = urllib.request.Request(base + "/api/tags", method="GET")
+    with urllib.request.urlopen(req, timeout=timeout) as res:
+        payload = json.loads(res.read().decode("utf-8"))
+    return sorted(m.get("name", "") for m in payload.get("models", []) if m.get("name"))
+
+
+def probe(settings, timeout=10):
+    """Can we reach Ollama, and does it have the configured model?
+
+    Deliberately a POST for the second half: a GET carries no Origin header, so on the
+    browser it reported success while real checks were refused. It carries no Origin
+    here either, but the same reasoning applies to anything proxying in between - and
+    asking the way the real request asks is the only test worth trusting.
+    """
+    models = list_models(settings, timeout)
+    wanted = settings.get("model")
+    base = str(settings.get("endpoint") or "").rstrip("/")
+    req = urllib.request.Request(
+        base + "/api/show",
+        data=json.dumps({"model": wanted}).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout):
+            pass
+    except urllib.error.HTTPError as err:
+        if err.code != 404:                     # 404 just means the model is missing
+            raise
+    return {"models": models, "hasModel": wanted in models}
+
+
 def describe_error(err):
     """Turn a transport failure into something a person can act on.
 

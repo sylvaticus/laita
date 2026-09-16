@@ -13,7 +13,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "src", "pythonpath"))
 
-from laita_engine import Engine  # noqa: E402
+from laita_engine import Engine, _shared_ends  # noqa: E402
 
 fails, passes = [], 0
 
@@ -167,6 +167,38 @@ def main():
         FakeTimer.run_all()
     check("the longest shared prefix wins",
           e7.provisional("Alpha beta gamma delta epsilon zeta eta theta"), ["B"])
+
+    # --- applying a fix mid-paragraph must not blank the other underlines --------------
+    # Reported from real use: correcting one word made every other suggestion in that
+    # paragraph vanish for a few seconds. A shared PREFIX is not the right measure - an
+    # edit in the middle leaves a short prefix and a long suffix - and the previous
+    # answer was rejected as too dissimilar.
+    para = "This is a tesst that depend on the underlying architecture of this softwre."
+    fixed = "This is a tesst that depends on the underlying architecture of this softwre."
+    e8, _, _ = engine(answers={para: ["A"]})
+    e8.request(para, "en", SETTINGS)
+    FakeTimer.run_all()
+    check("after applying a fix in the middle, the answer is still offered",
+          e8.provisional(fixed), ["A"])
+
+    late = para.replace("softwre", "software")          # an edit near the end
+    check("a fix near the end too", e8.provisional(late), ["A"])
+    early = para.replace("This", "That")                # and near the start
+    check("a fix near the start too", e8.provisional(early), ["A"])
+
+    # It must still refuse a genuinely different paragraph.
+    check("a different paragraph of similar length is refused",
+          e8.provisional("Completely unrelated prose about gardening and the weather ok"),
+          None)
+
+    # --- the measure itself --------------------------------------------------------------
+    check("identical strings share everything", _shared_ends("abcdef", "abcdef"), 6)
+    check("one char changed in the middle", _shared_ends("abcdef", "abcXef"), 5)
+    check("an insertion in the middle", _shared_ends("abcdef", "abcXdef"), 6)
+    check("a deletion in the middle", _shared_ends("abcdef", "abdef"), 5)
+    check("nothing in common", _shared_ends("abc", "xyz"), 0)
+    check("the two ends never double-count", _shared_ends("aaa", "aaa"), 3)
+    check("empty against something", _shared_ends("", "abc"), 0)
 
     print("%d passed, %d failed" % (passes, len(fails)))
     for f in fails:
