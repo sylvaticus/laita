@@ -123,6 +123,8 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
 
     def _answer_ready(self, text):
         """An answer landed. Ask LibreOffice to proofread again; the next call hits cache."""
+        log("ready: %d chars, asking %d listener(s) for a re-check"
+            % (len(text), len(self.listeners)))
         try:
             ev = LinguServiceEvent(self, PROOFREAD_AGAIN)
             for li in list(self.listeners):
@@ -173,6 +175,7 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
 
             lang = locale.Language or None
             raw = self.engine.lookup(text)
+            source = "cache"
             if raw is None:
                 if s["checkAsYouType"]:
                     self.engine.request(text, lang, s)
@@ -181,10 +184,18 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
                 # Anchoring below is against the CURRENT text, so anything the edit
                 # invalidated drops out by itself.
                 raw = self.engine.provisional(text)
+                source = "provisional"
                 if raw is None:
+                    log("check: %d chars, nothing yet, queued  %r" % (len(text), text[:50]))
                     return res
             issues = anchor.anchor_issues(text, raw, categories=s["categories"],
                                           ignored=s["ignored"])
+            # The interesting line. A raw answer that anchors to nothing is the
+            # difference between "the model said nothing" and "the model quoted text
+            # that is no longer there" - and only the second explains a vanishing
+            # underline.
+            log("check: %d chars, %s, %d raw -> %d anchored  %r"
+                % (len(text), source, len(raw), len(issues), text[:50]))
             res.aErrors = tuple(self._to_uno(text, i) for i in issues)
         except Exception:
             # Never let this escape: LibreOffice turns it into a modal dialog.
@@ -276,24 +287,26 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             self._open_options()
 
     def _open_options(self):
-        """Open Tools > Options ON our page.
+        """Our own dialog, rather than a page in the Tools > Options tree.
 
-        The argument is the point: .uno:OptionsTreeDialog with no arguments opens the
-        tree wherever it was last, which is how this first shipped - the button worked
-        and landed the user on the general Language settings.
+        The tree route is registered in OptionsDialog.xcu and the handler above still
+        backs it, but the page never appeared there - and .uno:OptionsTreeDialog then
+        opens the tree wherever it was last, which looks like the button going to the
+        wrong place. A dialog we create ourselves cannot fail that quietly.
         """
         try:
-            desktop = self.ctx.ServiceManager.createInstanceWithContext(
-                "com.sun.star.frame.Desktop", self.ctx)
-            frame = desktop.getCurrentFrame()
-            helper = self.ctx.ServiceManager.createInstanceWithContext(
-                "com.sun.star.frame.DispatchHelper", self.ctx)
-            arg = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
-            arg.Name = "OptionsPageURL"
-            arg.Value = "%origin%/dialog/options.xdl"
-            helper.executeDispatch(frame, ".uno:OptionsTreeDialog", "", 0, (arg,))
+            provider = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.awt.DialogProvider", self.ctx)
+            dialog = provider.createDialog(
+                "vnd.sun.star.extension://org.lobianco.laita/dialog/options_dialog.xdl")
+            load_into(self.ctx, dialog)
+            if dialog.execute() == 1:          # 1 is OK, 0 is Cancel or the close box
+                save_from(self.ctx, dialog)
+            dialog.dispose()
         except Exception:
-            log("could not open the options page\n%s" % traceback.format_exc())
+            log("could not open the options dialog\n%s" % traceback.format_exc())
+            self._tell("LAITA", "Could not open the options dialog. See "
+                                "~/laita-libreoffice.log")
 
     def _tell(self, title, message):
         """A plain message box, only ever from a button the user just pressed.
@@ -328,24 +341,75 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             log("status: %s" % message)
 
 
-class OptionsHandler(unohelper.Base, XContainerWindowEventHandler, XServiceInfo):
-    """Backs the page under Tools > Options > Language Settings > LAITA."""
-
-    FIELDS = [
+# The controls, named once. Both the embedded page and the standalone dialog use these
+# ids, so neither can drift from the other - and test_wiring.py checks both .xdl files
+# define every one of them.
+FIELDS = [
         ("endpoint", "Endpoint", "Text"),
         ("model", "Model", "Text"),
         ("debounceMs", "DebounceMs", "Text"),
         ("minChars", "MinChars", "Text"),
         ("maxChars", "MaxChars", "Text"),
         ("keepAlive", "KeepAlive", "Text"),
-        ("extraInstructions", "ExtraInstructions", "Text"),
-    ]
-    CHECKS = [
-        ("enabled", "Enabled"),
-        ("checkAsYouType", "CheckAsYouType"),
-        ("think", "Think"),
-    ]
-    CATEGORIES = [("error", "CatError"), ("style", "CatStyle"), ("rephrase", "CatRephrase")]
+    ("extraInstructions", "ExtraInstructions", "Text"),
+]
+CHECKS = [
+    ("enabled", "Enabled"),
+    ("checkAsYouType", "CheckAsYouType"),
+    ("think", "Think"),
+]
+CATEGORIES = [("error", "CatError"), ("style", "CatStyle"), ("rephrase", "CatRephrase")]
+
+
+def load_into(ctx, window):
+    s = settings_store.read(ctx)
+    for key, name, _ in FIELDS:
+        ctrl = window.getControl(name)
+        if ctrl:
+            ctrl.setText(str(s[key]))
+    for key, name in CHECKS:
+        ctrl = window.getControl(name)
+        if ctrl:
+            ctrl.setState(1 if s[key] else 0)
+    for cat, name in CATEGORIES:
+        ctrl = window.getControl(name)
+        if ctrl:
+            ctrl.setState(1 if s["categories"].get(cat) else 0)
+
+
+def save_from(ctx, window):
+    changes = {}
+    for key, name, _ in FIELDS:
+        ctrl = window.getControl(name)
+        if not ctrl:
+            continue
+        raw = ctrl.getText()
+        if isinstance(settings_store.DEFAULTS[key], int):
+            try:
+                raw = int(float(raw))
+            except ValueError:
+                raw = settings_store.DEFAULTS[key]
+        changes[key] = raw
+    for key, name in CHECKS:
+        ctrl = window.getControl(name)
+        if ctrl:
+            changes[key] = bool(ctrl.getState())
+    cats = {}
+    for cat, name in CATEGORIES:
+        ctrl = window.getControl(name)
+        if ctrl:
+            cats[cat] = bool(ctrl.getState())
+    if cats:
+        changes["categories"] = cats
+    settings_store.write(ctx, **changes)
+    # Anything that changes what the model is asked makes every cached answer wrong.
+    if Proofreader.instance:
+        Proofreader.instance.engine.forget()
+    log("settings saved: %s" % sorted(changes))
+
+
+class OptionsHandler(unohelper.Base, XContainerWindowEventHandler, XServiceInfo):
+    """Backs the page under Tools > Options, if LibreOffice ever shows it."""
 
     def __init__(self, ctx, *args):
         self.ctx = ctx
@@ -364,57 +428,13 @@ class OptionsHandler(unohelper.Base, XContainerWindowEventHandler, XServiceInfo)
 
     def callHandlerMethod(self, window, event, method):
         try:
-            if event == "initialize" or event == "back":
-                self._load(window)
+            if event in ("initialize", "back"):
+                load_into(self.ctx, window)
             elif event == "ok":
-                self._save(window)
+                save_from(self.ctx, window)
         except Exception:
             log("options %r failed\n%s" % (event, traceback.format_exc()))
         return True
-
-    def _load(self, window):
-        s = settings_store.read(self.ctx)
-        for key, name, _ in self.FIELDS:
-            ctrl = window.getControl(name)
-            if ctrl:
-                ctrl.setText(str(s[key]))
-        for key, name in self.CHECKS:
-            ctrl = window.getControl(name)
-            if ctrl:
-                ctrl.setState(1 if s[key] else 0)
-        for cat, name in self.CATEGORIES:
-            ctrl = window.getControl(name)
-            if ctrl:
-                ctrl.setState(1 if s["categories"].get(cat) else 0)
-
-    def _save(self, window):
-        changes = {}
-        for key, name, _ in self.FIELDS:
-            ctrl = window.getControl(name)
-            if not ctrl:
-                continue
-            raw = ctrl.getText()
-            if isinstance(settings_store.DEFAULTS[key], int):
-                try:
-                    raw = int(float(raw))
-                except ValueError:
-                    raw = settings_store.DEFAULTS[key]
-            changes[key] = raw
-        for key, name in self.CHECKS:
-            ctrl = window.getControl(name)
-            if ctrl:
-                changes[key] = bool(ctrl.getState())
-        cats = {}
-        for cat, name in self.CATEGORIES:
-            ctrl = window.getControl(name)
-            if ctrl:
-                cats[cat] = bool(ctrl.getState())
-        if cats:
-            changes["categories"] = cats
-        settings_store.write(self.ctx, **changes)
-        # Settings that change what the model is asked make every cached answer wrong.
-        if Proofreader.instance:
-            Proofreader.instance.engine.forget()
 
 
 g_ImplementationHelper = unohelper.ImplementationHelper()

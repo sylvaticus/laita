@@ -116,15 +116,31 @@ def main():
     check("the dialog file the page points at exists (%s)" % page,
           os.path.exists(os.path.join(SRC, *page.split("/"))), True)
 
-    # --- every control the handler reads must exist in the dialog -------------------------
-    xdl = minidom.parse(os.path.join(SRC, "dialog", "options.xdl"))
-    control_ids = {e.getAttribute("dlg:id") for e in xdl.getElementsByTagName("*")
-                   if e.getAttribute("dlg:id")}
-    handler_block = py[py.index("    FIELDS = ["):py.index("    def __init__(self, ctx, *args):\n        self.ctx = ctx\n\n    def getImplementationName(self):\n        return OPTIONS_IMPL")]
+    # --- every control the code reads must exist in BOTH dialogs --------------------------
+    # The embedded page and the standalone dialog share one pair of load/save functions,
+    # so a control missing from either is a silent no-op on that route.
+    handler_block = py[py.index("FIELDS = ["):py.index("def load_into(ctx, window):")]
     wanted = set(re.findall(r'\("\w+", "(\w+)"[,)]', handler_block))
-    check("the handler reads some controls", len(wanted) > 0, True)
-    for name in sorted(wanted):
-        check("options.xdl defines the control %r" % name, name in control_ids, True)
+    check("the code reads some controls", len(wanted) > 0, True)
+    for dialog_file in ("options.xdl", "options_dialog.xdl"):
+        xdl = minidom.parse(os.path.join(SRC, "dialog", dialog_file))
+        control_ids = {e.getAttribute("dlg:id") for e in xdl.getElementsByTagName("*")
+                       if e.getAttribute("dlg:id")}
+        for name in sorted(wanted):
+            check("%s defines the control %r" % (dialog_file, name), name in control_ids, True)
+
+    # The standalone dialog needs the buttons that make execute() mean something.
+    standalone = read("dialog", "options_dialog.xdl")
+    check("the dialog has an OK button", 'dlg:button-type="ok"' in standalone, True)
+    check("the dialog has a Cancel button", 'dlg:button-type="cancel"' in standalone, True)
+    check("...and a title bar, being a dialog rather than a page",
+          'dlg:withtitlebar="true"' in standalone, True)
+
+    # The URL the dispatcher opens must name a file that exists.
+    opened = re.search(r"vnd\.sun\.star\.extension://([\w.]+)/([\w/.]+)", py)
+    check("the dialog URL uses the extension identifier", opened.group(1), identifier)
+    check("...and points at a file that exists",
+          os.path.exists(os.path.join(SRC, *opened.group(2).split("/"))), True)
 
     # --- the settings schema and the Python defaults must line up -------------------------
     sys.path.insert(0, os.path.join(SRC, "pythonpath"))
