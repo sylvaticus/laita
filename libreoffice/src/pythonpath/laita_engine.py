@@ -10,10 +10,20 @@ by starting a worker per call and producing 17 workers for a 17-character senten
 
 So:
 
-    lookup()   answers instantly from the cache, or says "nothing yet"
-    request()  starts a debounce; only when the text has been still for debounce_ms does
-               a worker call the model, and only the newest text wins
-    on_ready   is called once an answer lands, so the caller can fire PROOFREAD_AGAIN
+    lookup()      the model's answer for exactly this text, or None
+    provisional() the answer for the nearest text we have seen, to show while typing
+    request()     starts a debounce; only when the text has been still for debounce_ms
+                  does a worker call the model, and only the newest text wins
+    on_ready      is called once an answer lands, so the caller can fire PROOFREAD_AGAIN
+
+What is cached is the model's RAW answer, not anchored ranges. Anchoring happens against
+whatever the paragraph says right now, which is the whole point: "never trust the model's
+view of the text over the text". It is also what makes provisional() safe - a quote that
+no longer exists simply fails to anchor and the suggestion disappears by itself.
+
+Without provisional(), every underline vanishes on each keystroke and reappears a second
+and a half later, because the edited paragraph is a cache miss. That reads as suggestions
+flickering and changing their mind.
 
 Nothing here imports uno, which is what lets it be tested without LibreOffice.
 """
@@ -21,6 +31,11 @@ import threading
 import time
 
 CACHE_MAX = 200
+
+# How much of a paragraph must match before a previous answer is reused while the new one
+# is computed. Below this, two short paragraphs starting "The " would borrow each other's
+# suggestions.
+MIN_SHARED_PREFIX = 20
 
 
 class Engine:
@@ -46,9 +61,39 @@ class Engine:
 
     # --- the hot path ---------------------------------------------------------------
     def lookup(self, text):
-        """The answer for exactly this text, or None. Must be instant."""
+        """The raw answer for exactly this text, or None. Must be instant."""
         with self._lock:
             return self._cache.get(text)
+
+    def provisional(self, text):
+        """The raw answer for the most similar text we have already checked.
+
+        Used while a changed paragraph is being re-checked, so its underlines stay put
+        instead of blinking out on every keystroke. Anchoring is done by the caller
+        against the current text, so anything the edit invalidated drops out on its own.
+
+        Similarity is a shared prefix, which is what typing produces. A threshold keeps
+        one paragraph's answer off another paragraph that happens to be cached.
+        """
+        with self._lock:
+            best, best_len = None, 0
+            for candidate, issues in self._cache.items():
+                if candidate == text:
+                    return issues
+                shared = 0
+                for a, b in zip(candidate, text):
+                    if a != b:
+                        break
+                    shared += 1
+                shortest = min(len(candidate), len(text))
+                # Two conditions, and the floor must never exceed the text itself:
+                # deleting the end of a paragraph makes it shorter than MIN_SHARED_PREFIX,
+                # and it would then be unable to match the answer it just had.
+                floor = min(MIN_SHARED_PREFIX, shortest)
+                if shortest and shared >= floor and shared >= shortest * 0.6 \
+                        and shared > best_len:
+                    best, best_len = issues, shared
+            return best
 
     def request(self, text, lang, settings):
         """Note that this text wants checking, eventually. Returns at once."""

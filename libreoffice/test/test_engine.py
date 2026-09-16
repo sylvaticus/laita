@@ -135,6 +135,39 @@ def main():
     FakeTimer.run_all()
     check("idle again afterwards", e5.busy, False)
 
+    # --- provisional answers: the underlines must not blink out on every keystroke -----
+    # Without this, an edited paragraph is a cache miss and doProofreading returns no
+    # errors until the new answer lands a second and a half later.
+    e6, asked6, _ = engine(answers={"The cat sat on the mat.": ["ANSWER-A"]})
+    e6.request("The cat sat on the mat.", "en", SETTINGS)
+    FakeTimer.run_all()
+    check("the settled text is cached", e6.lookup("The cat sat on the mat."), ["ANSWER-A"])
+
+    typed_on = "The cat sat on the mat. And"
+    check("the edited text is not in the cache", e6.lookup(typed_on), None)
+    check("...but the previous answer is offered while it is re-checked",
+          e6.provisional(typed_on), ["ANSWER-A"])
+    check("deleting from the end also finds it",
+          e6.provisional("The cat sat on the"), ["ANSWER-A"])
+    check("an exact hit is preferred over a prefix match",
+          e6.provisional("The cat sat on the mat."), ["ANSWER-A"])
+
+    # A different paragraph must not borrow it.
+    check("an unrelated paragraph borrows nothing",
+          e6.provisional("Completely different words entirely here"), None)
+    check("a short shared opening is not enough",
+          e6.provisional("The dog"), None)
+    check("nothing cached, nothing provisional", engine()[0].provisional("anything"), None)
+
+    # The closest of several is the one used.
+    e7, _, _ = engine(answers={"Alpha beta gamma delta epsilon": ["A"],
+                               "Alpha beta gamma delta epsilon zeta eta": ["B"]})
+    for t in ("Alpha beta gamma delta epsilon", "Alpha beta gamma delta epsilon zeta eta"):
+        e7.request(t, "en", SETTINGS)
+        FakeTimer.run_all()
+    check("the longest shared prefix wins",
+          e7.provisional("Alpha beta gamma delta epsilon zeta eta theta"), ["B"])
+
     print("%d passed, %d failed" % (passes, len(fails)))
     for f in fails:
         print("  FAIL " + f)

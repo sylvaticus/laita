@@ -132,12 +132,17 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
 
     # --- the model ------------------------------------------------------------------------
     def _ask_the_model(self, text, lang):
-        """Runs on a worker thread. Blocking is fine here: nothing is waiting on it."""
+        """Runs on a worker thread. Blocking is fine here: nothing is waiting on it.
+
+        Returns the model's RAW answer. Anchoring happens later, against whatever the
+        paragraph says at the moment it is drawn."""
         s = settings_store.read(self.ctx)
+        started = time.time()
         raw = ollama.request_issues(text, lang, s,
                                     timeout=float(s["requestTimeoutMs"]) / 1000.0)
-        return anchor.anchor_issues(text, raw,
-                                    categories=s["categories"], ignored=s["ignored"])
+        log("model: %d chars, %d issues, %.1fs  %r"
+            % (len(text), len(raw), time.time() - started, text[:60]))
+        return raw
 
     # --- the hot path -----------------------------------------------------------------------
     def doProofreading(self, docId, text, locale, startOfSentence, suggestedEnd, properties):
@@ -167,12 +172,20 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
                 return res
 
             lang = locale.Language or None
-            known = self.engine.lookup(text)
-            if known is None:
+            raw = self.engine.lookup(text)
+            if raw is None:
                 if s["checkAsYouType"]:
                     self.engine.request(text, lang, s)
-                return res
-            res.aErrors = tuple(self._to_uno(text, i) for i in known)
+                # Show the previous answer for this paragraph while the new one is
+                # computed, rather than blanking every underline on each keystroke.
+                # Anchoring below is against the CURRENT text, so anything the edit
+                # invalidated drops out by itself.
+                raw = self.engine.provisional(text)
+                if raw is None:
+                    return res
+            issues = anchor.anchor_issues(text, raw, categories=s["categories"],
+                                          ignored=s["ignored"])
+            res.aErrors = tuple(self._to_uno(text, i) for i in issues)
         except Exception:
             # Never let this escape: LibreOffice turns it into a modal dialog.
             log("doProofreading failed\n%s" % traceback.format_exc())
@@ -253,29 +266,55 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 pr.engine.stop()
             self._say("LAITA has stopped checking. Use Check document to resume.")
         elif command == "transform":
-            self._say("Transform is not built yet.")
+            # Not built yet. Say so where it can be seen: a status-bar note is easy to
+            # miss, and "the button does nothing" is indistinguishable from a broken
+            # dispatch - which is exactly what we spent an afternoon on with the probe.
+            self._tell("LAITA", "Transform is not implemented yet.\n\n"
+                                "Proofreading works; the rewrite-a-selection feature is "
+                                "still to come.")
         elif command == "options":
             self._open_options()
 
     def _open_options(self):
-        try:
-            dialogs = self.ctx.ServiceManager.createInstanceWithContext(
-                "com.sun.star.awt.ContainerWindowProvider", self.ctx)
-            del dialogs
-        except Exception:
-            pass
+        """Open Tools > Options ON our page.
+
+        The argument is the point: .uno:OptionsTreeDialog with no arguments opens the
+        tree wherever it was last, which is how this first shipped - the button worked
+        and landed the user on the general Language settings.
+        """
         try:
             desktop = self.ctx.ServiceManager.createInstanceWithContext(
                 "com.sun.star.frame.Desktop", self.ctx)
             frame = desktop.getCurrentFrame()
-            dispatcher = self.ctx.ServiceManager.createInstanceWithContext(
+            helper = self.ctx.ServiceManager.createInstanceWithContext(
                 "com.sun.star.frame.DispatchHelper", self.ctx)
             arg = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
             arg.Name = "OptionsPageURL"
             arg.Value = "%origin%/dialog/options.xdl"
-            dispatcher.executeDispatch(frame, ".uno:OptionsTreeDialog", "", 0, ())
+            helper.executeDispatch(frame, ".uno:OptionsTreeDialog", "", 0, (arg,))
         except Exception:
             log("could not open the options page\n%s" % traceback.format_exc())
+
+    def _tell(self, title, message):
+        """A plain message box, only ever from a button the user just pressed.
+
+        Never from the proofreading path: LibreOffice already shows a modal when a
+        checker fails, and one of those arriving mid-sentence is what made the probe's
+        first run unusable.
+        """
+        try:
+            toolkit = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.awt.Toolkit", self.ctx)
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            parent = desktop.getCurrentFrame().getContainerWindow()
+            box = toolkit.createMessageBox(
+                parent, uno.Enum("com.sun.star.awt.MessageBoxType", "INFOBOX"),
+                1, title, message)
+            box.execute()
+            box.dispose()
+        except Exception:
+            log("%s: %s" % (title, message))
 
     def _say(self, message):
         """A non-modal note in the status bar. Never a message box: LibreOffice already
