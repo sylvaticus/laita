@@ -96,109 +96,104 @@ What is *not* shared, and why:
 Running in Node also removes the single biggest setup obstacle: no `Origin` header is
 sent, so **`OLLAMA_ORIGINS` is irrelevant** for this target.
 
-### LibreOffice — a LanguageTool server, not an extension
+### LibreOffice — a UNO extension, and the measurements that decided it
 
-Two reasons. UNO extensions are Python, Basic or Java, so **no** JavaScript is reusable —
-the anchoring and prompts would have to be reimplemented and then kept in step by hand.
+**Decided: a real `.oxt` extension implementing `XProofreader`, not a LanguageTool server.**
 
-And LibreOffice can already talk to a **remote LanguageTool server**. A small local HTTP
-service implementing the LanguageTool API and proxying to Ollama therefore gives
-LibreOffice support **with no extension at all**, and the same service serves the
-LanguageTool add-ons for Thunderbird, Obsidian and others for free. That service is Node,
-so it shares the core.
+The earlier plan was a local service speaking the LanguageTool API, on the reasoning that
+it needed no extension and would serve Thunderbird and Obsidian too. It was abandoned for
+one reason: **the LanguageTool protocol has no slot for a transform.** It can return
+corrections to a span; it cannot take "rewrite this in plainer English" and hand back a
+paragraph. Half of LAITA would simply not exist on that route.
 
-**Verified on LibreOffice 26.2.5.2 (Ubuntu 26.04)**, replacing the earlier "7.4 and
-later — verify on your version":
+The cost of the extension route is that no JavaScript is reusable — UNO extensions are
+Python, Basic or Java — so `anchor.js` and the prompts must be reimplemented in Python and
+kept in step by hand. That is the thing that will rot; see "What has to be duplicated".
 
-- `share/registry/lingucomponent.xcd` registers exactly one grammar checker,
-  `org.openoffice.lingu.LanguageToolGrammarChecker`, with a hardcoded list of ~45
-  locales. A document in any other language never produces a request.
-- `share/registry/main.xcd` defines its settings under
-  `Linguistic/GrammarChecking/LanguageTool`: `BaseURL`, `IsEnabled` (**default false**),
-  `Username`, `ApiKey`, `SSLCertVerify`, `RestProtocol`.
-- **That checker is a client with nothing behind it.** No server ships with LibreOffice,
-  `languagetool` is not in the Ubuntu archive, and the only checker installed by default
-  is Hunspell spelling. Every LibreOffice user wanting grammar checking must already
-  supply a server URL — which is exactly the slot we fill.
+#### What the API gives us for nothing
 
-The name misleads: "LanguageTool Grammar Checker" in the options dialog is an HTTP caller,
-not a checker.
+`doProofreading` returns errors as `nErrorStart` / `nErrorLength` plus `aSuggestions`, and
+LibreOffice draws the whole interface itself: the coloured underline, the context menu of
+replacements, applying the chosen one, *Ignore* and *Ignore All*. Confirmed working from
+Python, with our own text in the menu. `aProperties` carries a line colour per error, which
+maps onto LAITA's error/style/rephrase categories.
 
-#### What the ecosystem looks like
+That is the same UI the LanguageTool route would have given us, so nothing was lost there.
 
-The **client** half is large and stable — LibreOffice, OnlyOffice, MS Word, Google Docs,
-Obsidian, Zettlr, TeXstudio, Emacs, Vim, Sublime, VS Code (LTeX+), Thunderbird, Trados —
-and nearly all accept a custom server URL, because self-hosting is normal practice.
+#### The four things that were measured, not assumed
 
-The **server** half is nearly empty. Almost everything calling itself "self-hosted
-LanguageTool" is the official Java server in Docker. The one genuine third-party
-implementation in use is
-[`ltapiserv-rs`](https://github.com/cpg314/ltapiserv-rs) (Rust, nlprule + symspell, ~27
-stars). It is worth knowing for two reasons: it proves a third-party server drops into
-the real clients (tested against the official browser extensions, `flycheck-languagetool`
-and `ltex-ls`), and it ships exactly the way we would — one binary, a systemd *user*
-service, deb/Arch packages, Docker.
+A throwaway extension (`libreoffice/`, see its README) was built to answer these, because
+none of them are in the API documentation.
 
-**Nobody has put an LLM behind this API.** The nearest projects are adjacent, not the
-same: [`lm-writing-tool`](https://github.com/peteole/lm-writing-tool) is an independent
-reinvention of our VS Code extension, paragraph chunking and all, and does not use the
-LanguageTool API at all.
+1. **`doProofreading` is called on every keystroke**, and each call receives the whole
+   paragraph. 33 calls for a 27-character sentence, a median of 190 ms apart.
+2. **It is called on a background thread.** With an artificial 2-second delay inside the
+   call, typing stayed completely smooth and the underline simply arrived late.
+3. **LibreOffice never calls it concurrently** — 0 overlapping calls out of 27. It waits
+   for the previous call to return, so a slow checker self-throttles instead of queueing.
+4. **`XLinguServiceEventBroadcaster` works.** Returning nothing, computing in a background
+   thread, then firing `PROOFREAD_AGAIN` makes LibreOffice call again — and the second
+   call served the answer instantly from cache. The underline appeared 3.0 s after the
+   last keystroke with no further typing, exactly the configured think-time.
 
-That gap is an opportunity, but "nobody has done it" deserves a suspicious question, and
-there is a plausible answer: **speed**. Every one of those clients was written against a
-checker answering in milliseconds. We measured 0.7 s for 139 characters and 19.4 s for
-1119, growing worse than linearly. The risk is not compatibility, it is a client that
-spins, times out, or queues requests while the user keeps typing.
+Point 2 is the one that killed the LanguageTool-server route in reverse: **we are allowed
+to be slow here.** Every LanguageTool client was written against a checker answering in
+milliseconds; LibreOffice's own proofreading path is built to tolerate a slow one.
 
-#### Shipping is where this plan is weakest
-
-| | Adapter service | Python UNO extension |
-| --- | --- | --- |
-| Build cost | low — reuses `anchor.js` and `ollama.js` unchanged | high — reimplement ~600 lines in Python, then keep two copies honest forever |
-| Ship cost | **high** — a binary per platform, code signing, an autostart mechanism per OS, plus the LibreOffice setting | **low** — one `.oxt`, double-click, all platforms, no runtime |
-| Transform feature | impossible — the protocol has no slot for it | possible |
-| Reach | Thunderbird, Obsidian, Zettlr and the rest for free | LibreOffice only |
-
-The adapter is cheap to write and awkward to ship; the extension is the reverse. The
-choice here was made on code, and it still looks right — a duplicated core is the thing
-that actually rots — but if "a non-technical colleague must be able to install it" ever
-becomes the deciding constraint, the `.oxt` wins and this section should change.
-
-Distribution, if the adapter wins: `npx` first (no signing, no binaries, works
-everywhere, costs a Node install), then a `node:sea` single-file binary (~100 MB, needs
-an Apple Developer account and a Windows certificate to avoid Gatekeeper and SmartScreen
-warnings). Autostart is a systemd user unit, a launchd LaunchAgent, or a Startup-folder
-shortcut, all installable without root. Bind **127.0.0.1 only** — it is an
-unauthenticated endpoint in front of an LLM.
-
-The last step, setting `BaseURL`, can be automated by a **configuration-only `.oxt`**:
-an extension containing an `.xcu` and no code at all. Do *not* write
-`registrymodifications.xcu` directly — LibreOffice rewrites it on exit.
-
-#### The first experiment, before any LAITA code
-
-Run the official server locally and put a logging proxy in front of it:
+#### The architecture that follows
 
 ```
-LibreOffice  ->  :8082 logging proxy  ->  :8081 official LanguageTool
+doProofreading(paragraph)          <- called on every keystroke, must return at once
+  |
+  +-- answer in the cache?  -> return it. Done.
+  |
+  +-- otherwise             -> return no errors, and debounce a background job
+                                  |
+                                  +-- text still unchanged after ~1.5s?
+                                        |
+                                        +-- ask Ollama, cache the answer,
+                                            fire PROOFREAD_AGAIN
+                                                  |
+                                                  +-- LibreOffice calls again -> cache hit
 ```
 
-```bash
-docker run -d --name lt -p 8081:8010 meyay/languagetool
-# or, from https://languagetool.org/download/ (needs Java 17+):
-java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081
-```
+This is structurally what the browser and VS Code versions already do. The difference is
+that there LAITA decides when to check; here it is asked constantly and must mostly
+decline.
 
-Then Tools ▸ Options ▸ Languages and Locales ▸ Writing Aids ▸ LanguageTool Server:
-enable, Base URL `http://localhost:8081/v2`.
+**The debounce is not optional.** The probe deliberately started a worker on every call and
+the result is the measurement that matters most: **17 workers for a 17-character sentence**,
+each firing its own re-check, producing 49 `doProofreading` calls. With a real model that
+is 17 inferences on a paragraph still being typed. The browser's 1.5 s debounce plus the
+existing chunk cache should collapse that to one.
 
-That one capture answers everything currently inferred rather than known: whether
-LibreOffice appends `/check` to the base URL, how much text arrives per request and how
-often, the exact JSON shape of a working reply (to imitate rather than reverse-engineer),
-and what LibreOffice does when a reply takes fifteen seconds.
+#### What has to be duplicated, and what does not
 
-This remains the highest reward per line of code of the three, and the only one needing
-no new UI.
+| | |
+| --- | --- |
+| Reimplement in Python | the anchoring (`anchor.js`), the prompts and transport (`ollama.js`), language detection |
+| Free from LibreOffice | underline, context menu, applying a fix, Ignore, per-category colour, paragraph segmentation |
+| Still to design | the transform: no `XProofreader` slot for it, so it needs a menu entry (`Addons.xcu`) and a dialog |
+
+The Python port of `anchor.js` is the risk. It carries four guards that were each paid for
+with corrupted text - `looksTruncated`, `alreadyThere`, the case-folding index map, and the
+quote-based location - and a second implementation is a second place for them to be wrong.
+Its unit tests should be ported alongside it, not after.
+
+#### Constraints that are LibreOffice's, not ours
+
+- **The document decides the language, and the list is fixed at install time.** A document
+  whose language is *[None]*, or outside the `Locales` list in `Linguistic.xcu`, is never
+  checked - and our code is never called, so it cannot even say why. The browser version
+  detects the language itself and works in any of the 25 the model knows; this one cannot.
+- **Only one grammar checker runs per language.** LAITA competes with the built-in
+  LanguageTool client rather than coexisting, and the user must enable it per language in
+  Tools ▸ Options ▸ Writing Aids ▸ Available Language Modules ▸ **Edit…**. Installing the
+  extension is not enough, which is a support burden.
+- **A failing checker shows a blocking modal dialog** on the first keystroke. The
+  extension must swallow every error and report problems some other way.
+- **The development loop is slow**: LibreOffice must be fully closed - including the
+  background `soffice.bin` - before a reinstalled extension is picked up.
 
 ## Repository layout
 
