@@ -20,7 +20,10 @@
             <value xml:lang="en">Check this document</value>
           </prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
-          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+          <!-- Writer, Calc, Impress and Draw. Proofreading only ever happens in Writer -
+               the others never call a grammar checker at all, measured - but Transform
+               works on a selection anywhere. -->
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument,com.sun.star.sheet.SpreadsheetDocument,com.sun.star.presentation.PresentationDocument,com.sun.star.drawing.DrawingDocument</value></prop>
         </node>
         <node oor:name="m2" oor:op="replace">
           <prop oor:name="URL" oor:type="xs:string">
@@ -30,7 +33,10 @@
             <value xml:lang="en">Stop checking</value>
           </prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
-          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+          <!-- Writer, Calc, Impress and Draw. Proofreading only ever happens in Writer -
+               the others never call a grammar checker at all, measured - but Transform
+               works on a selection anywhere. -->
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument,com.sun.star.sheet.SpreadsheetDocument,com.sun.star.presentation.PresentationDocument,com.sun.star.drawing.DrawingDocument</value></prop>
         </node>
         <node oor:name="m3" oor:op="replace">
           <prop oor:name="URL" oor:type="xs:string">
@@ -40,7 +46,10 @@
             <value xml:lang="en">Transform selection</value>
           </prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
-          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+          <!-- Writer, Calc, Impress and Draw. Proofreading only ever happens in Writer -
+               the others never call a grammar checker at all, measured - but Transform
+               works on a selection anywhere. -->
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument,com.sun.star.sheet.SpreadsheetDocument,com.sun.star.presentation.PresentationDocument,com.sun.star.drawing.DrawingDocument</value></prop>
         </node>
         <node oor:name="m4" oor:op="replace">
           <prop oor:name="URL" oor:type="xs:string">
@@ -50,7 +59,10 @@
             <value xml:lang="en">LAITA options</value>
           </prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
-          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+          <!-- Writer, Calc, Impress and Draw. Proofreading only ever happens in Writer -
+               the others never call a grammar checker at all, measured - but Transform
+               works on a selection anywhere. -->
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument,com.sun.star.sheet.SpreadsheetDocument,com.sun.star.presentation.PresentationDocument,com.sun.star.drawing.DrawingDocument</value></prop>
         </node>
       </node>
     </node>

@@ -78,6 +78,8 @@ class Engine:
         self._timer = None
         self._pending_text = None        # what the pending timer will ask about
         self._inflight = None            # what a worker is asking about right now
+        self._queue = []                 # texts waiting their turn during a sweep
+        self._draining = False
         self.stopped = False
         self.last_error = None
 
@@ -128,6 +130,54 @@ class Engine:
             self._timer.daemon = True
             self._timer.start()
 
+    def enqueue(self, text, lang, settings):
+        """Ask about this text as well, rather than instead.
+
+        request() debounces, which is right while one paragraph is being typed - each
+        keystroke should cancel the last. It is wrong for "check this document", where
+        every paragraph arrives at once and cancelling means only the final one is ever
+        asked about. That is what happened: a twelve-paragraph sweep produced one
+        request.
+
+        These are drained one at a time, because LibreOffice's own proofreading is
+        serial and a local model answers one request at a time anyway.
+        """
+        if self.stopped or not text.strip():
+            return
+        with self._lock:
+            if text in self._cache or text in self._queue or text == self._inflight:
+                return
+            self._queue.append((text, lang, settings))
+            if self._draining:
+                return
+            self._draining = True
+        threading.Thread(target=self._drain, daemon=True).start()
+
+    def _drain(self):
+        while True:
+            with self._lock:
+                if self.stopped or not self._queue:
+                    self._draining = False
+                    return
+                text, lang, settings = self._queue.pop(0)
+                if text in self._cache:
+                    continue
+                self._inflight = text
+            try:
+                issues = self._proofread(text, lang)
+                self.last_error = None
+            except Exception as err:
+                issues = []
+                self.last_error = err
+                self._log("proofread failed: %r" % (err,))
+            with self._lock:
+                self._inflight = None
+                if self.stopped:
+                    self._draining = False
+                    return
+                self._remember(text, issues)
+            self._on_ready(text)
+
     # --- the worker ------------------------------------------------------------------
     def _fire(self, text, lang, settings):
         with self._lock:
@@ -171,6 +221,7 @@ class Engine:
                 self._timer.cancel()
                 self._timer = None
             self._pending_text = None
+            self._queue = []
 
     def start(self):
         with self._lock:
@@ -185,4 +236,5 @@ class Engine:
     @property
     def busy(self):
         with self._lock:
-            return self._inflight is not None or self._timer is not None
+            return (self._inflight is not None or self._timer is not None
+                    or bool(self._queue))

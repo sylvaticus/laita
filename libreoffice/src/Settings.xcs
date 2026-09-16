@@ -34,6 +34,11 @@
            four times so on a long paragraph - but finds more issues, because the model
            caps itself at twelve per request. See laita_segment.py for the numbers. -->
       <prop oor:name="ChunkMaxChars" oor:type="xs:int"><value>0</value></prop>
+      <!-- "caret": only the paragraph the cursor is in, which is what you are editing.
+           "document": every paragraph LibreOffice asks about, which on opening a long
+           file means the whole visible document at once. Check this document overrides
+           this for one sweep either way. -->
+      <prop oor:name="Scope" oor:type="xs:string"><value>caret</value></prop>
     </group>
     <group oor:name="Suggestions">
       <info><desc>What LAITA offers.</desc></info>

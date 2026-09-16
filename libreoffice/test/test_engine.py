@@ -200,6 +200,59 @@ def main():
     check("the two ends never double-count", _shared_ends("aaa", "aaa"), 3)
     check("empty against something", _shared_ends("", "abc"), 0)
 
+    # --- a sweep must ask about every paragraph, not just the last --------------------
+    # request() debounces, which is right while one paragraph is being typed and wrong
+    # for "check this document": twelve paragraphs arriving at once produced ONE model
+    # request, because each cancelled the one before it.
+    import time as _time
+    e9, asked9, ready9 = engine()
+    paragraphs = ["Paragraph number %d with something wrong in it." % i for i in range(12)]
+    for para in paragraphs:
+        e9.enqueue(para, "en", SETTINGS)
+    for _ in range(100):
+        if not e9.busy:
+            break
+        _time.sleep(0.05)
+    check("every queued paragraph was asked about", sorted(asked9), sorted(paragraphs))
+    check("...exactly once each", len(asked9), 12)
+    check("...and every answer is cached",
+          all(e9.lookup(p) is not None for p in paragraphs), True)
+    check("...and each reported ready", len(ready9), 12)
+
+    # Queueing the same text twice is not two requests.
+    e10, asked10, _ = engine()
+    for _ in range(3):
+        e10.enqueue("The same paragraph every time.", "en", SETTINGS)
+    for _ in range(100):
+        if not e10.busy:
+            break
+        _time.sleep(0.05)
+    check("a repeated text is asked about once", len(asked10), 1)
+
+    # Stop must abandon the rest of the queue. The fake model has to be slow enough for
+    # stop() to land mid-sweep: with an instant one the whole queue drains before the
+    # call, which is a property of the test rather than of the engine.
+    FakeTimer.reset()
+    asked11 = []
+
+    def slow(text, lang):
+        asked11.append(text)
+        _time.sleep(0.05)
+        return []
+
+    e11 = Engine(slow, timer_factory=FakeTimer)
+    for i in range(20):
+        e11.enqueue("Paragraph %d." % i, "en", SETTINGS)
+    for _ in range(100):                       # let a couple through first
+        if len(asked11) >= 2:
+            break
+        _time.sleep(0.01)
+    e11.stop()
+    settled = len(asked11)
+    _time.sleep(0.3)
+    check("stop abandons the rest of the sweep", len(asked11) < 20, True)
+    check("...and nothing new starts after it", len(asked11) <= settled + 1, True)
+
     print("%d passed, %d failed" % (passes, len(fails)))
     for f in fails:
         print("  FAIL " + f)

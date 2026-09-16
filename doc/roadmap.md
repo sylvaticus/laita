@@ -205,6 +205,18 @@ with corrupted text - `looksTruncated`, `alreadyThere`, the case-folding index m
 quote-based location - and a second implementation is a second place for them to be wrong.
 Its unit tests should be ported alongside it, not after.
 
+#### Which applications it works in
+
+Measured, not assumed: **only Writer ever calls a grammar checker.** Calc, Impress and
+Draw never invoke `XProofreader` at all, whatever is typed into them, so proofreading
+there is not something the extension can choose to do.
+
+The **transform** is different, because it works on a selection rather than on a
+proofreading pass, and the selection can be read and written in all four - a Writer text
+range, a Calc cell, an Impress or Draw shape. All four verified end to end. The toolbar
+and the context-menu entry are therefore declared for all four applications, and
+proofreading simply never happens in three of them.
+
 #### Constraints that are LibreOffice's, not ours
 
 - **The document decides the language, and the list is fixed at install time.** A document

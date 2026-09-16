@@ -79,6 +79,11 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
         self.locales = tuple(Locale(l, c, "") for l, c in LOCALES)
         self.listeners = []
         self.engine = Engine(self._ask_the_model, on_ready=self._answer_ready, log=log)
+        # Set by the Check this document button, for one sweep. Opening a long file
+        # otherwise means LibreOffice asks about every visible paragraph at once, and
+        # each of those is a request to a local model that answers in seconds.
+        self.sweep = False
+        self._sweep_timer = None
         Proofreader.instance = self
         log("proofreader loaded")
 
@@ -154,8 +159,53 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
             self.listeners.remove(listener)
         return True
 
+    def caret_paragraph(self):
+        """The text of the paragraph the cursor is in, or None.
+
+        This is how "only what I am editing" is decided. LibreOffice offers every
+        paragraph it feels like checking; comparing against this one is the only way to
+        tell which of them the user is actually working on.
+        """
+        try:
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            controller = desktop.getCurrentComponent().getCurrentController()
+            cursor = controller.getViewCursor()
+            para = getattr(cursor, "TextParagraph", None)
+            return para.getString() if para is not None else None
+        except Exception:
+            return None
+
+    def start_sweep(self):
+        """Allow every paragraph to be checked, until the work stops arriving."""
+        self.sweep = True
+        self.engine.start()
+        self.engine.forget()
+        self._answer_ready("")
+
+    def _maybe_end_sweep(self):
+        """A sweep is over when the engine has been idle for a moment.
+
+        There is no event for "LibreOffice has finished walking the document", so this
+        watches for the work running out instead. Without it the override would stay on
+        for the rest of the session and quietly undo the setting.
+        """
+        if self._sweep_timer is not None:
+            self._sweep_timer.cancel()
+        if not self.sweep:
+            return
+
+        def check():
+            if self.sweep and not self.engine.busy:
+                self.sweep = False
+                log("sweep finished; back to checking only the current paragraph")
+        self._sweep_timer = threading.Timer(4.0, check)
+        self._sweep_timer.daemon = True
+        self._sweep_timer.start()
+
     def _answer_ready(self, text):
         """An answer landed. Ask LibreOffice to proofread again; the next call hits cache."""
+        self._maybe_end_sweep()
         log("ready: %d chars, asking %d listener(s) for a re-check"
             % (len(text), len(self.listeners)))
         try:
@@ -222,8 +272,23 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
             raw = self.engine.lookup(text)
             source = "cache"
             if raw is None:
-                if s["checkAsYouType"]:
-                    self.engine.request(text, lang, s)
+                # Only ask about the paragraph being edited, unless the whole document
+                # was asked for. Opening a long file makes LibreOffice offer every
+                # visible paragraph at once, and each one is a request to a local model
+                # that takes seconds - so the default is the paragraph under the cursor.
+                if self.sweep:
+                    # A sweep queues every paragraph. Debouncing here would cancel each
+                    # one as the next arrived and only the last would be asked about.
+                    self.engine.enqueue(text, lang, s)
+                    log("check: %d chars, queued for the sweep" % len(text))
+                    return res
+                if s["scope"] == "document" or text == self.caret_paragraph():
+                    if s["checkAsYouType"]:
+                        self.engine.request(text, lang, s)
+                else:
+                    log("check: %d chars, not the paragraph being edited, skipped  %r"
+                        % (len(text), text[:40]))
+                    return res
                 # Show the previous answer for this paragraph while the new one is
                 # computed, rather than blanking every underline on each keystroke.
                 # Anchoring below is against the CURRENT text, so anything the edit
@@ -314,15 +379,14 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         pr = Proofreader.instance
         if command == "checkdocument":
             # LibreOffice owns the proofreading pass, so "check this document" means
-            # forget what we know and ask it to walk the document again - which makes it
-            # call us for every paragraph.
+            # forget what we know, allow every paragraph for one sweep, and ask it to
+            # walk the document again - which makes it call us for each of them.
             if pr:
-                pr.engine.start()
-                pr.engine.forget()
-                pr._answer_ready("")
+                pr.start_sweep()
             self._say("LAITA is checking the document.")
         elif command == "stop":
             if pr:
+                pr.sweep = False
                 pr.engine.stop()
             self._say("LAITA has stopped checking. Use Check document to resume.")
         elif command == "transform":
@@ -353,20 +417,35 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         self._tell("LAITA", '"%s" will no longer be flagged.' % word)
 
     def _selection(self):
-        """The selected text range in the current document, or None.
+        """Whatever holds the selected text, or None.
 
-        Returns the RANGE, not the string: replacing it later needs the range, and
-        looking it up again afterwards would race with anything that moved the cursor.
+        Returns the OBJECT, not the string: replacing it later needs something to write
+        back to, and looking the selection up again afterwards would race with anything
+        that moved the cursor.
+
+        The shape differs per application, which is why this is not one line. Writer
+        gives a collection of text ranges; Calc gives a cell directly, or a range of
+        them; Impress and Draw give a collection of shapes. Each has getString and
+        setString once it has been unwrapped, and proofreading may be Writer-only but a
+        rewrite is useful in all of them.
         """
         try:
             desktop = self.ctx.ServiceManager.createInstanceWithContext(
                 "com.sun.star.frame.Desktop", self.ctx)
             doc = desktop.getCurrentComponent()
             selection = doc.getCurrentSelection()
-            if selection is None or not selection.getCount():
+            if selection is None:
                 return None
-            rng = selection.getByIndex(0)
-            return rng if rng.getString().strip() else None
+            # Calc hands back the cell itself; Writer, Impress and Draw hand back a
+            # collection of one or more things.
+            target = selection
+            if not hasattr(selection, "getString") and hasattr(selection, "getCount"):
+                if not selection.getCount():
+                    return None
+                target = selection.getByIndex(0)
+            if not hasattr(target, "getString") or not hasattr(target, "setString"):
+                return None
+            return target if target.getString().strip() else None
         except Exception:
             log("could not read the selection\n%s" % traceback.format_exc())
             return None
