@@ -36,6 +36,25 @@ against the JavaScript they came from rather than against expectations written b
 them, and `test_wiring.py` checks every name that has to match across the XML and the
 Python - the class of mistake that makes a button do nothing with no error anywhere.
 
+## Testing
+
+```bash
+./test/run.sh                       # needs neither LibreOffice nor Ollama
+./tools/uno-run.sh test/uno_smoke.py  # drives a headless LibreOffice
+```
+
+The first compares the two ported modules against the JavaScript they came from, replays
+the measured keystroke pattern against the debounce, and checks every name that has to
+match across the XML and the Python.
+
+The second is the one worth knowing about. `uno-run.sh` starts a headless LibreOffice,
+connects over a UNO socket and hands a script a live component context - so the boundary
+can be tested without a window, a document, or a human clicking. It is how the options
+dialog was fixed: `createDialogWithHandler` threw `WrappedTargetRuntimeException` with
+nothing naming the cause, and bisecting `.xdl` variants against a running instance found
+it in three rounds. It cannot type, click, or see an underline; for those, a human still
+has to look.
+
 ## Things that cost time here
 
 - **A Python virtualenv on `PATH` breaks the install.** `unopkg` fails with
@@ -55,5 +74,14 @@ Python - the class of mistake that makes a button do nothing with no error anywh
 - **Do not test with a misspelling.** AutoCorrect rewrites `teh` to `the` on the next
   space, so a grammar checker never sees it. Test with something AutoCorrect leaves
   alone.
+- **The `.xdl` event binding has exactly one correct spelling.** A button handled by an
+  `XDialogEventHandler` needs
+  `script:macro-name="vnd.sun.star.UNO:onName" script:language="UNO"` and **no**
+  `script:location`. Every other combination makes `createDialogWithHandler` throw
+  `WrappedTargetRuntimeException` at creation, naming neither the event nor the control.
+- **An extension options page may simply never appear** in Tools ▸ Options even with the
+  `Id` matching the extension identifier, which is the documented requirement. The
+  toolbar opens our own dialog instead; `OptionsDialog.xcu` is still registered in case
+  it ever starts working.
 - **`print()` goes nowhere.** A log file is the only reliable channel, the same lesson the
   VS Code port taught.

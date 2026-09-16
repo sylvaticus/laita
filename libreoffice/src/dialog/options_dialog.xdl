@@ -19,7 +19,11 @@
        model can be pulled while the dialog is open, and Ollama may be unreachable. -->
   <dlg:combobox dlg:id="Model" dlg:tab-index="4" dlg:left="80" dlg:top="30" dlg:width="120" dlg:height="12" dlg:spin="true"/>
   <dlg:button dlg:id="btnTest" dlg:tab-index="5" dlg:left="204" dlg:top="30" dlg:width="48" dlg:height="12" dlg:value="Test">
-   <script:event script:event-name="on-performaction" script:location="document" script:macro-name="onTest"/>
+   <!-- script:language="UNO" and the vnd.sun.star.UNO: prefix, with NO script:location.
+        Every other spelling makes createDialogWithHandler throw
+        WrappedTargetRuntimeException at CREATION time, with nothing naming the
+        event as the cause - bisected against a live LibreOffice to find it. -->
+   <script:event script:event-name="on-performaction" script:macro-name="vnd.sun.star.UNO:onTest" script:language="UNO"/>
   </dlg:button>
   <dlg:text dlg:id="Status" dlg:tab-index="26" dlg:left="8" dlg:top="45" dlg:width="244" dlg:height="10" dlg:value=""/>
   <dlg:text dlg:id="tKeep" dlg:tab-index="5" dlg:left="8" dlg:top="59" dlg:width="70" dlg:height="10" dlg:value="Keep loaded for"/>
