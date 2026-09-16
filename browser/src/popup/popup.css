@@ -44,3 +44,13 @@ kbd { font: 11px ui-monospace, monospace; opacity: .6; margin-left: 4px; }
 @media (prefers-color-scheme: dark) {
   .remote { background: #3b1513; color: #f5b7b1; border-color: #e74c3c; }
 }
+
+/* A button that cannot do anything yet should look like it, rather than failing on click.
+   Transform needs a selection in the page, and the popup says so instead. */
+.btn:disabled {
+  opacity: .5;
+  cursor: default;
+}
+.btn:disabled:hover {
+  background: inherit;
+}

@@ -366,6 +366,35 @@ LAITA.Transform = {
   },
 
   /** Called from main.js for both the context menu and Alt+Shift+T. */
+  /**
+   * Is there something to transform, without opening anything?
+   *
+   * The toolbar popup needs this: it has to say "Transform 43 characters" or explain why
+   * it cannot, and it must not leave a panel behind if the user only glanced at it.
+   *
+   * Opening the popup moves focus out of the page, which is exactly the case this has to
+   * survive. A selection inside <textarea>/<input> does, because selectionStart/End are
+   * properties of the element and outlive focus; a DOM selection normally does too, but a
+   * rich editor is free to drop its own on blur. So the answer is computed here, in the
+   * page, rather than assumed by the popup.
+   */
+  peek() {
+    const t = acquire();
+    if (!t) return { ok: true, hasSelection: false };
+    const selected = t.adapter ? t.adapter.getText().slice(t.start, t.end) : t.text;
+    // acquire() may have built an adapter purely to answer the question.
+    if (t.owned) t.adapter?.destroy();
+    const trimmed = selected.trim();
+    if (!trimmed) return { ok: true, hasSelection: false };
+    return {
+      ok: true,
+      hasSelection: true,
+      chars: selected.length,
+      editable: !!t.adapter,
+      preview: trimmed.length > 60 ? trimmed.slice(0, 57) + "…" : trimmed
+    };
+  },
+
   async open() {
     // A transform can be asked for before the page has finished booting - the menu item
     // and the hotkey are live immediately - so fetch the settings rather than doing

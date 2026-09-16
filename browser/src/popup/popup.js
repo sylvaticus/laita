@@ -89,6 +89,40 @@ async function init() {
     await browser.runtime.sendMessage({ cmd: "toggleSite", hostname, on: $("site").checked });
   });
 
+  // Everything the right-click menu offers is here too, because a page can replace its
+  // own context menu - Overleaf does - and then the menu simply never appears. The
+  // toolbar popup is browser chrome: no page can touch it.
+  const transformBtn = $("transform");
+  const selectionNote = $("selection");
+
+  const refreshSelection = async () => {
+    const res = await browser.tabs
+      .sendMessage(tab.id, { cmd: "peekSelection" })
+      .catch(() => null);
+    if (!res?.ok) {
+      transformBtn.disabled = true;
+      selectionNote.textContent = "";
+      return;
+    }
+    if (!res.hasSelection) {
+      transformBtn.disabled = true;
+      selectionNote.textContent = "Select some text on the page to transform it.";
+      return;
+    }
+    transformBtn.disabled = false;
+    selectionNote.textContent = res.editable
+      ? `${res.chars} characters selected: “${res.preview}”`
+      : `${res.chars} characters selected: “${res.preview}” — read-only, so the result ` +
+        `can only be copied.`;
+  };
+  await refreshSelection();
+
+  transformBtn.addEventListener("click", async () => {
+    await browser.tabs.sendMessage(tab.id, { cmd: "transformSelection" }).catch(() => null);
+    // The panel opens in the page, behind this popup, so get out of its way.
+    window.close();
+  });
+
   $("check").addEventListener("click", async () => {
     await browser.tabs.sendMessage(tab.id, { cmd: "checkNow" }).catch(() => null);
     setTimeout(() => refreshField(tab), 400);

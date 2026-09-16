@@ -432,6 +432,12 @@
     }
     // The background page used to read tab.url, which needs a host permission over every
     // site. It no longer holds one, and does not need to: the page knows where it is.
+    // The toolbar popup asks before drawing its Transform button. It is a separate
+    // question from getFieldState, which is about the focused field rather than a
+    // selection - a selection in ordinary page text has no field at all.
+    if (msg.cmd === "peekSelection") {
+      return LAITA.Transform.peek();
+    }
     if (msg.cmd === "hostname") {
       return { ok: true, hostname: location.hostname };
     }

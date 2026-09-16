@@ -228,7 +228,19 @@ It updates itself, and its ID is the one already given in
 > Loading an unreleased build, or working on the code? That lives in
 > [`doc/dev_doc.md`](doc/dev_doc.md).
 
-#### 2.4.3. Check the connection
+#### 2.4.3. Keep the toolbar button where you can reach it
+
+The toolbar button is LAITA's status light and its menu-of-last-resort: it offers the
+transform and the per-site pause even on pages that replace their own right-click menu.
+
+**Chrome hides every extension behind a puzzle-piece icon by default.** Click the
+🧩 **puzzle piece** to the right of the address bar, find *LAITA*, and click the **pin**
+next to it. The icon then stays in the toolbar.
+
+**Firefox** usually shows it already. If not, open the **≫** overflow menu, or right-click
+the toolbar → *Customise Toolbar…*, and drag LAITA where you want it.
+
+#### 2.4.4. Check the connection
 
 On the options page press **Test connection**. You should see
 *"Connected. N models available, "qwen3.5:9b" is one of them."*
@@ -274,8 +286,15 @@ wikis, most WYSIWYG editors) are supported.
 #### 3.1.2. Transforming a selection
 
 Proofreading suggests small fixes and never rewrites wholesale. When you *want* a rewrite,
-select the text, right-click and choose **Local AI Text Assistant → Transform…** (or press
-**Alt+Shift+T**).
+select the text and use any of three:
+
+- right-click → **Local AI Text Assistant → Transform…**
+- **Alt+Shift+T**
+- the **toolbar button** → *Transform selection*, which also tells you how much is selected
+
+The last two matter on sites that **replace the right-click menu with their own** —
+Overleaf, Google Docs, many editors — where LAITA's entry never appears. The keyboard
+shortcut and the toolbar button are browser chrome: no page can take them away.
 
 A one-line box opens. Type what you want done and press Enter:
 
@@ -314,8 +333,9 @@ Two things worth knowing:
 #### 3.1.3. Pausing on a site
 
 Three places do the same thing — the right-click menu, **Alt+Shift+X**, and the toolbar
-button's per-site switch. The menu entry names the site and says which way it will go, so
-you can see the current state before clicking:
+button's per-site switch. Use one of the last two on a site that replaces its own
+right-click menu. The menu entry names the site and says which way it will go, so you can
+see the current state before clicking:
 
 > LAITA: pause spell check on **news.ycombinator.com**
 
