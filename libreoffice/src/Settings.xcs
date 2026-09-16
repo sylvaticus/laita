@@ -30,7 +30,10 @@
       <prop oor:name="DebounceMs" oor:type="xs:int"><value>1500</value></prop>
       <prop oor:name="MinChars" oor:type="xs:int"><value>25</value></prop>
       <prop oor:name="MaxChars" oor:type="xs:int"><value>12000</value></prop>
-      <prop oor:name="ChunkMaxChars" oor:type="xs:int"><value>700</value></prop>
+      <!-- 0 means do not split a paragraph. Splitting is SLOWER against a real model -
+           four times so on a long paragraph - but finds more issues, because the model
+           caps itself at twelve per request. See laita_segment.py for the numbers. -->
+      <prop oor:name="ChunkMaxChars" oor:type="xs:int"><value>0</value></prop>
     </group>
     <group oor:name="Suggestions">
       <info><desc>What LAITA offers.</desc></info>

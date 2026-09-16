@@ -26,7 +26,7 @@ DEFAULTS = {
     "debounceMs": 1500,
     "minChars": 25,
     "maxChars": 12000,
-    "chunkMaxChars": 700,
+    "chunkMaxChars": 0,
     "categories": {"error": True, "style": True, "rephrase": True},
     "dictionary": [],
     "ignored": [],
@@ -66,7 +66,7 @@ _CLAMP = {
     "debounceMs": (300, 20000),
     "minChars": (1, 500),
     "maxChars": (500, 200000),
-    "chunkMaxChars": (120, 4000),
+    "chunkMaxChars": (0, 4000),
 }
 
 

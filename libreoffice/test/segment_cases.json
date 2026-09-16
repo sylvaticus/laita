@@ -1,0 +1,72 @@
+[
+ {
+  "name": "short paragraph, untouched",
+  "limit": 700,
+  "text": "This is a short paragraph that needs no splitting at all."
+ },
+ {
+  "name": "two sentences over the limit",
+  "limit": 60,
+  "text": "The first sentence is here. The second sentence follows it."
+ },
+ {
+  "name": "ordinary prose",
+  "limit": 200,
+  "text": "This is a test that depend on the underlying architecture of this software, it mays work or not, depending on the processor. A second sentence follows here and it is also of a reasonable length. A third one, shorter. And a fourth to push it over the limit so the splitting has work to do."
+ },
+ {
+  "name": "one very long sentence",
+  "limit": 100,
+  "text": "This single sentence runs on and on without any terminal punctuation at all so it cannot be divided at a sentence boundary and must go out as it is"
+ },
+ {
+  "name": "question and exclamation marks",
+  "limit": 50,
+  "text": "Is this a question? It certainly is! And this one ends with a full stop. Another here."
+ },
+ {
+  "name": "quotes after the full stop",
+  "limit": 50,
+  "text": "He said \"this is the first part.\" Then she replied \"and this is the second.\" Done."
+ },
+ {
+  "name": "ellipsis as a terminator",
+  "limit": 40,
+  "text": "It trailed off here… And then resumed properly. A third sentence closes it."
+ },
+ {
+  "name": "leading and trailing space",
+  "limit": 700,
+  "text": "   A paragraph padded with blank space on both sides.   "
+ },
+ {
+  "name": "abbreviations, the classic trap",
+  "limit": 60,
+  "text": "We met Dr. Smith on Tuesday. He works at the U.S. embassy in Rome. It was brief."
+ },
+ {
+  "name": "decimal numbers",
+  "limit": 60,
+  "text": "The value was 3.14 and the other was 2.71 exactly. That is the whole result."
+ },
+ {
+  "name": "empty",
+  "limit": 700,
+  "text": ""
+ },
+ {
+  "name": "whitespace only",
+  "limit": 700,
+  "text": "     "
+ },
+ {
+  "name": "limit below the floor",
+  "limit": 10,
+  "text": "The floor is one hundred and twenty characters, so a smaller limit is raised to it rather than producing a chunk per word."
+ },
+ {
+  "name": "an abbreviation exactly at a packing boundary",
+  "limit": 130,
+  "text": "The report was prepared in Washington. It covers the whole of the U.S. market for the year, including every region. A closing sentence rounds it off nicely."
+ }
+]

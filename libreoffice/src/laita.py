@@ -36,6 +36,7 @@ from com.sun.star.awt import XContainerWindowEventHandler, XDialogEventHandler, 
 
 import laita_anchor as anchor
 import laita_ollama as ollama
+import laita_segment as segment
 import laita_settings as settings_store
 from laita_engine import Engine
 
@@ -144,10 +145,22 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
         paragraph says at the moment it is drawn."""
         s = settings_store.read(self.ctx)
         started = time.time()
-        raw = ollama.request_issues(text, lang, s,
-                                    timeout=float(s["requestTimeoutMs"]) / 1000.0)
-        log("model: %d chars, %d issues, %.1fs  %r"
-            % (len(text), len(raw), time.time() - started, text[:60]))
+        timeout = float(s["requestTimeoutMs"]) / 1000.0
+
+        # One request per chunk, not one per paragraph. Latency grows faster than the
+        # text - 0.7s at 139 characters, 19.4s at 1119 - so two small requests beat one
+        # large one, and a large one also produces worse suggestions.
+        #
+        # The chunks' raw answers are simply concatenated. That works because the model
+        # answers with QUOTES rather than offsets: a quote from chunk three is still a
+        # quote from the paragraph, and anchoring locates it against the whole paragraph
+        # afterwards. No offset arithmetic is needed and none is done.
+        chunks = segment.chunk_text(text, s["chunkMaxChars"])
+        raw = []
+        for _, chunk in chunks:
+            raw.extend(ollama.request_issues(chunk, lang, s, timeout=timeout))
+        log("model: %d chars in %d chunk(s), %d issues, %.1fs  %r"
+            % (len(text), len(chunks), len(raw), time.time() - started, text[:60]))
         return raw
 
     # --- the hot path -----------------------------------------------------------------------

@@ -167,6 +167,31 @@ each firing its own re-check, producing 49 `doProofreading` calls. With a real m
 is 17 inferences on a paragraph still being typed. The browser's 1.5 s debounce plus the
 existing chunk cache should collapse that to one.
 
+#### Chunking: ported, measured, and turned off
+
+The browser splits a long paragraph at sentence boundaries because latency grows faster
+than the text - 0.7 s at 139 characters, 19.4 s at 1119. That was ported, and then
+measured against a real model through the extension. It does not hold here:
+
+| paragraph | sent whole | in 700-character chunks |
+| --- | --- | --- |
+| 551 chars | 7.9 s, 3 issues | 9.4 s, 3 issues |
+| 1379 chars | **41.0 s**, 3 issues | **98.4 s**, 6 issues |
+| 2483 chars | **49.5 s**, 3 issues | **191.9 s**, 12 issues |
+
+Splitting is close to four times slower and the gap widens. Whole-paragraph cost is
+sub-linear in this range - 1379 to 2483 characters is 41 s to 49 s - because the time
+goes on generating the answer and on re-processing the ~1500-character system prompt
+once per request, not on reading the input.
+
+What splitting does buy is **coverage**: twelve issues instead of three, because the
+model caps itself at twelve per request. That is a genuine trade of speed for
+thoroughness, so `ChunkMaxChars` defaults to 0, meaning off, and remains available.
+
+Worth carrying back to the browser: its 700-character default may be costing speed
+rather than saving it, and the original measurement was never repeated with the current
+prompt.
+
 #### What has to be duplicated, and what does not
 
 | | |
