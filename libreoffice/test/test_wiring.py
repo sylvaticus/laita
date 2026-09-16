@@ -83,7 +83,37 @@ def main():
             for v in prop.getElementsByTagName("value"):
                 if v.firstChild:
                     urls.append(v.firstChild.data)
-    check("the toolbar has four buttons", len(urls), 4)
+    # Four commands, offered in two places: a menu that is always there and a toolbar
+    # the user can switch off in View > Toolbars without losing anything.
+    check("every command appears in both the menu and the toolbar", len(urls), 8)
+    check("...which is four distinct commands", len(set(urls)), 4)
+    for section in ("OfficeMenuBar", "OfficeToolBar"):
+        check("Addons.xcu declares an %s" % section, section in read("Addons.xcu"), True)
+
+    # Proofreading only happens in Writer, so the commands that drive it must not be
+    # offered in the applications that can never use them.
+    contexts = {}
+    for node in addons.getElementsByTagName("node"):
+        url_prop = ctx_prop = None
+        for prop in node.getElementsByTagName("prop"):
+            if prop.parentNode is not node:
+                continue
+            values = [v.firstChild.data for v in prop.getElementsByTagName("value")
+                      if v.firstChild]
+            if prop.getAttribute("oor:name") == "URL" and values:
+                url_prop = values[0]
+            if prop.getAttribute("oor:name") == "Context" and values:
+                ctx_prop = values[0]
+        if url_prop and ctx_prop:
+            contexts.setdefault(url_prop.split(":", 1)[1], set()).add(ctx_prop)
+    for command in ("checkdocument", "stop"):
+        for ctx_value in contexts.get(command, ()):
+            check("%r is offered in Writer only" % command,
+                  ctx_value, "com.sun.star.text.TextDocument")
+    for command in ("transform", "options"):
+        for ctx_value in contexts.get(command, ()):
+            check("%r is offered in every application" % command,
+                  ctx_value.count(",") + 1, 4)
     handled = set(re.findall(r'command == "(\w+)"', py))
     for url in urls:
         check("Addons.xcu URL %r uses our protocol" % url,

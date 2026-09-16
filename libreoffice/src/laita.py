@@ -396,6 +396,32 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         elif command == "options":
             self._open_options()
 
+    def _to_clipboard(self, text):
+        """Last resort when the document will not take the text back."""
+        try:
+            clip = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.datatransfer.clipboard.SystemClipboard", self.ctx)
+            import unohelper
+            from com.sun.star.datatransfer import XTransferable, DataFlavor
+
+            class Text(unohelper.Base, XTransferable):
+                def getTransferData(self, flavor):
+                    return text
+
+                def getTransferDataFlavors(self):
+                    f = DataFlavor()
+                    f.MimeType = "text/plain;charset=utf-16"
+                    f.HumanPresentableName = "Unicode text"
+                    f.DataType = uno.getTypeByName("string")
+                    return (f,)
+
+                def isDataFlavorSupported(self, flavor):
+                    return flavor.MimeType.startswith("text/plain")
+
+            clip.setContents(Text(), None)
+        except Exception:
+            log("could not reach the clipboard\n%s" % traceback.format_exc())
+
     def _add_to_dictionary(self):
         word = selected_word(self.ctx)
         if not word:
@@ -527,10 +553,44 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
 
             threading.Thread(target=work, daemon=True).start()
 
+        def write_back(new_text, what):
+            """Put the result into the document, and say whether it actually landed.
+
+            Reads it back afterwards rather than assuming. In Calc, Impress and Draw the
+            object captured before the dialog opened can be stale by the time it closes,
+            and setString on a stale object does not raise - it does nothing, which is
+            indistinguishable from the feature being broken.
+            """
+            try:
+                rng.setString(new_text)
+                landed = rng.getString() == new_text
+            except Exception:
+                log("%s failed\n%s" % (what, traceback.format_exc()))
+                landed = False
+            if landed:
+                log("%s: wrote %d characters" % (what, len(new_text)))
+                return True
+            # Second chance: ask the document what is selected NOW.
+            again = self._selection()
+            if again is not None:
+                try:
+                    again.setString(new_text)
+                    if again.getString() == new_text:
+                        log("%s: wrote %d characters on the second attempt"
+                            % (what, len(new_text)))
+                        return True
+                except Exception:
+                    log("%s retry failed\n%s" % (what, traceback.format_exc()))
+            log("%s: the text could not be written back" % what)
+            self._tell("LAITA", "The rewritten text could not be put back into the "
+                                "document. It is on your clipboard instead.")
+            self._to_clipboard(new_text)
+            return False
+
         def append(dialog):
             text = dialog.getControl("Result").getText()
             if text.strip():
-                rng.setString(selected + " " + text)
+                write_back(selected + " " + text, "append")
             dialog.endExecute()
 
         try:
@@ -545,10 +605,11 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                                          [s["transformDefault"]]))
             combo.addItems(tuple(offered), 0)
             combo.setText(offered[0] if offered else s["transformDefault"])
-            if dialog.execute() == 1 and state["output"].strip():
-                # Accept & replace. The range was captured before the dialog opened, so
-                # this replaces what the user selected even if the cursor has moved.
-                rng.setString(state["output"])
+            verdict = dialog.execute()
+            log("transform dialog closed with %r, %d characters of output"
+                % (verdict, len(state["output"])))
+            if verdict == 1 and state["output"].strip():
+                write_back(state["output"], "replace")
             dialog.dispose()
         except Exception:
             log("transform failed\n%s" % traceback.format_exc())
