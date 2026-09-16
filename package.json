@@ -5,12 +5,13 @@
   "description": "Development tooling only. Neither shipped package depends on this: browser/ is loaded by the browser as-is and vscode/ has its own package.json. It exists so that web-ext and eslint are pinned rather than resolved to whatever npx finds today.",
   "license": "MIT",
   "scripts": {
-    "test": "browser/test/run.sh && vscode/test/run.sh",
+    "test": "browser/test/run.sh && vscode/test/run.sh && libreoffice/test/run.sh",
     "test:browser": "browser/test/run.sh",
     "test:vscode": "vscode/test/run.sh",
     "lint": "eslint .",
     "lint:ext": "cd browser && web-ext lint --self-hosted",
-    "check": "npm run lint && npm run lint:ext && npm test"
+    "check": "npm run lint && npm run lint:ext && npm test",
+    "test:libreoffice": "libreoffice/test/run.sh"
   },
   "devDependencies": {
     "eslint": "10.10.0",

@@ -35,6 +35,9 @@ jobs:
       - run: npm ci
       - run: browser/test/run.sh
       - run: vscode/test/run.sh
+      # Needs python3 and node, not LibreOffice: it compares the Python port of the
+      # anchoring against the JavaScript it was ported from.
+      - run: libreoffice/test/run.sh
 
   lint:
     name: eslint
