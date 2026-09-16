@@ -12,12 +12,11 @@
       </prop>
     </node>
   </node>
+  <!-- OnNew and OnLoad only, and they are mutually exclusive: one fires for a new
+       document, the other for one opened from a file. onDocumentOpened was also listed
+       here at first, and it fires for BOTH - so every document registered the
+       interceptor twice and the right-click menu grew two identical entries. -->
   <node oor:name="Events">
-    <node oor:name="onDocumentOpened" oor:op="fuse">
-      <node oor:name="JobList">
-        <node oor:name="LAITAStartup" oor:op="replace"/>
-      </node>
-    </node>
     <node oor:name="OnNew" oor:op="fuse">
       <node oor:name="JobList">
         <node oor:name="LAITAStartup" oor:op="replace"/>

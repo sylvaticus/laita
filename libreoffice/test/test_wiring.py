@@ -190,6 +190,26 @@ def main():
     check("replace is the OK verdict, so execute() means something",
           'dlg:id="btnReplace"' in transform and 'dlg:button-type="ok"' in transform, True)
 
+    # --- the startup job must not fire twice for one document ---------------------------
+    # onDocumentOpened fires for BOTH a new document and one loaded from a file, so
+    # listing it alongside OnNew and OnLoad registers the context-menu interceptor twice
+    # and the right-click menu grows two identical entries. Visible to a user
+    # immediately, invisible in any unit test - hence this one.
+    jobs = minidom.parseString(read("Jobs.xcu"))
+    events = set()
+    for node in jobs.getElementsByTagName("node"):
+        name = node.getAttribute("oor:name")
+        parent = node.parentNode
+        if parent.nodeType == 1 and parent.getAttribute("oor:name") == "Events":
+            events.add(name)
+    check("the job listens on OnNew and OnLoad", events, {"OnNew", "OnLoad"})
+    check("...and not on onDocumentOpened, which fires for both",
+          "onDocumentOpened" not in events, True)
+    check("the job service name matches the class",
+          "org.lobianco.laita.StartupJob" in read("Jobs.xcu") and
+          'JOB_IMPL = "org.lobianco.laita.StartupJob"' in py, True)
+    check("Jobs.xcu is shipped", "Jobs.xcu" in listed, True)
+
     # --- the settings schema and the Python defaults must line up -------------------------
     sys.path.insert(0, os.path.join(SRC, "pythonpath"))
     import laita_settings as S

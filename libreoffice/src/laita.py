@@ -682,6 +682,12 @@ class StartupJob(unohelper.Base, XJob, XServiceInfo):
     register it once. Jobs.xcu fires this on OnLoad and OnNew.
     """
 
+    # Documents we have already hooked, by RuntimeUID. Belt as well as braces: the
+    # duplicate entries were caused by listening on one event too many, but a reload or
+    # a second view would do the same, and a duplicated menu entry is the kind of thing
+    # a user sees long before a developer does.
+    hooked = set()
+
     def __init__(self, ctx, *args):
         self.ctx = ctx
 
@@ -704,10 +710,15 @@ class StartupJob(unohelper.Base, XJob, XServiceInfo):
                             model = env.Value
             if model is None:
                 return None
+            uid = getattr(model, "RuntimeUID", None) or repr(model)
+            if uid in StartupJob.hooked:
+                log("context menu already registered for %s, skipping" % uid)
+                return None
             controller = model.getCurrentController()
             if controller and hasattr(controller, "registerContextMenuInterceptor"):
                 controller.registerContextMenuInterceptor(ContextMenu(self.ctx))
-                log("context menu registered on a document")
+                StartupJob.hooked.add(uid)
+                log("context menu registered on %s" % uid)
         except Exception:
             log("could not register the context menu\n%s" % traceback.format_exc())
         return None
