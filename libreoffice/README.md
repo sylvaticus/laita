@@ -83,5 +83,13 @@ has to look.
   `Id` matching the extension identifier, which is the documented requirement. The
   toolbar opens our own dialog instead; `OptionsDialog.xcu` is still registered in case
   it ever starts working.
+- **Never call anything slow from a dialog handler.** Those run on the UI thread, and a
+  one-page transform froze the whole of LibreOffice long enough for the desktop to offer
+  Force Quit. Work goes on a thread; results come back through
+  `com.sun.star.awt.AsyncCallback`, because touching a control from a worker crashes
+  rather than raising.
+- **Addons.xcu cannot add to the text context menu.** It does the menu bar and toolbars
+  only. A right-click entry needs an `XContextMenuInterceptor`, which lives on a
+  document's controller - so `Jobs.xcu` runs a job per document to register it.
 - **`print()` goes nowhere.** A log file is the only reliable channel, the same lesson the
   VS Code port taught.

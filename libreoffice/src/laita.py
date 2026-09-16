@@ -18,6 +18,7 @@ containing one letter. So every entry point below swallows, logs, and returns so
 harmless.
 """
 import os
+import threading
 import time
 import traceback
 
@@ -29,7 +30,9 @@ from com.sun.star.linguistic2 import XLinguServiceEventBroadcaster, LinguService
 from com.sun.star.linguistic2.LinguServiceEventFlags import PROOFREAD_AGAIN
 from com.sun.star.lang import XServiceInfo, XServiceName, XServiceDisplayName, Locale
 from com.sun.star.frame import XDispatchProvider, XDispatch
-from com.sun.star.awt import XContainerWindowEventHandler, XDialogEventHandler
+from com.sun.star.task import XJob
+from com.sun.star.ui import XContextMenuInterceptor
+from com.sun.star.awt import XContainerWindowEventHandler, XDialogEventHandler, XCallback
 
 import laita_anchor as anchor
 import laita_ollama as ollama
@@ -39,6 +42,7 @@ from laita_engine import Engine
 PROOFREADER_IMPL = "org.lobianco.laita.Proofreader"
 DISPATCHER_IMPL = "org.lobianco.laita.Dispatcher"
 OPTIONS_IMPL = "org.lobianco.laita.OptionsHandler"
+JOB_IMPL = "org.lobianco.laita.StartupJob"
 PROOFREADER_SERVICE = "com.sun.star.linguistic2.Proofreader"
 PROTOCOL = "org.lobianco.laita.command:"
 
@@ -316,32 +320,66 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         state = {"output": ""}
 
         def run(dialog):
+            """Start the model on a worker thread and return at once.
+
+            The first version called the model right here. On the UI thread, for a
+            one-page selection, that froze the whole of LibreOffice long enough for the
+            desktop to offer Force Quit - not just the dialog. A transform is a
+            deliberate act and waiting for it is fine; hanging the application is not.
+            """
+            if state.get("running"):
+                return
             instruction = (dialog.getControl("Instruction").getText().strip()
                            or s["transformDefault"])
-            status = dialog.getControl("Status")
-            status.setText("Asking the model... the window will not respond until it "
-                           "answers.")
-            try:
-                # Blocking, and it freezes the dialog while it runs. A transform is a
-                # deliberate act with a visible result, so waiting is expected - but a
-                # long selection can take minutes, which is why the estimate is shown
-                # and maxChars is enforced above.
-                out = ollama.request_transform(
-                    selected, instruction, None, s,
-                    timeout=max(90.0, len(selected) / 3.0))
-            except Exception as err:
-                status.setText(ollama.describe_error(err))
-                return
-            if ollama.looks_truncated_transform(selected, out, instruction):
-                status.setText("The model returned %d characters for a %d-character "
-                               "selection - too short to be a rewrite. Nothing changed."
-                               % (len(out.strip()), len(selected.strip())))
-                return
-            state["output"] = out
-            dialog.getControl("Result").setText(out)
-            status.setText("Done. Review it, then Accept & replace, Accept & append, or "
-                           "Reject.")
-            remember_instruction(self.ctx, instruction)
+            state["running"] = True
+            dialog.getControl("btnRun").setEnable(False)
+            dialog.getControl("Status").setText(
+                "Asking the model... roughly %d seconds for this much text. The window "
+                "stays usable; Reject cancels." % max(2, int(len(selected) / 45)))
+
+            def deliver(out, err):
+                """Runs back on the main thread, via AsyncCallback."""
+                state["running"] = False
+                try:
+                    dialog.getControl("btnRun").setEnable(True)
+                    if err is not None:
+                        dialog.getControl("Status").setText(ollama.describe_error(err))
+                        return
+                    if ollama.looks_truncated_transform(selected, out, instruction):
+                        dialog.getControl("Status").setText(
+                            "The model returned %d characters for a %d-character "
+                            "selection - too short to be a rewrite. Nothing changed."
+                            % (len(out.strip()), len(selected.strip())))
+                        return
+                    state["output"] = out
+                    dialog.getControl("Result").setText(out)
+                    dialog.getControl("Status").setText(
+                        "Done. Accept & replace, Accept & append, or Reject.")
+                    remember_instruction(self.ctx, instruction)
+                except Exception:
+                    log("delivering the transform failed\n%s" % traceback.format_exc())
+
+            def work():
+                out, err = "", None
+                try:
+                    out = ollama.request_transform(
+                        selected, instruction, None, s,
+                        timeout=max(90.0, len(selected) / 3.0))
+                except Exception as caught:
+                    err = caught
+                    log("transform request failed: %s" % ollama.describe_error(caught))
+                # Hop back to the main thread. Touching dialog controls from a worker is
+                # what the SolarMutex exists to prevent, and it fails as a crash rather
+                # than an exception.
+                try:
+                    async_cb = self.ctx.ServiceManager.createInstanceWithContext(
+                        "com.sun.star.awt.AsyncCallback", self.ctx)
+                    async_cb.addCallback(MainThreadCall(lambda: deliver(out, err)), None)
+                except Exception:
+                    log("could not marshal back to the main thread\n%s"
+                        % traceback.format_exc())
+
+            threading.Thread(target=work, daemon=True).start()
 
         def append(dialog):
             text = dialog.getControl("Result").getText()
@@ -561,6 +599,24 @@ def test_connection(ctx, window):
     fill_models(ctx, window, probe_settings)
 
 
+class MainThreadCall(unohelper.Base, XCallback):
+    """Runs a function on LibreOffice's main thread.
+
+    UNO calls from a worker thread need the SolarMutex, and touching dialog controls
+    without it does not raise - it crashes. AsyncCallback is the supported way to hand
+    work back, and the modal dialog's own event loop dispatches it.
+    """
+
+    def __init__(self, fn):
+        self._fn = fn
+
+    def notify(self, _data):
+        try:
+            self._fn()
+        except Exception:
+            log("main-thread callback failed\n%s" % traceback.format_exc())
+
+
 class DialogHandler(unohelper.Base, XDialogEventHandler):
     """Button clicks inside our dialogs."""
 
@@ -586,6 +642,75 @@ class DialogHandler(unohelper.Base, XDialogEventHandler):
 
     def getSupportedMethodNames(self):
         return ("onTest", "onRun", "onAppend")
+
+
+class ContextMenu(unohelper.Base, XContextMenuInterceptor):
+    """Adds LAITA's entry to the right-click menu.
+
+    Addons.xcu can put items in the menu bar and on a toolbar, but not into the text
+    context menu - that needs an interceptor, registered per document controller, which
+    is what the Job below does as each document opens.
+    """
+
+    def __init__(self, ctx):
+        self.ctx = ctx
+
+    def notifyContextMenuExecute(self, event):
+        try:
+            container = event.ActionTriggerContainer
+            factory = container  # the container is also the factory for its own entries
+
+            sep = factory.createInstance("com.sun.star.ui.ActionTriggerSeparator")
+            item = factory.createInstance("com.sun.star.ui.ActionTrigger")
+            item.setPropertyValue("Text", "LAITA: Transform selection")
+            item.setPropertyValue("CommandURL", PROTOCOL + "transform")
+
+            container.insertByIndex(container.getCount(), sep)
+            container.insertByIndex(container.getCount(), item)
+            # CONTINUE_MODIFIED: keep our addition and let everyone else contribute too.
+            return uno.Enum("com.sun.star.ui.ContextMenuInterceptorAction",
+                            "CONTINUE_MODIFIED")
+        except Exception:
+            log("context menu failed\n%s" % traceback.format_exc())
+            return uno.Enum("com.sun.star.ui.ContextMenuInterceptorAction", "IGNORED")
+
+
+class StartupJob(unohelper.Base, XJob, XServiceInfo):
+    """Registers the context menu on each document as it opens.
+
+    An interceptor lives on a controller, not on the application, so there is nowhere to
+    register it once. Jobs.xcu fires this on OnLoad and OnNew.
+    """
+
+    def __init__(self, ctx, *args):
+        self.ctx = ctx
+
+    def getImplementationName(self):
+        return JOB_IMPL
+
+    def supportsService(self, name):
+        return name == JOB_IMPL
+
+    def getSupportedServiceNames(self):
+        return (JOB_IMPL,)
+
+    def execute(self, args):
+        try:
+            model = None
+            for arg in args or ():
+                if arg.Name == "Environment":
+                    for env in arg.Value:
+                        if env.Name == "Model":
+                            model = env.Value
+            if model is None:
+                return None
+            controller = model.getCurrentController()
+            if controller and hasattr(controller, "registerContextMenuInterceptor"):
+                controller.registerContextMenuInterceptor(ContextMenu(self.ctx))
+                log("context menu registered on a document")
+        except Exception:
+            log("could not register the context menu\n%s" % traceback.format_exc())
+        return None
 
 
 class OptionsHandler(unohelper.Base, XContainerWindowEventHandler, XServiceInfo):
@@ -622,3 +747,4 @@ g_ImplementationHelper.addImplementation(Proofreader, PROOFREADER_IMPL, (PROOFRE
 g_ImplementationHelper.addImplementation(Dispatcher, DISPATCHER_IMPL,
                                          ("com.sun.star.frame.ProtocolHandler",),)
 g_ImplementationHelper.addImplementation(OptionsHandler, OPTIONS_IMPL, (OPTIONS_IMPL,),)
+g_ImplementationHelper.addImplementation(StartupJob, JOB_IMPL, (JOB_IMPL,),)

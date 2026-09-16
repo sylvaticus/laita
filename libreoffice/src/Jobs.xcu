@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Runs StartupJob as each document opens, so it can register the context-menu
+     interceptor on that document's controller. An interceptor belongs to a controller,
+     not to the application, so there is nowhere to register it just once. -->
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
+                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                    oor:name="Jobs" oor:package="org.openoffice.Office">
+  <node oor:name="Jobs">
+    <node oor:name="LAITAStartup" oor:op="replace">
+      <prop oor:name="Service" oor:type="xs:string">
+        <value>org.lobianco.laita.StartupJob</value>
+      </prop>
+    </node>
+  </node>
+  <node oor:name="Events">
+    <node oor:name="onDocumentOpened" oor:op="fuse">
+      <node oor:name="JobList">
+        <node oor:name="LAITAStartup" oor:op="replace"/>
+      </node>
+    </node>
+    <node oor:name="OnNew" oor:op="fuse">
+      <node oor:name="JobList">
+        <node oor:name="LAITAStartup" oor:op="replace"/>
+      </node>
+    </node>
+    <node oor:name="OnLoad" oor:op="fuse">
+      <node oor:name="JobList">
+        <node oor:name="LAITAStartup" oor:op="replace"/>
+      </node>
+    </node>
+  </node>
+</oor:component-data>
