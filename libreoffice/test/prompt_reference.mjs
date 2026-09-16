@@ -1,7 +1,9 @@
 // The JavaScript prompts, for the Python port to be compared against. The fence carries
 // a random nonce, so the tag is injected here to make the comparison deterministic.
 import {
-  buildSystemPrompt, buildUserPrompt, languageName, parseIssues, PROMPT_VERSION
+  buildSystemPrompt, buildUserPrompt, languageName, parseIssues, PROMPT_VERSION,
+  buildTransformSystemPrompt, buildTransformUserPrompt, cleanTransformOutput,
+  looksTruncatedTransform, estimateTransformTokens, transformPredictTokens
 } from "../../browser/src/background/ollama.js";
 
 const SETTINGS = [
@@ -50,4 +52,44 @@ for (const { name, s } of SETTINGS) {
     out.systemPrompts.push({ name: `${name} / ${l}`, prompt: buildSystemPrompt(s, l) });
   }
 }
+// --- the transform half -------------------------------------------------------------
+const INSTRUCTIONS = ["polish", "translate to French", "shorten it", "make it formal"];
+const CLEAN = [
+  ["plain answer", "Just the rewritten text.", "original"],
+  ["a lead-in", "Here is the polished text:\nThe rewritten text.", "original"],
+  ["a fence", "```\nThe rewritten text.\n```", "original"],
+  ["a fence when the original had one", "```\nThe rewritten text.\n```", "a ``` original"],
+  ["wrapped in quotes", '"The rewritten text."', "original"],
+  ["quotes the original also had", '"The rewritten text."', '"original"'],
+  ["thinking first", "<think>hmm</think>The rewritten text.", "original"],
+  ["quotes inside, not wrapping", 'He said "no" to it.', "original"]
+];
+const LONG = "word ".repeat(200);
+const TRUNC = [
+  ["half length", LONG, "word ".repeat(80), "polish"],
+  ["full rewrite", LONG, "word ".repeat(190), "polish"],
+  ["trailing ellipsis", LONG, "word ".repeat(180) + "...", "polish"],
+  ["ellipsis both sides", LONG + "...", "word ".repeat(180) + "...", "polish"],
+  ["asked to shorten", LONG, "word ".repeat(20), "shorten it"],
+  ["asked to summarise", LONG, "word ".repeat(10), "summarise in one line"],
+  ["short input", "Hello there.", "Hi.", "polish"]
+];
+
+out.transformSystemPrompts = [];
+for (const instruction of INSTRUCTIONS) {
+  for (const { name, s } of SETTINGS.slice(0, 4)) {
+    out.transformSystemPrompts.push({
+      name: `${name} / ${instruction}`,
+      prompt: buildTransformSystemPrompt(s, "en", instruction)
+    });
+  }
+}
+out.transformUserPrompt = buildTransformUserPrompt("Hello teh world.");
+out.cleaned = CLEAN.map(([name, content, original]) =>
+  ({ name, out: cleanTransformOutput(content, original) }));
+out.truncated = TRUNC.map(([name, a, b, i]) =>
+  ({ name, out: looksTruncatedTransform(a, b, i) }));
+out.tokens = [0, 1, 50, 500, 9000, 12000].map((n) =>
+  [n, estimateTransformTokens(n), transformPredictTokens(n)]);
+
 process.stdout.write(JSON.stringify(out, null, 1));

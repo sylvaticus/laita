@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
+<!-- Transform a selection. One dialog rather than the browser's two-step popup: a modal
+     is what LibreOffice gives us, so the instruction, the result and the verdict all
+     live here. The event bindings need script:language="UNO" and no script:location;
+     every other spelling throws at creation. -->
+<dlg:window xmlns:dlg="http://openoffice.org/2000/dialog"
+            xmlns:script="http://openoffice.org/2000/script"
+            dlg:id="transform" dlg:left="90" dlg:top="50" dlg:width="280" dlg:height="196"
+            dlg:closeable="true" dlg:moveable="true" dlg:withtitlebar="true"
+            dlg:title="LAITA - Transform selection">
+ <dlg:bulletinboard>
+
+  <dlg:text dlg:id="tSel" dlg:tab-index="0" dlg:left="6" dlg:top="6" dlg:width="268" dlg:height="10" dlg:value="Selected text"/>
+  <dlg:textfield dlg:id="Selected" dlg:tab-index="1" dlg:left="6" dlg:top="18" dlg:width="268" dlg:height="34" dlg:multiline="true" dlg:readonly="true" dlg:vscroll="true"/>
+
+  <dlg:text dlg:id="tInstr" dlg:tab-index="2" dlg:left="6" dlg:top="58" dlg:width="60" dlg:height="10" dlg:value="Instruction"/>
+  <dlg:combobox dlg:id="Instruction" dlg:tab-index="3" dlg:left="66" dlg:top="56" dlg:width="150" dlg:height="12" dlg:spin="true"/>
+  <dlg:button dlg:id="btnRun" dlg:tab-index="4" dlg:left="222" dlg:top="56" dlg:width="52" dlg:height="12" dlg:value="Run" dlg:default="true">
+   <script:event script:event-name="on-performaction" script:macro-name="vnd.sun.star.UNO:onRun" script:language="UNO"/>
+  </dlg:button>
+
+  <dlg:text dlg:id="Status" dlg:tab-index="5" dlg:left="6" dlg:top="72" dlg:width="268" dlg:height="10" dlg:value=""/>
+
+  <dlg:text dlg:id="tOut" dlg:tab-index="6" dlg:left="6" dlg:top="86" dlg:width="268" dlg:height="10" dlg:value="Result"/>
+  <dlg:textfield dlg:id="Result" dlg:tab-index="7" dlg:left="6" dlg:top="98" dlg:width="268" dlg:height="60" dlg:multiline="true" dlg:vscroll="true"/>
+
+  <dlg:button dlg:id="btnReplace" dlg:tab-index="8" dlg:left="6" dlg:top="166" dlg:width="90" dlg:height="14" dlg:value="Accept &amp; replace" dlg:button-type="ok"/>
+  <dlg:button dlg:id="btnAppend" dlg:tab-index="9" dlg:left="102" dlg:top="166" dlg:width="90" dlg:height="14" dlg:value="Accept &amp; append">
+   <script:event script:event-name="on-performaction" script:macro-name="vnd.sun.star.UNO:onAppend" script:language="UNO"/>
+  </dlg:button>
+  <dlg:button dlg:id="btnReject" dlg:tab-index="10" dlg:left="198" dlg:top="166" dlg:width="76" dlg:height="14" dlg:value="Reject" dlg:button-type="cancel"/>
+
+ </dlg:bulletinboard>
+</dlg:window>

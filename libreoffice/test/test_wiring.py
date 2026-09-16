@@ -136,21 +136,31 @@ def main():
     # script:location. Anything else throws WrappedTargetRuntimeException when the dialog
     # is created, naming neither the event nor the control. Pinned here because the error
     # gives no clue and the correct form is not guessable.
-    events = re.findall(r"<script:event[^>]*/>", standalone)
-    check("the Test button has an event binding", len(events) > 0, True)
-    for ev in events:
-        check("the binding declares language UNO", 'script:language="UNO"' in ev, True)
-        check("...and carries no script:location", "script:location" not in ev, True)
-        check("...and uses the vnd.sun.star.UNO: prefix",
+    for ev in re.findall(r"<script:event[^>]*/>", standalone):
+        check("the binding uses the vnd.sun.star.UNO: prefix",
               'script:macro-name="vnd.sun.star.UNO:' in ev, True)
 
     # The macro name must be one the handler says it supports; a mismatch is silent.
-    macros = {m.split(":")[-1] for m in
-              re.findall(r'script:macro-name="([\w.:]+)"', standalone)}
-    supported = set(re.findall(r'return \("(\w+)",\)', py))
-    for macro in sorted(macros):
-        check("the dialog handler supports %r" % macro, macro in supported, True)
-    check("the Test button calls something", len(macros) > 0, True)
+    supported = set()
+    for tup in re.findall(r"getSupportedMethodNames\(self\):\s*\n\s*return \(([^)]*)\)", py):
+        supported |= set(re.findall(r'"(\w+)"', tup))
+    check("the handler declares some methods", len(supported) > 0, sorted(supported) != [])
+
+    # Every dialog with event bindings, not just this one.
+    for dialog_file in ("options_dialog.xdl", "transform.xdl"):
+        text = read("dialog", dialog_file)
+        evs = re.findall(r"<script:event[^>]*/>", text)
+        check("%s has event bindings" % dialog_file, len(evs) > 0, True)
+        for ev in evs:
+            check("%s: binding declares language UNO" % dialog_file,
+                  'script:language="UNO"' in ev, True)
+            check("%s: binding carries no script:location" % dialog_file,
+                  "script:location" not in ev, True)
+        macros = {m.split(":")[-1] for m in
+                  re.findall(r'script:macro-name="([\w.:]+)"', text)}
+        for macro in sorted(macros):
+            check("%s: the handler supports %r" % (dialog_file, macro),
+                  macro in supported, True)
     check("the dialog offers the model list and a status line",
           'dlg:id="Model"' in standalone and 'dlg:id="Status"' in standalone, True)
     check("the model control is a dropdown, not a plain field",
@@ -166,6 +176,19 @@ def main():
     check("the dialog URL uses the extension identifier", opened.group(1), identifier)
     check("...and points at a file that exists",
           os.path.exists(os.path.join(SRC, *opened.group(2).split("/"))), True)
+
+    # --- the transform dialog --------------------------------------------------------
+    transform = read("dialog", "transform.xdl")
+    tids = {e.getAttribute("dlg:id") for e in
+            minidom.parseString(transform).getElementsByTagName("*")
+            if e.getAttribute("dlg:id")}
+    for control in re.findall(r'getControl\("(\w+)"\)', py[py.index("def _transform(self):"):
+                                                            py.index("def _open_options(self):")]):
+        check("transform.xdl defines %r" % control, control in tids, True)
+    check("transform.xdl offers replace, append and reject",
+          {"btnReplace", "btnAppend", "btnReject"} <= tids, True)
+    check("replace is the OK verdict, so execute() means something",
+          'dlg:id="btnReplace"' in transform and 'dlg:button-type="ok"' in transform, True)
 
     # --- the settings schema and the Python defaults must line up -------------------------
     sys.path.insert(0, os.path.join(SRC, "pythonpath"))

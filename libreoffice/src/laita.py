@@ -277,14 +277,99 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 pr.engine.stop()
             self._say("LAITA has stopped checking. Use Check document to resume.")
         elif command == "transform":
-            # Not built yet. Say so where it can be seen: a status-bar note is easy to
-            # miss, and "the button does nothing" is indistinguishable from a broken
-            # dispatch - which is exactly what we spent an afternoon on with the probe.
-            self._tell("LAITA", "Transform is not implemented yet.\n\n"
-                                "Proofreading works; the rewrite-a-selection feature is "
-                                "still to come.")
+            self._transform()
         elif command == "options":
             self._open_options()
+
+    def _selection(self):
+        """The selected text range in the current document, or None.
+
+        Returns the RANGE, not the string: replacing it later needs the range, and
+        looking it up again afterwards would race with anything that moved the cursor.
+        """
+        try:
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            doc = desktop.getCurrentComponent()
+            selection = doc.getCurrentSelection()
+            if selection is None or not selection.getCount():
+                return None
+            rng = selection.getByIndex(0)
+            return rng if rng.getString().strip() else None
+        except Exception:
+            log("could not read the selection\n%s" % traceback.format_exc())
+            return None
+
+    def _transform(self):
+        rng = self._selection()
+        if rng is None:
+            self._tell("LAITA", "Select some text first, then choose Transform selection.")
+            return
+        selected = rng.getString()
+
+        s = settings_store.read(self.ctx)
+        if len(selected) > s["maxChars"]:
+            self._tell("LAITA", "That selection is %d characters, over the %d limit in "
+                                "the options." % (len(selected), s["maxChars"]))
+            return
+
+        state = {"output": ""}
+
+        def run(dialog):
+            instruction = (dialog.getControl("Instruction").getText().strip()
+                           or s["transformDefault"])
+            status = dialog.getControl("Status")
+            status.setText("Asking the model... the window will not respond until it "
+                           "answers.")
+            try:
+                # Blocking, and it freezes the dialog while it runs. A transform is a
+                # deliberate act with a visible result, so waiting is expected - but a
+                # long selection can take minutes, which is why the estimate is shown
+                # and maxChars is enforced above.
+                out = ollama.request_transform(
+                    selected, instruction, None, s,
+                    timeout=max(90.0, len(selected) / 3.0))
+            except Exception as err:
+                status.setText(ollama.describe_error(err))
+                return
+            if ollama.looks_truncated_transform(selected, out, instruction):
+                status.setText("The model returned %d characters for a %d-character "
+                               "selection - too short to be a rewrite. Nothing changed."
+                               % (len(out.strip()), len(selected.strip())))
+                return
+            state["output"] = out
+            dialog.getControl("Result").setText(out)
+            status.setText("Done. Review it, then Accept & replace, Accept & append, or "
+                           "Reject.")
+            remember_instruction(self.ctx, instruction)
+
+        def append(dialog):
+            text = dialog.getControl("Result").getText()
+            if text.strip():
+                rng.setString(selected + " " + text)
+            dialog.endExecute()
+
+        try:
+            provider = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.awt.DialogProvider", self.ctx)
+            dialog = provider.createDialogWithHandler(
+                "vnd.sun.star.extension://org.lobianco.laita/dialog/transform.xdl",
+                DialogHandler(self.ctx, on_run=run, on_append=append))
+            dialog.getControl("Selected").setText(selected)
+            combo = dialog.getControl("Instruction")
+            history = [s["transformDefault"]] + [h for h in s.get("ignored", []) if False]
+            for item in dict.fromkeys(history):
+                combo.addItems((item,), combo.getItemCount())
+            combo.setText(s["transformDefault"])
+            if dialog.execute() == 1 and state["output"].strip():
+                # Accept & replace. The range was captured before the dialog opened, so
+                # this replaces what the user selected even if the cursor has moved.
+                rng.setString(state["output"])
+            dialog.dispose()
+        except Exception:
+            log("transform failed\n%s" % traceback.format_exc())
+            self._tell("LAITA", "The transform dialog could not open. See "
+                                "~/laita-libreoffice.log")
 
     def _open_options(self):
         """Our own dialog, rather than a page in the Tools > Options tree.
@@ -434,6 +519,16 @@ def save_from(ctx, window):
     log("settings saved: %s" % sorted(changes))
 
 
+def remember_instruction(ctx, instruction):
+    """Keep the last few instructions, most recent first, for the dropdown."""
+    if not instruction:
+        return
+    s = settings_store.read(ctx)
+    if instruction == s["transformDefault"]:
+        return
+    settings_store.write(ctx, transformDefault=instruction)
+
+
 def test_connection(ctx, window):
     """Answer the Test button, in the dialog rather than in a message box."""
     status = window.getControl("Status")
@@ -467,22 +562,30 @@ def test_connection(ctx, window):
 
 
 class DialogHandler(unohelper.Base, XDialogEventHandler):
-    """Button clicks inside the standalone options dialog."""
+    """Button clicks inside our dialogs."""
 
-    def __init__(self, ctx):
+    def __init__(self, ctx, on_run=None, on_append=None):
         self.ctx = ctx
+        self._on_run = on_run
+        self._on_append = on_append
 
     def callHandlerMethod(self, dialog, event, method):
         try:
             if method == "onTest":
                 test_connection(self.ctx, dialog)
                 return True
+            if method == "onRun" and self._on_run:
+                self._on_run(dialog)
+                return True
+            if method == "onAppend" and self._on_append:
+                self._on_append(dialog)
+                return True
         except Exception:
             log("dialog handler failed\n%s" % traceback.format_exc())
         return False
 
     def getSupportedMethodNames(self):
-        return ("onTest",)
+        return ("onTest", "onRun", "onAppend")
 
 
 class OptionsHandler(unohelper.Base, XContainerWindowEventHandler, XServiceInfo):

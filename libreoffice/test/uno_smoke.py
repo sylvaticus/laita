@@ -21,7 +21,7 @@ def check(name, got, want=True):
 provider = ctx.ServiceManager.createInstanceWithContext(  # noqa: F821 - from uno-run.sh
     "com.sun.star.awt.DialogProvider", ctx)               # noqa: F821
 
-for name in ("options.xdl", "options_dialog.xdl"):
+for name in ("options.xdl", "options_dialog.xdl", "transform.xdl"):
     url = "vnd.sun.star.extension://org.lobianco.laita/dialog/" + name
     try:
         dlg = provider.createDialog(url)
@@ -40,17 +40,21 @@ class Handler(unohelper.Base, XDialogEventHandler):
         return True
 
     def getSupportedMethodNames(self):
-        return ("onTest",)
+        return ("onTest", "onRun", "onAppend")
 
 
-try:
-    dlg = provider.createDialogWithHandler(
-        "vnd.sun.star.extension://org.lobianco.laita/dialog/options_dialog.xdl", Handler())
-    for control in ("Endpoint", "Model", "Status", "btnTest", "btnOk", "btnCancel"):
-        check("the dialog exposes %s" % control, dlg.getControl(control) is not None)
-    dlg.dispose()
-except Exception as err:
-    check("the dialog builds with a handler", "%s" % err, True)
+for name, controls in (
+        ("options_dialog.xdl", ("Endpoint", "Model", "Status", "btnTest", "btnOk", "btnCancel")),
+        ("transform.xdl", ("Selected", "Instruction", "Result", "Status",
+                           "btnRun", "btnReplace", "btnAppend", "btnReject"))):
+    try:
+        dlg = provider.createDialogWithHandler(
+            "vnd.sun.star.extension://org.lobianco.laita/dialog/" + name, Handler())
+        for control in controls:
+            check("%s exposes %s" % (name, control), dlg.getControl(control) is not None)
+        dlg.dispose()
+    except Exception as err:
+        check("%s builds with a handler" % name, "%s" % err, True)
 
 # Settings, round-tripped through LibreOffice's own configuration.
 original = S.read(ctx)                                    # noqa: F821
