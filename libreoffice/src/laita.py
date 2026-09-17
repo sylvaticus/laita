@@ -529,6 +529,18 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             return
         selected = rng.getString()
 
+        # Leave the cell or shape editor NOW, before the dialog, not just before the
+        # write. executeDispatch POSTS the command rather than running it inline, so
+        # escaping immediately before writing meant the sequence was: escape queued,
+        # text written, write verified, success logged - and only then did the main loop
+        # process the escape, which cancels the edit and restores the content the cell
+        # had before it. Everything reported success and the document never changed,
+        # which is precisely what the log showed twice.
+        #
+        # Done here, the dialog's own modal loop runs the escape long before there is
+        # anything to write.
+        self._leave_edit_mode()
+
         s = settings_store.read(self.ctx)
         if len(selected) > s["maxChars"]:
             self._tell("LAITA", "That selection is %d characters, over the %d limit in "
@@ -602,13 +614,10 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         def write_back(new_text, what):
             """Put the result into the document, and check it is really there.
 
-            Two things the first version got wrong. It wrote while the cell or shape was
-            still being edited, so the editor overwrote it afterwards; and it verified
-            by reading back from the SAME object it had written to, which a detached
-            copy passes happily - the log said "wrote 39 characters" for a document that
-            never changed.
+            Verification reads back through a freshly resolved handle, never through the
+            object just written to: a detached copy passes that check happily, which is
+            how "wrote 39 characters" was logged for a document that never changed.
             """
-            self._leave_edit_mode()
             for attempt, target in enumerate((rng, None)):
                 if target is None:
                     target = self._selection()      # whatever is selected now
