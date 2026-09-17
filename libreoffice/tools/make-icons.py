@@ -24,7 +24,7 @@ curve. The PNGs are committed so that building the extension needs neither Pytho
 Pillow.
 """
 import os
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "src", "icons")
@@ -34,8 +34,12 @@ SCALE = 8
 PENCIL_BODY = (242, 140, 0)        # the LAITA orange
 PENCIL_TIP = (90, 62, 28)
 PENCIL_WOOD = (255, 214, 153)
+PENCIL_ERASER = (232, 150, 160)
 SQUIGGLE = (229, 72, 77)           # the error red, as the underline uses
-MARK = (60, 64, 72)                # the command mark, near-black for contrast
+# The command mark. Mid-luminance on purpose: near-black disappears on a dark toolbar,
+# and the first attempt at fixing that with a heavy white outline turned every icon into
+# a white blob. A colour that reads on both backgrounds needs no outline to rescue it.
+MARK = (74, 124, 196)
 PLAY = (46, 160, 67)
 STOP = (200, 60, 60)
 
@@ -48,6 +52,31 @@ def font(path, size):
         return ImageFont.truetype(path, size)
     except Exception:
         return ImageFont.load_default()
+
+
+HALO = (255, 255, 255, 170)
+
+
+def halo(img):
+    """A faint light edge, so nothing dissolves into a dark toolbar.
+
+    Support, not rescue: the marks are already a colour that reads on both backgrounds,
+    and this only keeps their edges from muddying against a very dark one. A ring
+    AROUND the shape rather than a layer underneath it - underneath, anti-aliased edges
+    blend into it and the mark goes pale on a light toolbar.
+
+    Added at the final size, because a one-pixel ring drawn on the master and scaled
+    down is a grey blur.
+    """
+    alpha = img.getchannel("A")
+    # No amplification: multiplying the dilated alpha turns a soft edge into a hard
+    # white collar, which is what made these look like stickers rather than icons.
+    spread = alpha.filter(ImageFilter.MaxFilter(3))
+    ring = ImageChops.subtract(spread, alpha)
+    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    out.paste(Image.new("RGBA", img.size, HALO), (0, 0), ring)
+    out.alpha_composite(img)
+    return out
 
 
 def squiggle_at_size(img, size):
@@ -71,21 +100,41 @@ def squiggle_at_size(img, size):
 
 
 def pencil(d, w, h):
-    """A small pencil on the left, tilted, drawn as a body, a wooden tip and a point."""
-    left = int(w * 0.06)
-    top = int(h * 0.12)
-    length = int(h * 0.52)
-    thick = max(3, int(w * 0.14))
-    # body, running down-left to up-right
-    x0, y0 = left, top + length
-    x1, y1 = left + thick, top
-    d.polygon([(x0, y0), (x0 + thick, y0), (x1 + thick, y1), (x1, y1)], fill=PENCIL_BODY)
-    # the wooden shoulder and the graphite point
-    tipy = y0 + int(h * 0.12)
-    d.polygon([(x0, y0), (x0 + thick, y0), (x0 + thick // 2, tipy)], fill=PENCIL_WOOD)
-    d.polygon([(x0 + int(thick * 0.28), tipy - int(h * 0.045)),
-               (x0 + int(thick * 0.72), tipy - int(h * 0.045)),
-               (x0 + thick // 2, tipy)], fill=PENCIL_TIP)
+    """A pencil lying bottom-right to top-left, point up at the top-left.
+
+    The same orientation as assets/store/store-icon-128.png, because a user meets that
+    one first and an icon set that disagrees with its own logo looks like two products.
+    """
+    import math
+    # the axis, from the eraser end to the point
+    x0, y0 = w * 0.40, h * 0.68          # eraser
+    x1, y1 = w * 0.03, h * 0.10          # point
+    dx, dy = x1 - x0, y1 - y0
+    length = math.hypot(dx, dy)
+    ux, uy = dx / length, dy / length    # along the pencil, towards the point
+    px, py = -uy, ux                     # across it
+    half = max(1.5, w * 0.070)
+
+    def at(t, offset):
+        """A point `t` of the way along the pencil, `offset` across it."""
+        return (x0 + ux * t + px * offset, y0 + uy * t + py * offset)
+
+    tip_len = length * 0.26
+    ferrule = length * 0.16
+
+    # body
+    d.polygon([at(ferrule, -half), at(ferrule, half),
+               at(length - tip_len, half), at(length - tip_len, -half)],
+              fill=PENCIL_BODY)
+    # the sharpened wooden cone, and the graphite at its end
+    d.polygon([at(length - tip_len, -half), at(length - tip_len, half), at(length, 0)],
+              fill=PENCIL_WOOD)
+    d.polygon([at(length - tip_len * 0.34, -half * 0.36),
+               at(length - tip_len * 0.34, half * 0.36), at(length, 0)],
+              fill=PENCIL_TIP)
+    # the eraser end
+    d.polygon([at(0, -half), at(0, half), at(ferrule, half), at(ferrule, -half)],
+              fill=PENCIL_ERASER)
 
 
 def right_box(w, h):
@@ -188,6 +237,7 @@ def main():
             img = Image.alpha_composite(
                 Image.new("RGBA", img.size, (255, 255, 255, 0)), img)
             small = img.resize((size, size), Image.LANCZOS)
+            small = halo(small)
             squiggle_at_size(small, size)
             path = os.path.join(OUT, "%s_%d.png" % (name, size))
             small.save(path)

@@ -47,13 +47,22 @@ the bottom, and on the right the one mark that distinguishes the command — a p
 triangle, a stop square, a gear, and a **T** turning into **文** for the transform. The
 shared parts make the set read as one tool; only the mark has to be told apart.
 
-Two things learned drawing them, both about 16 pixels being smaller than it sounds:
+The pencil points **top-left**, matching `assets/store/store-icon-128.png` — an icon set
+that disagrees with its own logo looks like two products.
+
+Four things learned drawing them:
 
 - **The squiggle is drawn at the final size, not supersampled.** Drawn large and
   reduced, a three-pixel wave averages into a straight grey line — a different symbol,
   and the one every icon shares.
-- **Gear teeth are rectangles.** Round ones merge into a flower when reduced, and a gear
-  without corners is a flower.
+- **Gear teeth are rectangles.** Round ones merge when reduced and the silhouette loses
+  its corners; a gear without corners is a flower.
+- **The marks are mid-luminance, not near-black.** Near-black vanishes on a dark
+  toolbar. The first attempt at fixing that with a heavy white outline turned every
+  icon into a white blob — a colour that reads on both backgrounds needs no outline to
+  rescue it, and only a faint edge to keep it crisp.
+- **The transform glyphs are measured with `textbbox`, not placed by eye.** At this
+  size a few percent is the difference between two letters and one smudge.
 
 ## Testing
 
