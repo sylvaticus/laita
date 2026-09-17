@@ -559,26 +559,20 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             failed = err
             log("%s: setString raised: %r" % (what, err))
         if failed is None:
-            try:
-                if read().getString() == new_text:
-                    log("%s: wrote %d characters into %s"
-                        % (what, len(new_text), self._where(handle)))
-                    self._recheck_later(read, new_text, what, was=was)
-                    return True
-            except Exception as err:
-                log("%s: could not confirm the write: %r" % (what, err))
+            if self._present(read, handle, new_text):
+                log("%s: wrote %d characters into %s"
+                    % (what, len(new_text), self._where(handle)))
+                self._recheck_later(read, new_text, what, was=was)
+                return True
             log("%s: the model write did not take" % what)
 
         # Second route: the editor, via a paste. Only reached when writing the model
         # did not work, which is exactly the case where an editor is in the way.
         if self._paste_over_selection(new_text):
             def confirm():
-                try:
-                    if read().getString() == new_text:
-                        log("%s: pasted %d characters" % (what, len(new_text)))
-                        return
-                except Exception:
-                    pass
+                if self._present(read, handle, new_text):
+                    log("%s: pasted %d characters" % (what, len(new_text)))
+                    return
                 log("%s: neither writing nor pasting took" % what)
                 self._offer_clipboard(new_text, what)
             later_on_main(self.ctx, 1.5, confirm, "paste check")
@@ -590,6 +584,32 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             % (what, len(new_text), self._where(handle)))
         self._recheck_later(read, new_text, what, was=was)
         return True
+
+    def _present(self, read, handle, new_text):
+        """Is the text in the document? Not "does this object still return it".
+
+        Writing to a TEXT RANGE replaces the text and leaves the range no longer
+        spanning it, so reading the range back gives something else and the write looks
+        like it failed. That false negative is why Draw and Impress wrote the text
+        correctly and then announced they could not - and why they went on to paste on
+        top of a write that had already worked.
+
+        So ask the enclosing text as well, which is what a person would look at.
+        """
+        try:
+            if read().getString() == new_text:
+                return True
+        except Exception:
+            pass
+        for holder in ("getText", "TextFrame", "Text"):
+            try:
+                container = getattr(handle, holder)
+                container = container() if callable(container) else container
+                if container is not None and new_text in container.getString():
+                    return True
+            except Exception:
+                continue
+        return False
 
     def _offer_clipboard(self, text, what):
         log("%s: offering the text on the clipboard instead" % what)
@@ -748,6 +768,17 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                                 "the options." % (len(selected), s["maxChars"]))
             return
 
+        # Ollama answers one request at a time. A transform started while paragraphs
+        # are being proofread waits behind them, which from the outside is a dialog
+        # that does nothing for a while and then suddenly works - reported exactly that
+        # way, and more often after an append, because an append changes the paragraph
+        # and sets the checker off again.
+        pr = Proofreader.instance
+        was_checking = bool(pr) and not pr.engine.stopped
+        if pr and was_checking:
+            pr.engine.stop()
+            log("transform: proofreading paused so the model is free")
+
         state = {"output": ""}
 
         def run(dialog):
@@ -765,8 +796,9 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             state["running"] = True
             dialog.getControl("btnRun").setEnable(False)
             dialog.getControl("Status").setText(
-                "Asking the model... roughly %d seconds for this much text. The window "
-                "stays usable; Reject cancels." % max(2, int(len(selected) / 45)))
+                "Asking the model... roughly %d seconds for this much text. Proofreading "
+                "is paused meanwhile, because Ollama answers one request at a time."
+                % max(2, int(len(selected) / 45)))
 
             def deliver(out, err):
                 """Runs back on the main thread, via AsyncCallback."""
@@ -835,12 +867,9 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
 
             if is_cell and self._paste_over_selection(new_text):
                 def confirm():
-                    try:
-                        if read().getString() == new_text:
-                            log("%s: pasted %d characters" % (what, len(new_text)))
-                            return
-                    except Exception:
-                        pass
+                    if self._present(read, handle, new_text):
+                        log("%s: pasted %d characters" % (what, len(new_text)))
+                        return
                     # The paste did not take. NOW write the model, having given the
                     # dispatch its turn rather than racing it.
                     log("%s: the paste did not take; writing the cell instead" % what)
@@ -893,6 +922,10 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             log("transform failed\n%s" % traceback.format_exc())
             self._tell("LAITA", "The transform dialog could not open. See "
                                 "~/laita-libreoffice.log")
+        finally:
+            if pr and was_checking:
+                pr.engine.start()
+                log("transform: proofreading resumed")
 
     def _open_options(self):
         """Our own dialog, rather than a page in the Tools > Options tree.
