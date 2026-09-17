@@ -442,6 +442,47 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             pr._answer_ready("")
         self._tell("LAITA", '"%s" will no longer be flagged.' % word)
 
+    def _leave_edit_mode(self):
+        """Come out of a cell or shape's text editor before writing to the document.
+
+        While a cell or a shape is being EDITED, the editing engine holds the text and
+        the model object we captured is a copy of it. Writing to that copy succeeds and
+        even reads back correctly - which is exactly what the log showed - and then the
+        editor writes its own buffer over the top when editing ends. Escape ends the
+        edit and leaves the cell or shape selected.
+        """
+        try:
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            frame = desktop.getCurrentComponent().getCurrentController().getFrame()
+            helper = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.DispatchHelper", self.ctx)
+            helper.executeDispatch(frame, ".uno:Escape", "", 0, ())
+        except Exception:
+            log("could not leave edit mode\n%s" % traceback.format_exc())
+
+    def _stable_handle(self, target):
+        """Something that will still refer to the right place after a modal dialog.
+
+        A Calc cell is re-resolved by address, because the object handed out during an
+        edit need not be the one the sheet keeps. Everything else is returned as it is;
+        a Writer text range and a Draw or Impress shape both survive.
+        """
+        address = getattr(target, "CellAddress", None)
+        if address is None:
+            return target, None
+        try:
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            doc = desktop.getCurrentComponent()
+
+            def resolve():
+                sheet = doc.Sheets.getByIndex(address.Sheet)
+                return sheet.getCellByPosition(address.Column, address.Row)
+            return target, resolve
+        except Exception:
+            return target, None
+
     def _selection(self):
         """Whatever holds the selected text, or None.
 
@@ -471,7 +512,12 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 target = selection.getByIndex(0)
             if not hasattr(target, "getString") or not hasattr(target, "setString"):
                 return None
-            return target if target.getString().strip() else None
+            if not target.getString().strip():
+                return None
+            log("selection: %s" % (target.getImplementationName()
+                                   if hasattr(target, "getImplementationName")
+                                   else type(target).__name__))
+            return target
         except Exception:
             log("could not read the selection\n%s" % traceback.format_exc())
             return None
@@ -554,33 +600,36 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             threading.Thread(target=work, daemon=True).start()
 
         def write_back(new_text, what):
-            """Put the result into the document, and say whether it actually landed.
+            """Put the result into the document, and check it is really there.
 
-            Reads it back afterwards rather than assuming. In Calc, Impress and Draw the
-            object captured before the dialog opened can be stale by the time it closes,
-            and setString on a stale object does not raise - it does nothing, which is
-            indistinguishable from the feature being broken.
+            Two things the first version got wrong. It wrote while the cell or shape was
+            still being edited, so the editor overwrote it afterwards; and it verified
+            by reading back from the SAME object it had written to, which a detached
+            copy passes happily - the log said "wrote 39 characters" for a document that
+            never changed.
             """
-            try:
-                rng.setString(new_text)
-                landed = rng.getString() == new_text
-            except Exception:
-                log("%s failed\n%s" % (what, traceback.format_exc()))
-                landed = False
-            if landed:
-                log("%s: wrote %d characters" % (what, len(new_text)))
-                return True
-            # Second chance: ask the document what is selected NOW.
-            again = self._selection()
-            if again is not None:
+            self._leave_edit_mode()
+            for attempt, target in enumerate((rng, None)):
+                if target is None:
+                    target = self._selection()      # whatever is selected now
+                    if target is None:
+                        break
+                handle, resolve = self._stable_handle(target)
                 try:
-                    again.setString(new_text)
-                    if again.getString() == new_text:
-                        log("%s: wrote %d characters on the second attempt"
-                            % (what, len(new_text)))
+                    handle.setString(new_text)
+                except Exception:
+                    log("%s failed\n%s" % (what, traceback.format_exc()))
+                    continue
+                # Verify through a FRESH handle where one can be had, never through the
+                # object just written to.
+                try:
+                    check = resolve() if resolve else handle
+                    if check.getString() == new_text:
+                        log("%s: wrote %d characters (attempt %d)"
+                            % (what, len(new_text), attempt + 1))
                         return True
                 except Exception:
-                    log("%s retry failed\n%s" % (what, traceback.format_exc()))
+                    log("%s could not be verified\n%s" % (what, traceback.format_exc()))
             log("%s: the text could not be written back" % what)
             self._tell("LAITA", "The rewritten text could not be put back into the "
                                 "document. It is on your clipboard instead.")
