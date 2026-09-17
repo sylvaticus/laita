@@ -538,6 +538,33 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         except Exception:
             log("survey failed\n%s" % traceback.format_exc())
 
+    def _write_model(self, read, handle, new_text, what, was):
+        """Write the document model and confirm it, with the clipboard as last resort."""
+        try:
+            handle.setString(new_text)
+        except Exception:
+            log("%s: writing failed\n%s" % (what, traceback.format_exc()))
+            self._offer_clipboard(new_text, what)
+            return False
+        try:
+            landed = read().getString() == new_text
+        except Exception:
+            landed = False
+        if not landed:
+            log("%s: the text could not be written back" % what)
+            self._offer_clipboard(new_text, what)
+            return False
+        log("%s: wrote %d characters into %s"
+            % (what, len(new_text), self._where(handle)))
+        self._recheck_later(read, new_text, what, was=was)
+        return True
+
+    def _offer_clipboard(self, text, what):
+        log("%s: offering the text on the clipboard instead" % what)
+        self._to_clipboard(text)
+        self._tell("LAITA", "The rewritten text could not be put back into the "
+                            "document. It is on your clipboard instead.")
+
     def _paste_over_selection(self, text):
         """Replace the selection by pasting, which is how a person would do it.
 
@@ -751,65 +778,42 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             threading.Thread(target=work, daemon=True).start()
 
         def write_back(new_text, what):
-            """Put the result into the document, and check it is really there.
+            """Put the result into the document.
 
-            Verification reads back through a freshly resolved handle, never through the
-            object just written to: a detached copy passes that check happily, which is
-            how "wrote 39 characters" was logged for a document that never changed.
+            Two different problems, so two different routes, and the choice is made on
+            evidence rather than symmetry:
+
+            A spreadsheet cell is edited by an editor that holds its own buffer and
+            commits it over anything written to the model. Only pasting goes through
+            that editor. The paste is DISPATCHED, so it completes in a later turn of
+            the main loop - which means it cannot be waited for by sleeping here, since
+            this runs on the main loop too and sleeping is what stops it happening.
+            Checking later, and falling back only then, is the whole of the fix.
+
+            A Writer range or an Impress or Draw shape has no such editor. setString
+            works, holds, and is what they had before; deferring and second-guessing it
+            is what left shapes reporting failure and offering the clipboard.
             """
-            for attempt, target in enumerate((rng, None)):
-                if target is None:
-                    target = self._selection()      # whatever is selected now
-                    if target is None:
-                        break
-                handle, resolve = self._stable_handle(target)
-                # A Calc cell goes through the UI path; everything else has no editor
-                # buffer to lose to, so the model write is right for them.
-                # Paste ONLY for a spreadsheet cell. It is the one place where the
-                # editor demonstrably overrides a model write, and the one place where
-                # pasting does the right thing: measured, a paste into Impress with a
-                # shape selected emptied the shape - it inserts a new object rather
-                # than replacing text - and in Draw it did nothing at all. Using it
-                # everywhere would have traded a text that does not appear for a slide
-                # that loses its text.
-                is_cell = getattr(handle, "CellAddress", None) is not None
-                wrote = self._paste_over_selection(new_text) if is_cell else False
-                if wrote:
-                    # The paste is dispatched, not immediate. Too short a wait and the
-                    # check below decides it failed and writes the model as well -
-                    # which is what the log showed, doing both jobs for one result.
-                    time.sleep(1.2)
-                try:
-                    check_now = (resolve() if resolve else handle).getString()
-                except Exception:
-                    check_now = None
-                if check_now != new_text:
+            handle, resolve = self._stable_handle(rng)
+            read = resolve if resolve else (lambda: handle)
+            is_cell = getattr(handle, "CellAddress", None) is not None
+
+            if is_cell and self._paste_over_selection(new_text):
+                def confirm():
                     try:
-                        handle.setString(new_text)
-                        log("%s: paste did not take, wrote the model instead" % what)
+                        if read().getString() == new_text:
+                            log("%s: pasted %d characters" % (what, len(new_text)))
+                            return
                     except Exception:
-                        log("%s failed\n%s" % (what, traceback.format_exc()))
-                        continue
-                # Verify through a FRESH handle where one can be had, never through the
-                # object just written to.
-                try:
-                    check = resolve() if resolve else handle
-                    if check.getString() == new_text:
-                        log("%s: wrote %d characters (attempt %d) into %s"
-                            % (what, len(new_text), attempt + 1, self._where(handle)))
-                        # Look again in a moment. The write passing here and the
-                        # document not having it later can only mean something undid it
-                        # afterwards, and that is worth knowing rather than inferring.
-                        self._recheck_later(resolve or (lambda: handle), new_text, what,
-                                            was=selected)
-                        return True
-                except Exception:
-                    log("%s could not be verified\n%s" % (what, traceback.format_exc()))
-            log("%s: the text could not be written back" % what)
-            self._tell("LAITA", "The rewritten text could not be put back into the "
-                                "document. It is on your clipboard instead.")
-            self._to_clipboard(new_text)
-            return False
+                        pass
+                    # The paste did not take. NOW write the model, having given the
+                    # dispatch its turn rather than racing it.
+                    log("%s: the paste did not take; writing the cell instead" % what)
+                    self._write_model(read, handle, new_text, what, selected)
+                later_on_main(self.ctx, 1.5, confirm, "paste check")
+                return True
+
+            return self._write_model(read, handle, new_text, what, selected)
 
         def append(dialog):
             # Remember what to write and let execute() return; the write happens after
@@ -840,26 +844,16 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             # which is the only difference the two had.
             dialog.dispose()
 
-            # Do the writing in a LATER turn of the main loop, once the dialog is
-            # properly gone and focus is back in the document. Writing inline happens
-            # while LibreOffice is still unwinding the dialog and the dispatch, which is
-            # the one part of the sequence that could never be reproduced from a script.
-            def do_write():
-                self._survey("before writing")
-                if state.get("append", "").strip():
-                    write_back(selected + " " + state["append"], "append")
-                elif verdict == 1 and state["output"].strip():
-                    write_back(state["output"], "replace")
-                self._survey("after writing")
-
-            try:
-                async_cb = self.ctx.ServiceManager.createInstanceWithContext(
-                    "com.sun.star.awt.AsyncCallback", self.ctx)
-                async_cb.addCallback(MainThreadCall(do_write), None)
-            except Exception:
-                log("could not defer the write; doing it inline\n%s"
-                    % traceback.format_exc())
-                do_write()
+            # Written here, not deferred. Deferring was a guess, and it cost Impress
+            # and Draw the write that had been working: by the time a later turn of the
+            # main loop ran, the shape was no longer the thing being written to and the
+            # result went to the clipboard instead. The cell's paste needs a later turn,
+            # and gets one of its own inside write_back, which is the only place that
+            # actually needs it.
+            if state.get("append", "").strip():
+                write_back(selected + " " + state["append"], "append")
+            elif verdict == 1 and state["output"].strip():
+                write_back(state["output"], "replace")
         except Exception:
             log("transform failed\n%s" % traceback.format_exc())
             self._tell("LAITA", "The transform dialog could not open. See "
