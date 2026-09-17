@@ -34,7 +34,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ---
 
-## State — last updated 2026-09-15
+## State — last updated 2026-09-17
 
 ### Identity
 
@@ -336,6 +336,16 @@ user.
   open from the content script.
 - AMO 0.2.2 review outcome, after which the listing name should be updated to LAITA.
 - Language detection is duplicated between `browser/src/content/common.js` and
-  `vscode/src/text.js`; the first candidate if a real shared `core/` package is extracted.
+  `vscode/src/text.js`; the anchoring and the prompts now exist a third time, in Python.
+  `libreoffice/test/` compares the Python against the JavaScript, which is what keeps
+  them honest - a real shared package would be better and is not obviously possible
+  across three languages.
+- **The browser's chunking should be re-measured.** Its 700-character default assumes
+  latency grows faster than the text; on LibreOffice that turned out to be false and
+  splitting was four times slower. The browser measurement predates the current prompt.
 - The 16px icon is legible but weak; a hand-drawn simplified mark was offered and not done.
-- If the LibreOffice adapter is built, packaging is its hard part, not the code.
+- The LibreOffice extension is not packaged for distribution: no release artefact and
+  no listing. `libreoffice/laita.oxt` is gitignored like every other build output.
+- The transform dialog gives no progress beyond a status line while the model works.
+  It runs off the UI thread so LibreOffice stays responsive, but a long selection is
+  a long wait with nothing moving.
