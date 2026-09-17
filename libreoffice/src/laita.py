@@ -200,6 +200,8 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
             if self.sweep and not self.engine.busy:
                 self.sweep = False
                 log("sweep finished; back to checking only the current paragraph")
+        # Pure Python state, no UNO, so a plain timer is safe here - noted because
+        # every other timer in this file must not be one.
         self._sweep_timer = threading.Timer(4.0, check)
         self._sweep_timer.daemon = True
         self._sweep_timer.start()
@@ -445,24 +447,16 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                     % what)
                 return
 
-            def put_it_back():
-                try:
-                    resolve().setString(expected)
-                    log("%s: put back after the revert" % what)
-                except Exception:
-                    log("%s: could not put it back\n%s" % (what, traceback.format_exc()))
-                    return
-                self._recheck_later(resolve, expected, what, delay=2.0, was=was,
-                                    retries=retries - 1)
+            # Already on the main thread here, because look() was marshalled there.
             try:
-                async_cb = self.ctx.ServiceManager.createInstanceWithContext(
-                    "com.sun.star.awt.AsyncCallback", self.ctx)
-                async_cb.addCallback(MainThreadCall(put_it_back), None)
+                resolve().setString(expected)
+                log("%s: put back after the revert" % what)
             except Exception:
-                log("%s: could not schedule the retry\n%s" % (what, traceback.format_exc()))
-        timer = threading.Timer(delay, look)
-        timer.daemon = True
-        timer.start()
+                log("%s: could not put it back\n%s" % (what, traceback.format_exc()))
+                return
+            self._recheck_later(resolve, expected, what, delay=2.0, was=was,
+                                retries=retries - 1)
+        later_on_main(self.ctx, delay, look, "delayed re-check")
 
     def _to_clipboard(self, text):
         """Last resort when the document will not take the text back."""
@@ -580,15 +574,14 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             return False
         finally:
             if clip is not None and previous is not None:
-                # After the paste has been consumed, not before.
+                # After the paste has been consumed, not before - and on the main
+                # thread, because the clipboard is UNO like everything else.
                 def restore():
                     try:
                         clip.setContents(previous, None)
                     except Exception:
                         pass
-                timer = threading.Timer(2.0, restore)
-                timer.daemon = True
-                timer.start()
+                later_on_main(self.ctx, 2.0, restore, "clipboard restore")
 
     def _enter_string(self, text):
         """Write the current Calc cell the way typing does.
@@ -782,7 +775,10 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 is_cell = getattr(handle, "CellAddress", None) is not None
                 wrote = self._paste_over_selection(new_text) if is_cell else False
                 if wrote:
-                    time.sleep(0.3)             # let the paste be applied
+                    # The paste is dispatched, not immediate. Too short a wait and the
+                    # check below decides it failed and writes the model as well -
+                    # which is what the log showed, doing both jobs for one result.
+                    time.sleep(1.2)
                 try:
                     check_now = (resolve() if resolve else handle).getString()
                 except Exception:
@@ -1059,6 +1055,30 @@ def test_connection(ctx, window):
         say("Connected, but \"%s\" is not installed. Available: %s"
             % (probe_settings["model"], ", ".join(models) or "none"))
     fill_models(ctx, window, probe_settings)
+
+
+def later_on_main(ctx, delay, fn, what="callback"):
+    """Run fn after `delay` seconds, ON LIBREOFFICE'S MAIN THREAD.
+
+    A threading.Timer fires on its own thread, and touching the document or the
+    clipboard from there does not raise - it crashes the application a moment later.
+    That is precisely what happened: the transform worked and LibreOffice fell over a
+    few seconds afterwards, which is the delay on these timers.
+
+    So the timer only schedules; the work is handed to the main thread through
+    AsyncCallback, the same route the transform result already takes.
+    """
+    def fire():
+        try:
+            async_cb = ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.awt.AsyncCallback", ctx)
+            async_cb.addCallback(MainThreadCall(fn), None)
+        except Exception:
+            log("could not marshal %s to the main thread\n%s"
+                % (what, traceback.format_exc()))
+    timer = threading.Timer(delay, fire)
+    timer.daemon = True
+    timer.start()
 
 
 class _PlainText(unohelper.Base, XTransferable):

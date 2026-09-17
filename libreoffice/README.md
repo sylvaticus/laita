@@ -97,5 +97,14 @@ has to look.
   `uno.invoke(node, "setPropertyValue", (prop, uno.Any("[]string", tuple(...))))`.
   Nothing in the error says any of that, and with the exception swallowed it looks
   exactly like a value that quietly did not stick.
+- **Never touch UNO from a `threading.Timer`.** It does not raise - LibreOffice crashes
+  a few seconds later, which looks like the feature working and the application dying of
+  something unrelated. Use `later_on_main()`, which schedules through
+  `com.sun.star.awt.AsyncCallback` so the work happens on LibreOffice's own thread.
+- **A cell editor overrides anything written to the model.** While a cell is being
+  edited, `setString`, `.uno:EnterString` and a posted `.uno:Escape` all land and are
+  then reverted when the editor commits. Pasting goes through the editor instead. Only
+  in Calc, though: pasting into Impress with a shape selected EMPTIES the shape, because
+  it inserts a new object rather than replacing text.
 - **`print()` goes nowhere.** A log file is the only reliable channel, the same lesson the
   VS Code port taught.
