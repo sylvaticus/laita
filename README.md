@@ -1,13 +1,22 @@
-# <img src="assets/imgs/laita_logo_h100.png" width="200" align="middle" />&nbsp;&nbsp;  <u>Local</u> AI Text Assistant
+
+<img src="assets/imgs/laita_logo_h100.png" width="200" align="middle" />
+
+# <u>Local</u> AI Text Assistant
+
+*Proofread, translate, summarize...*
+
+A **multi-app** extension that uses your **local** GPU to deliver **high-quality**, **AI-based**, real-time **syntax, grammar, and style suggestions**, plus **text transformations** (*polishing, translation, summarization, etc.*).
+
+* Unlike integrated spellcheckers or syntax checkers, the judgment comes from a Large Language Model (LLM) rather than handwritten rules, so it handles style and phrasing as well as hard grammar errors.
+* Unlike commercial products, with default settings, nothing leaves your machine. No need for API keys, internet, or subscriptions.
+
+It works in any language that the model knows. It requires a mid-range GPU on your laptop or PC.
+
+Available as a [Chrome extension](https://chromewebstore.google.com/detail/laita-local-ai-text-assis/kkonkblgjafnampabmfflabkdkggpnjn), [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita), [Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/local-ai-text-assistant/)*, and [LibreOffice extension*](https://extensions.libreoffice.org)
 
 
-A **multi-app** extension that **proofreads what you type** and **rewrites the text you select** (_polish_, _translate_, _summarize_...), using any model running locally on your machine via [Ollama](https://ollama.com).
 
-Differently from integrated spellcheckers or apps like [Harper](https://writewithharper.com/), the judgement comes from an LLM rather than hand-written rules, so it handles style and phrasing as well as hard grammar errors, and it works in any language the model knows.
-
-**Nothing leaves your machine**, as long as Ollama is running locally on a local model — the default, and the only thing LAITA ever talks to. See [Privacy](#6-privacy) for what that depends on.
-
-The **Firefox extension** is the most exercised; the **Chrome extension** works and has been used by hand, though one detail of its background lifetime is still unverified (see [`doc/roadmap.md`](doc/roadmap.md)); the **VS Code extension** is newer. A **LibreOffice** port is on its way.
+*Currently FireFox and LibreOffice extensions are still under review. To package and install the extension from this git repository see the [install](#2-install) section.*
 
 **[What it does](#1-what-it-does) · [Install](#2-install) · [Using it](#3-using-it) · [Options](#4-options) · [Troubleshooting](#5-troubleshooting) · [Privacy](#6-privacy) · [Development](#7-development) · [Licence](#8-licence) · [Acknowledgements](#9-acknowledgements)**
 
@@ -70,7 +79,7 @@ The Firefox extension requires **Firefox 142** or newer, the Chrome extension re
 
 ### 2.1. Install Ollama
 
-Go to https://ollama.com/download and follow the instructions.
+Go to https://ollama.com/download and follow the instructions for your OS.
 
 ### 2.2. Pull a model
 
