@@ -528,6 +528,30 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         except Exception:
             log("could not leave edit mode\n%s" % traceback.format_exc())
 
+    def _enter_string(self, text):
+        """Write the current Calc cell the way typing does.
+
+        setString writes the model directly, and the cell editor holds its own buffer
+        which it puts back afterwards - four rounds of evidence say something restores
+        the previous content a moment after our write lands. .uno:EnterString goes
+        through the same path as typing into the cell, so there is no staler buffer left
+        to win.
+        """
+        try:
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            frame = desktop.getCurrentComponent().getCurrentController().getFrame()
+            helper = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.DispatchHelper", self.ctx)
+            arg = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
+            arg.Name = "StringName"
+            arg.Value = text
+            helper.executeDispatch(frame, ".uno:EnterString", "", 0, (arg,))
+            return True
+        except Exception:
+            log("EnterString failed\n%s" % traceback.format_exc())
+            return False
+
     def _stable_handle(self, target):
         """Something that will still refer to the right place after a modal dialog.
 
@@ -684,11 +708,17 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                     if target is None:
                         break
                 handle, resolve = self._stable_handle(target)
-                try:
-                    handle.setString(new_text)
-                except Exception:
-                    log("%s failed\n%s" % (what, traceback.format_exc()))
-                    continue
+                # A Calc cell goes through the UI path; everything else has no editor
+                # buffer to lose to, so the model write is right for them.
+                wrote = False
+                if getattr(handle, "CellAddress", None) is not None:
+                    wrote = self._enter_string(new_text)
+                if not wrote:
+                    try:
+                        handle.setString(new_text)
+                    except Exception:
+                        log("%s failed\n%s" % (what, traceback.format_exc()))
+                        continue
                 # Verify through a FRESH handle where one can be had, never through the
                 # object just written to.
                 try:
