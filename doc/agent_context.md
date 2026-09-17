@@ -240,32 +240,83 @@ Verified end to end against a live Ollama: opening a markdown file produces exac
 `POST /api/chat`. Everything past that — quick fixes, the dictionary, transforms — has
 been exercised by hand in the F5 window but has no automated coverage.
 
-### LibreOffice — the next target, nothing built yet
+### LibreOffice — built and working
 
-The plan and its reasoning are in `roadmap.md`; only the volatile parts belong here.
-Checked on **LibreOffice 26.2.5.2, Ubuntu 26.04**, by reading the shipped registry:
+`libreoffice/`, a Python `.oxt`. Proofreading in Writer; the transform in Writer, Calc,
+Impress and Draw; a toolbar, a Tools menu, a right-click entry and an options dialog.
+The design and the measurements behind it are in `roadmap.md`; what follows is what the
+building of it cost, because most of it is not recoverable from the code.
 
-- The built-in `LanguageToolGrammarChecker` is a **client with no server behind it**,
-  disabled by default, and `languagetool` is not in the Ubuntu archive. Nothing local
-  checks grammar on this machine today; Hunspell does spelling only. The empty
-  `BaseURL` setting is the whole opportunity.
-- No LLM-backed LanguageTool server exists anywhere. `ltapiserv-rs` (Rust, ~27 stars) is
-  the only third-party server in use and proves the clients accept one.
+**Testing it.** `libreoffice/test/run.sh` needs neither LibreOffice nor Ollama: the two
+ported modules are compared against the JavaScript they came from, and `test_wiring.py`
+checks every name that has to match across the XML and the Python. Separately,
+`tools/uno-run.sh` starts a headless LibreOffice and hands a script a live component
+context - that is the only way to test anything at the UNO boundary, and it is how the
+options dialog and the settings round trip were fixed. It cannot type, click, or see an
+underline.
 
-**Inferred, not measured — and the next session should measure these before writing
-anything:**
+**The write-back, which took eleven rounds.** A rewritten selection would not appear in
+the document. Worth reading before touching that code, because almost every hypothesis
+was wrong in an instructive way:
 
-1. Whether LibreOffice appends `/check` to `BaseURL` or wants the full path.
-2. How much text arrives per request, and how often.
-3. Whether plain `http` on localhost is accepted (there is an `SSLCertVerify` setting,
-   which suggests yes, but that is not proof).
-4. **What LibreOffice does when a reply takes fifteen seconds.** This is the one that
-   could sink the plan: every LanguageTool client was written against a checker that
-   answers in milliseconds, and our own curve is 0.7 s at 139 characters, 19.4 s at 1119.
+- The write *did* land, every time. What varied was whether it survived.
+- **The cause: a text editor owns the text, and a model write goes underneath it.** A
+  spreadsheet cell being edited, and a Draw or Impress shape being edited, both hand out
+  an object whose `setString` succeeds and is then overwritten when the editor commits.
+  `.uno:EnterString` and a posted `.uno:Escape` fail the same way, because they are the
+  same mistake.
+- **The cure is to paste**, which goes through the editor rather than around it. Only
+  where an editor is actually in the way: a paste onto a *selected shape* inserts a new
+  object and empties it. The route is chosen by the selection's type, which says who
+  owns the text - `ScCellObj` and `SvxUnoText*` are editors, everything else is not.
+- **Verification kept lying.** First by reading back through the object just written to,
+  which a detached copy passes. Then by reading back through a text range whose extent
+  the write had changed, which reports an empty string for a write that worked. Ask the
+  enclosing text instead.
+- **Two crashes, both self-inflicted.** A `threading.Timer` touching the document, and
+  restoring a clipboard transferable belonging to another application. Neither raises;
+  both take LibreOffice down seconds later.
+- The diagnostic that finally cracked it was a *delayed* re-read plus a survey of every
+  open document. Four fixes had been shipped before anything distinguished the
+  hypotheses rather than confirming one.
 
-The agreed first step is a logging proxy between LibreOffice and a real LanguageTool
-server, which answers all four at once and yields a known-good reply to imitate. Nothing
-has been installed for this yet — no Docker image pulled, no server downloaded.
+**Rules that are not obvious and cost time:**
+
+- **Never touch UNO from a `threading.Timer`.** Use `later_on_main()`, which goes
+  through `AsyncCallback`. The same applies to anything a worker thread wants to do to a
+  dialog or a document.
+- **Never block the main thread waiting for a dispatch.** `executeDispatch` posts; the
+  main loop has to run for it to happen, and sleeping there is what stops it.
+- **A `.xdl` event binding has exactly one working spelling:**
+  `script:macro-name="vnd.sun.star.UNO:onName"` with `script:language="UNO"` and no
+  `script:location`. Anything else throws at dialog creation naming neither the event nor
+  the control.
+- **An `oor:string-list` needs a typed `uno.Any` through `uno.invoke`.** A plain list is
+  refused as "configmgr inappropriate property value". Swallowing that error is how the
+  dictionary appeared to save and read back empty.
+- **A virtualenv on `PATH` breaks `unopkg`** with a bare `std::bad_alloc` mentioning
+  neither Python nor the environment. `install.sh` strips it.
+- **LibreOffice must be fully closed** - including the background `soffice.bin` - before
+  a reinstalled extension is picked up. Installing over a running instance reports
+  success and then never instantiates the component.
+- **Installing is not enabling.** The user must tick LAITA for their language under
+  Writing Aids > Available Language Modules > Edit, and a document with no language set
+  is never checked at all.
+- **`onDocumentOpened` fires for both new and loaded documents**, so listing it beside
+  `OnNew` and `OnLoad` registers the context menu twice and the menu grows two identical
+  entries.
+- The extension options page never appeared in the Tools > Options tree despite the `Id`
+  matching the extension identifier, which is the documented requirement. The toolbar
+  opens our own dialog instead.
+
+**Chunking is ported and off.** Measured against a real model it is up to four times
+*slower*, not faster - the browser's rationale does not hold here. It buys coverage
+rather than speed. See `roadmap.md`.
+
+**Not verified:** anything requiring a real window. `Xvfb`, `openbox` and `xdotool` are
+installed, but LibreOffice maps no window on the virtual display, so the transform
+dialog could never be driven end to end here - every fix to it was confirmed by the
+user.
 
 ### Open items
 
