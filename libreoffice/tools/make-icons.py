@@ -24,7 +24,7 @@ curve. The PNGs are committed so that building the extension needs neither Pytho
 Pillow.
 """
 import os
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "src", "icons")
@@ -36,14 +36,18 @@ PENCIL_TIP = (90, 62, 28)
 PENCIL_WOOD = (255, 214, 153)
 PENCIL_ERASER = (232, 150, 160)
 SQUIGGLE = (229, 72, 77)           # the error red, as the underline uses
-# The command mark. Mid-luminance on purpose: near-black disappears on a dark toolbar,
-# and the first attempt at fixing that with a heavy white outline turned every icon into
-# a white blob. A colour that reads on both backgrounds needs no outline to rescue it.
-MARK = (74, 124, 196)
-PLAY = (46, 160, 67)
-STOP = (200, 60, 60)
+# One colour for all four command marks, and the same red as the squiggle.
+#
+# A LibreOffice toolbar button is a SQUARE - 16px or 26px, whatever the label - so
+# there is no width to be won by asking for it. A mark that small survives by being
+# one flat colour with a clear silhouette, not by being detailed or outlined. This
+# red reads against both a white and a near-black toolbar, which is why the squiggle
+# already uses it; repeating it also ties the four icons to each other.
+MARK = SQUIGGLE
+PLAY = MARK
+STOP = MARK
 
-CJK = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+CJK = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
 SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 
@@ -52,31 +56,6 @@ def font(path, size):
         return ImageFont.truetype(path, size)
     except Exception:
         return ImageFont.load_default()
-
-
-HALO = (255, 255, 255, 170)
-
-
-def halo(img):
-    """A faint light edge, so nothing dissolves into a dark toolbar.
-
-    Support, not rescue: the marks are already a colour that reads on both backgrounds,
-    and this only keeps their edges from muddying against a very dark one. A ring
-    AROUND the shape rather than a layer underneath it - underneath, anti-aliased edges
-    blend into it and the mark goes pale on a light toolbar.
-
-    Added at the final size, because a one-pixel ring drawn on the master and scaled
-    down is a grey blur.
-    """
-    alpha = img.getchannel("A")
-    # No amplification: multiplying the dilated alpha turns a soft edge into a hard
-    # white collar, which is what made these look like stickers rather than icons.
-    spread = alpha.filter(ImageFilter.MaxFilter(3))
-    ring = ImageChops.subtract(spread, alpha)
-    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    out.paste(Image.new("RGBA", img.size, HALO), (0, 0), ring)
-    out.alpha_composite(img)
-    return out
 
 
 def squiggle_at_size(img, size):
@@ -107,13 +86,13 @@ def pencil(d, w, h):
     """
     import math
     # the axis, from the eraser end to the point
-    x0, y0 = w * 0.40, h * 0.68          # eraser
-    x1, y1 = w * 0.03, h * 0.10          # point
+    x0, y0 = w * 0.34, h * 0.66          # eraser
+    x1, y1 = w * 0.02, h * 0.08          # point
     dx, dy = x1 - x0, y1 - y0
     length = math.hypot(dx, dy)
     ux, uy = dx / length, dy / length    # along the pencil, towards the point
     px, py = -uy, ux                     # across it
-    half = max(1.5, w * 0.070)
+    half = max(1.5, w * 0.064)
 
     def at(t, offset):
         """A point `t` of the way along the pencil, `offset` across it."""
@@ -138,8 +117,12 @@ def pencil(d, w, h):
 
 
 def right_box(w, h):
-    """Where the command mark goes: the right-hand side, clear of pencil and squiggle."""
-    return int(w * 0.34), int(h * 0.08), int(w * 0.98), int(h * 0.70)
+    """Where the command mark goes: the right-hand side, clear of pencil and squiggle.
+
+    Smaller than it was, and further from the pencil. The two used to nearly touch,
+    which at 16 pixels reads as one cluttered shape rather than as two things.
+    """
+    return int(w * 0.47), int(h * 0.12), int(w * 0.97), int(h * 0.64)
 
 
 def draw_play(d, w, h):
@@ -191,28 +174,44 @@ def draw_transform(d, w, h):
     The character does double duty - the mark reads as "turn this text into other
     text", which is what the command does whether or not the instruction is to
     translate.
+
+    This is the one mark of the four that is not a single silhouette, so it gets the
+    widest box of the four and drops the arc at 16 pixels: three shapes in an
+    eight-pixel square is not a symbol, it is a texture. The large icon keeps all
+    three; small icons in a set are allowed to be a simpler drawing of the same idea.
     """
-    x0, y0, x1, y1 = right_box(w, h)
+    small = w // SCALE <= 16
+    x0, y0 = int(w * 0.40), int(h * 0.06)
+    x1, y1 = int(w * 0.99), int(h * 0.70)
     box_w, box_h = x1 - x0, y1 - y0
 
-    t_font = font(SANS, int(box_h * 0.62))
-    c_font = font(CJK, int(box_h * 0.64))
+    t_font = font(SANS, int(box_h * (0.56 if small else 0.50)))
+    c_font = font(CJK, int(box_h * (0.62 if small else 0.50)))
+    # A stroke around the glyph in its own colour, which is how you make a typeface
+    # heavier than its heaviest weight - the bold CJK face still thins to nothing
+    # under a reduction to five pixels. Kept light: the previous value welded the two
+    # glyphs into one blob, which is the failure this whole box is trying to avoid.
+    bolder = max(1, int(box_h * (0.034 if small else 0.018)))
 
     def place(text, fnt, left, top):
-        bbox = d.textbbox((0, 0), text, font=fnt)
-        d.text((left - bbox[0], top - bbox[1]), text, font=fnt, fill=MARK)
+        bbox = d.textbbox((0, 0), text, font=fnt, stroke_width=bolder)
+        d.text((left - bbox[0], top - bbox[1]), text, font=fnt, fill=MARK,
+               stroke_width=bolder, stroke_fill=MARK)
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
     # T at the top left of the box, the character at the bottom right, so the two never
     # share a row or a column and the arc has a clear diagonal to travel.
-    tw, th = place("T", t_font, x0, y0 - int(box_h * 0.04))
-    cw, ch = place("\u6587", c_font, x1 - int(box_w * 0.60), y1 - int(box_h * 0.62))
+    place("T", t_font, x0, y0)
+    cw, ch = d.textbbox((0, 0), "\u6587", font=c_font, stroke_width=bolder)[2:]
+    place("\u6587", c_font, x1 - cw, y1 - ch)
 
+    if small:
+        return
     # The arc lives in the corner the two glyphs leave empty - top right - rather than
     # between them, where it crossed the character and turned both into a smudge.
-    r0 = x0 + int(box_w * 0.42)
-    d.arc([r0, y0 - int(box_h * 0.06), x1, y0 + int(box_h * 0.52)],
-          start=200, end=330, fill=MARK, width=max(2, int(h * 0.032)))
+    r0 = x0 + int(box_w * 0.48)
+    d.arc([r0, y0, x1, y0 + int(box_h * 0.46)],
+          start=195, end=340, fill=MARK, width=max(2, int(h * 0.026)))
 
 
 COMMANDS = {
@@ -237,7 +236,6 @@ def main():
             img = Image.alpha_composite(
                 Image.new("RGBA", img.size, (255, 255, 255, 0)), img)
             small = img.resize((size, size), Image.LANCZOS)
-            small = halo(small)
             squiggle_at_size(small, size)
             path = os.path.join(OUT, "%s_%d.png" % (name, size))
             small.save(path)
