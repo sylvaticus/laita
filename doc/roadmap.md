@@ -167,30 +167,42 @@ each firing its own re-check, producing 49 `doProofreading` calls. With a real m
 is 17 inferences on a paragraph still being typed. The browser's 1.5 s debounce plus the
 existing chunk cache should collapse that to one.
 
-#### Chunking: ported, measured, and turned off
+#### Chunking: ported, measured wrong, measured again, left on
 
-The browser splits a long paragraph at sentence boundaries because latency grows faster
-than the text - 0.7 s at 139 characters, 19.4 s at 1119. That was ported, and then
-measured against a real model through the extension. It does not hold here:
+This took two measurements, and the first one was wrong. The browser splits a long
+paragraph at sentence boundaries; that was ported, then timed against a real model
+through the extension, wall clock only:
 
 | paragraph | sent whole | in 700-character chunks |
 | --- | --- | --- |
 | 551 chars | 7.9 s, 3 issues | 9.4 s, 3 issues |
-| 1379 chars | **41.0 s**, 3 issues | **98.4 s**, 6 issues |
-| 2483 chars | **49.5 s**, 3 issues | **191.9 s**, 12 issues |
+| 1379 chars | 41.0 s, 3 issues | 98.4 s, 6 issues |
+| 2483 chars | 49.5 s, 3 issues | 191.9 s, 12 issues |
 
-Splitting is close to four times slower and the gap widens. Whole-paragraph cost is
-sub-linear in this range - 1379 to 2483 characters is 41 s to 49 s - because the time
-goes on generating the answer and on re-processing the ~1500-character system prompt
-once per request, not on reading the input.
+That reads as "splitting is four times slower", and `ChunkMaxChars` was set to 0 on the
+strength of it. It was wrong. The second measurement (`browser/tools/measure-chunking.mjs`)
+read Ollama's own token counters instead of the clock, and the slowdown was not the
+splitting:
 
-What splitting does buy is **coverage**: twelve issues instead of three, because the
-model caps itself at twelve per request. That is a genuine trade of speed for
-thoroughness, so `ChunkMaxChars` defaults to 0, meaning off, and remains available.
+- **Reading the input is nearly free** - a second or less for hundreds of tokens. All the
+  time goes on the model *writing* its answer, at a near-constant **~55 output tokens per
+  issue found**. Split or whole, the cost per issue is the same.
+- **The "four times" was the machine, not the method.** This is a laptop GPU; sustained
+  generation drove it into thermal throttling - 22 tok/s falling to 4, confirmed live in
+  `nvidia-smi` - and every run measured whole-then-split, so the split arm always
+  inherited the hotter card. Measuring by tokens, and running the comparison ABBA so
+  linear drift cancels, both artifacts vanish: the ratios come out at 1.9x the tokens for
+  1.9x the issues.
 
-Worth carrying back to the browser: its 700-character default may be costing speed
-rather than saving it, and the original measurement was never repeated with the current
-prompt.
+So splitting is a proportional trade, not a penalty - and it buys **coverage** the
+whole-paragraph path cannot. One request stops at twelve issues (the schema caps it), so
+a long paragraph checked whole silently loses everything past the twelfth. `ChunkMaxChars`
+therefore defaults to **700**, splitting paragraphs longer than that; 0 remains available
+for anyone who would rather send whole paragraphs and live with the cap.
+
+This also settled the browser: its 700 default was right, for the same reason, and the
+old "latency grows faster than the text" line in its options page (and the 139/1119
+figures) was the same confusion of length with error density - corrected there too.
 
 #### What has to be duplicated, and what does not
 

@@ -26,7 +26,7 @@ DEFAULTS = {
     "debounceMs": 1500,
     "minChars": 25,
     "maxChars": 12000,
-    "chunkMaxChars": 0,
+    "chunkMaxChars": 700,
     "scope": "caret",
     "categories": {"error": True, "style": True, "rephrase": True},
     "dictionary": [],

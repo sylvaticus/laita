@@ -30,10 +30,12 @@
       <prop oor:name="DebounceMs" oor:type="xs:int"><value>1500</value></prop>
       <prop oor:name="MinChars" oor:type="xs:int"><value>25</value></prop>
       <prop oor:name="MaxChars" oor:type="xs:int"><value>12000</value></prop>
-      <!-- 0 means do not split a paragraph. Splitting is SLOWER against a real model -
-           four times so on a long paragraph - but finds more issues, because the model
-           caps itself at twelve per request. See laita_segment.py for the numbers. -->
-      <prop oor:name="ChunkMaxChars" oor:type="xs:int"><value>0</value></prop>
+      <!-- Split a paragraph longer than this. The cost is proportional to what it finds,
+           not a penalty (an earlier "four times slower" was a throttling laptop GPU, not
+           the splitting - see laita_segment.py), and splitting is the only way past the
+           twelve-issue-per-request cap on a long paragraph. 0 disables it, sending whole
+           paragraphs and living with the cap. -->
+      <prop oor:name="ChunkMaxChars" oor:type="xs:int"><value>700</value></prop>
       <!-- "caret": only the paragraph the cursor is in, which is what you are editing.
            "document": every paragraph LibreOffice asks about, which on opening a long
            file means the whole visible document at once. Check this document overrides

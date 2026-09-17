@@ -16,7 +16,7 @@ export function languageName(code) {
   return LANGUAGE_NAMES[String(code).toLowerCase().split("-")[0]] || code;
 }
 
-const RESPONSE_SCHEMA = {
+export const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
     issues: {

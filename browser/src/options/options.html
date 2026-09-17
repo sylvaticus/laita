@@ -97,11 +97,13 @@
       <div class="row">
         <label for="chunkMaxChars">Maximum chunk size (characters)</label>
         <input id="chunkMaxChars" type="number" min="120" max="4000" step="50">
-        <small>Longer paragraphs are split on sentence boundaries. This is the setting that
-        decides how fast checking feels: the model slows down <i>faster</i> than the text
-        grows — measured here, 139 characters took 0.7&nbsp;s and 1119 took 19.4&nbsp;s —
-        so two small requests beat one large one. Raise it only if suggestions are missing
-        context that spans sentences.</small>
+        <small>Longer paragraphs are split on sentence boundaries, so that typing in one
+        checks only the part you are editing. Nearly all the time goes on the model
+        <i>writing</i> its answer, not on reading your text, so a smaller size means a
+        faster reply while you type. It also finds more: a single request stops at twelve
+        suggestions, so splitting a long paragraph can surface issues a whole-paragraph
+        check would never reach. Raise it only if suggestions are missing context that
+        spans sentences.</small>
       </div>
       <div class="row">
         <label for="maxChars">Maximum characters per check</label>

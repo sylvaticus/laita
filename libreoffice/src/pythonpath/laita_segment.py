@@ -2,23 +2,32 @@
 """
 Splitting a paragraph into pieces small enough to be worth sending.
 
-A port of the chunking half of browser/src/content/segment.js. **Chunking is off by default here, and the reason is worth reading before turning it
-on.** It was ported on the browser's rationale - that latency grows faster than the text
-- and measuring it against a real model contradicted that:
+A port of the chunking half of browser/src/content/segment.js. Chunking is ON here,
+splitting paragraphs longer than 700 characters, and getting there took two measurements
+because the first one was wrong.
+
+The first, recorded here as "splitting is nearly four times slower", timed the wall clock
+only:
 
     paragraph   whole            in 700-char chunks
     551 chars    7.9s  3 issues    9.4s  3 issues
     1379 chars  41.0s  3 issues   98.4s  6 issues
     2483 chars  49.5s  3 issues  191.9s 12 issues
 
-Splitting is nearly four times SLOWER, and the gap widens with length: the cost is
-dominated by generating the answer and by re-processing the system prompt once per
-request, not by the length of the input. 1379 to 2483 characters cost 41s to 49s whole,
-which is sub-linear.
+The second read Ollama's own token counters (browser/tools/measure-chunking.mjs) and
+found the slowdown was not the splitting. Reading the input is nearly free - a second or
+less for hundreds of tokens; all the time goes on the model WRITING its answer, at a
+near-constant ~55 output tokens per issue found. Split or whole, the cost per issue is
+the same. The "four times" was two artifacts: this is a laptop GPU, and sustained
+generation drove it into thermal throttling (22 tok/s falling to 4), and the whole run
+always measured whole-then-split, so the split arm inherited the hotter card. Measuring
+by tokens instead of seconds, and running the comparison ABBA, both disappear.
 
-What splitting does buy is coverage - twelve issues instead of three, because the model
-caps itself at twelve per request. That is a real choice between thoroughness and speed,
-so it is a setting rather than a default.
+So splitting is not a penalty; it is a proportional trade that also buys COVERAGE. One
+request stops at twelve issues (the schema caps it), so on a long paragraph a
+whole-paragraph check silently misses everything past the twelfth - splitting is the only
+way to find them. That is why the default is 700 rather than 0. A limit of 0 is still
+accepted, for anyone who would rather send whole paragraphs and live with the cap.
 
 One deliberate difference from the JavaScript. The browser uses Intl.Segmenter for
 sentence boundaries and falls back to a regular expression where it is unavailable;
@@ -49,8 +58,8 @@ def sentences(text):
 def chunk_text(text, max_chars=0):
     """[(start, text)] - pieces of `text` no larger than the limit where possible.
 
-    A limit of 0 means do not chunk, which is the default and, on the evidence, the
-    right one - see the note at the top of this file.
+    A limit of 0 means do not chunk. The default is 700, not 0 - see the note at the top
+    of this file for why the earlier "off by default" was withdrawn.
 
     Offsets are absolute within `text`, and leading or trailing blank space is trimmed
     off the piece while the offset still points at the first real character. That is

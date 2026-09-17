@@ -177,12 +177,23 @@ threw; and `vscode/.vscode/launch.json` was never tracked, so a fresh clone stil
 
 ### Measurements worth not repeating
 
-- Proofreading latency grows **faster than linearly** with the text sent: 139 chars 0.7s,
-  419 chars 4.4s, 699 chars 9.0s, 1119 chars 19.4s. This is why both surfaces chunk, and
-  why an automatic check sends exactly one chunk.
+- Proofreading cost is dominated by what the model **writes**, not what it reads. Reading
+  the input is near-free (≲1s for hundreds of tokens); generation runs at a near-constant
+  **~55 output tokens per issue found**. An earlier note here claimed latency "grows faster
+  than linearly with the text sent" (139 chars 0.7s … 1119 chars 19.4s) - that was length
+  confounded with error density (longer samples had more wrong with them) and, on the
+  laptop, thermal throttling. `browser/tools/measure-chunking.mjs` reads Ollama's token
+  counters and shows the real shape. Chunking still earns its place, but for **coverage**
+  (see below), not for a latency curve.
 
-- `qwen3.5:9b`: ~30 tok/s for a short answer, **~10 tok/s for a long one**. The rate falls
-  as the answer grows, so big jobs are worse than linear.
+- The response schema caps a single request at **12 issues** (`maxItems`). A long paragraph
+  checked whole silently loses everything past the twelfth; splitting is the only way to
+  reach them. This, not speed, is why chunking is on by default on all three surfaces.
+
+- `qwen3.5:9b`: ~30 tok/s for a short answer falling toward ~10 for a long one, and lower
+  still on a thermally throttled laptop GPU (measured 22→4 tok/s under sustained load).
+  **Time comparisons on this machine are only valid run ABBA or normalised to tokens** -
+  a plain A-then-B charges the cooling curve to B.
 - A 10269-character transform took **205 s** and returned all 65 paragraphs intact.
 - Ollama keys a loaded model by model **plus runtime options**: changing `num_ctx` evicts
   the runner and reloads the weights (~7 s warm, far worse under memory pressure). This is
@@ -309,9 +320,10 @@ was wrong in an instructive way:
   matching the extension identifier, which is the documented requirement. The toolbar
   opens our own dialog instead.
 
-**Chunking is ported and off.** Measured against a real model it is up to four times
-*slower*, not faster - the browser's rationale does not hold here. It buys coverage
-rather than speed. See `roadmap.md`.
+**Chunking is ported and on, default 700.** An earlier measurement made it look four
+times *slower* and it was turned off; that was a throttling laptop GPU measured
+whole-then-split, not the splitting. Re-measured by tokens and run ABBA, splitting is a
+proportional trade that also gets past the 12-issue-per-request cap. See `roadmap.md`.
 
 **Not verified:** anything requiring a real window. `Xvfb`, `openbox` and `xdotool` are
 installed, but LibreOffice maps no window on the virtual display, so the transform
@@ -340,9 +352,12 @@ user.
   `libreoffice/test/` compares the Python against the JavaScript, which is what keeps
   them honest - a real shared package would be better and is not obviously possible
   across three languages.
-- **The browser's chunking should be re-measured.** Its 700-character default assumes
-  latency grows faster than the text; on LibreOffice that turned out to be false and
-  splitting was four times slower. The browser measurement predates the current prompt.
+- ~~The browser's chunking should be re-measured.~~ **Done.**
+  `browser/tools/measure-chunking.mjs` reads Ollama's token counters: cost is
+  ~55 output tokens per issue, splitting is a proportional trade (not the "four times
+  slower" the wall clock showed on a throttling GPU), and it gets past the 12-issue cap.
+  700 kept on the browser; LibreOffice flipped 0 → 700 to match. The false latency line in
+  the browser options page was corrected.
 - The 16px icon is legible but weak; a hand-drawn simplified mark was offered and not done.
 - The LibreOffice extension is not packaged for distribution: no release artefact and
   no listing. `libreoffice/laita.oxt` is gitignored like every other build output.
