@@ -77,12 +77,27 @@ def main():
 
     # --- the toolbar URLs must be commands the dispatcher handles ------------------------
     addons = minidom.parseString(read("Addons.xcu"))
-    urls = []
-    for prop in addons.getElementsByTagName("prop"):
-        if prop.getAttribute("oor:name") == "URL":
-            for v in prop.getElementsByTagName("value"):
-                if v.firstChild:
-                    urls.append(v.firstChild.data)
+
+    def urls_under(section):
+        """The command URLs inside one AddonUI section.
+
+        Scoped rather than global: the Images section carries a URL for each command
+        too, so counting every URL in the file conflates "offered in two places" with
+        "has an icon".
+        """
+        found = []
+        for node in addons.getElementsByTagName("node"):
+            if node.getAttribute("oor:name") != section:
+                continue
+            for prop in node.getElementsByTagName("prop"):
+                if prop.getAttribute("oor:name") != "URL":
+                    continue
+                for v in prop.getElementsByTagName("value"):
+                    if v.firstChild:
+                        found.append(v.firstChild.data)
+        return found
+
+    urls = urls_under("OfficeMenuBar") + urls_under("OfficeToolBar")
     # Four commands, offered in two places: a menu that is always there and a toolbar
     # the user can switch off in View > Toolbars without losing anything.
     check("every command appears in both the menu and the toolbar", len(urls), 8)
@@ -120,6 +135,26 @@ def main():
               url.startswith("org.lobianco.laita.command:"), True)
         command = url.split(":", 1)[1]
         check("...and the dispatcher handles %r" % command, command in handled, True)
+
+    # --- every command must have icons, and the files must be there ---------------------
+    # A missing image is not an error in LibreOffice: the button appears with a blank
+    # square, or with the last icon it happened to have, and nothing is logged.
+    addons_text = read("Addons.xcu")
+    for command in sorted(set(u.split(":", 1)[1] for u in urls)):
+        node = 'org.lobianco.laita.image.%s' % command
+        check("Addons.xcu declares an image for %r" % command, node in addons_text, True)
+    images = re.findall(r"%origin%/([\w/.]+\.png)", addons_text)
+    check("both sizes are declared for all four commands", len(images), 8)
+    for rel in images:
+        check("the icon file %s exists" % rel,
+              os.path.exists(os.path.join(SRC, *rel.split("/"))), True)
+    from struct import unpack
+    for rel in images:
+        with open(os.path.join(SRC, *rel.split("/")), "rb") as fh:
+            head = fh.read(24)
+        width, height = unpack(">II", head[16:24])
+        want = 16 if rel.endswith("_16.png") else 26
+        check("%s is %dx%d" % (rel, want, want), (width, height), (want, want))
 
     # --- the protocol must be the one the dispatcher answers for --------------------------
     handler = minidom.parseString(read("ProtocolHandler.xcu"))

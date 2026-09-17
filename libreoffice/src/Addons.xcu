@@ -84,5 +84,64 @@
       </node>
     </node>
 
+    <!-- One icon per command, 16px for the small toolbar and 26px for the large one.
+         Each is a pencil, a red proofreading squiggle along the bottom, and one mark
+         that says which command it is - so the set reads as one tool and only the mark
+         has to be told apart. Drawn by tools/make-icons.py. -->
+    <node oor:name="Images">
+      <node oor:name="org.lobianco.laita.image.transform" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>org.lobianco.laita.command:transform</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>%origin%/icons/transform_16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>%origin%/icons/transform_26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="org.lobianco.laita.image.checkdocument" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>org.lobianco.laita.command:checkdocument</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>%origin%/icons/checkdocument_16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>%origin%/icons/checkdocument_26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="org.lobianco.laita.image.stop" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>org.lobianco.laita.command:stop</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>%origin%/icons/stop_16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>%origin%/icons/stop_26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="org.lobianco.laita.image.options" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>org.lobianco.laita.command:options</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>%origin%/icons/options_16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>%origin%/icons/options_26.png</value>
+          </prop>
+        </node>
+      </node>
+    </node>
+
   </node>
 </oor:component-data>

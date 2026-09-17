@@ -36,6 +36,25 @@ against the JavaScript they came from rather than against expectations written b
 them, and `test_wiring.py` checks every name that has to match across the XML and the
 Python - the class of mistake that makes a button do nothing with no error anywhere.
 
+## The toolbar icons
+
+```bash
+python3 tools/make-icons.py      # -> src/icons/*.png, committed
+```
+
+Each icon is the same sentence: a pencil on the left, a red proofreading squiggle along
+the bottom, and on the right the one mark that distinguishes the command — a play
+triangle, a stop square, a gear, and a **T** turning into **文** for the transform. The
+shared parts make the set read as one tool; only the mark has to be told apart.
+
+Two things learned drawing them, both about 16 pixels being smaller than it sounds:
+
+- **The squiggle is drawn at the final size, not supersampled.** Drawn large and
+  reduced, a three-pixel wave averages into a straight grey line — a different symbol,
+  and the one every icon shares.
+- **Gear teeth are rectangles.** Round ones merge into a flower when reduced, and a gear
+  without corners is a flower.
+
 ## Testing
 
 ```bash
