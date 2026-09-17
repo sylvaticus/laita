@@ -33,6 +33,7 @@ from com.sun.star.frame import XDispatchProvider, XDispatch
 from com.sun.star.task import XJob
 from com.sun.star.ui import XContextMenuInterceptor
 from com.sun.star.awt import XContainerWindowEventHandler, XDialogEventHandler, XCallback
+from com.sun.star.datatransfer import XTransferable, DataFlavor
 
 import laita_anchor as anchor
 import laita_ollama as ollama
@@ -468,24 +469,7 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         try:
             clip = self.ctx.ServiceManager.createInstanceWithContext(
                 "com.sun.star.datatransfer.clipboard.SystemClipboard", self.ctx)
-            import unohelper
-            from com.sun.star.datatransfer import XTransferable, DataFlavor
-
-            class Text(unohelper.Base, XTransferable):
-                def getTransferData(self, flavor):
-                    return text
-
-                def getTransferDataFlavors(self):
-                    f = DataFlavor()
-                    f.MimeType = "text/plain;charset=utf-16"
-                    f.HumanPresentableName = "Unicode text"
-                    f.DataType = uno.getTypeByName("string")
-                    return (f,)
-
-                def isDataFlavorSupported(self, flavor):
-                    return flavor.MimeType.startswith("text/plain")
-
-            clip.setContents(Text(), None)
+            clip.setContents(_PlainText(text), None)
         except Exception:
             log("could not reach the clipboard\n%s" % traceback.format_exc())
 
@@ -559,6 +543,52 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 log("  survey/%s: no documents open" % note)
         except Exception:
             log("survey failed\n%s" % traceback.format_exc())
+
+    def _paste_over_selection(self, text):
+        """Replace the selection by pasting, which is how a person would do it.
+
+        Everything else writes the document MODEL underneath a cell or shape editor
+        that still holds the old string, and the editor puts it back when it commits -
+        that is what six rounds of logs show, most clearly the one where the text was
+        written, confirmed present, and reverted three seconds later with only one
+        document open and the right cell named.
+
+        Paste goes through the editor rather than around it, so there is no staler
+        buffer left to win. The clipboard is put back afterwards, because quietly
+        eating it would be its own bug.
+        """
+        clip = None
+        previous = None
+        try:
+            clip = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.datatransfer.clipboard.SystemClipboard", self.ctx)
+            try:
+                previous = clip.getContents()
+            except Exception:
+                previous = None
+            clip.setContents(_PlainText(text), None)
+
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            frame = desktop.getCurrentComponent().getCurrentController().getFrame()
+            helper = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.DispatchHelper", self.ctx)
+            helper.executeDispatch(frame, ".uno:Paste", "", 0, ())
+            return True
+        except Exception:
+            log("paste failed\n%s" % traceback.format_exc())
+            return False
+        finally:
+            if clip is not None and previous is not None:
+                # After the paste has been consumed, not before.
+                def restore():
+                    try:
+                        clip.setContents(previous, None)
+                    except Exception:
+                        pass
+                timer = threading.Timer(2.0, restore)
+                timer.daemon = True
+                timer.start()
 
     def _enter_string(self, text):
         """Write the current Calc cell the way typing does.
@@ -742,12 +772,25 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 handle, resolve = self._stable_handle(target)
                 # A Calc cell goes through the UI path; everything else has no editor
                 # buffer to lose to, so the model write is right for them.
-                wrote = False
-                if getattr(handle, "CellAddress", None) is not None:
-                    wrote = self._enter_string(new_text)
-                if not wrote:
+                # Paste ONLY for a spreadsheet cell. It is the one place where the
+                # editor demonstrably overrides a model write, and the one place where
+                # pasting does the right thing: measured, a paste into Impress with a
+                # shape selected emptied the shape - it inserts a new object rather
+                # than replacing text - and in Draw it did nothing at all. Using it
+                # everywhere would have traded a text that does not appear for a slide
+                # that loses its text.
+                is_cell = getattr(handle, "CellAddress", None) is not None
+                wrote = self._paste_over_selection(new_text) if is_cell else False
+                if wrote:
+                    time.sleep(0.3)             # let the paste be applied
+                try:
+                    check_now = (resolve() if resolve else handle).getString()
+                except Exception:
+                    check_now = None
+                if check_now != new_text:
                     try:
                         handle.setString(new_text)
+                        log("%s: paste did not take, wrote the model instead" % what)
                     except Exception:
                         log("%s failed\n%s" % (what, traceback.format_exc()))
                         continue
@@ -1016,6 +1059,26 @@ def test_connection(ctx, window):
         say("Connected, but \"%s\" is not installed. Available: %s"
             % (probe_settings["model"], ", ".join(models) or "none"))
     fill_models(ctx, window, probe_settings)
+
+
+class _PlainText(unohelper.Base, XTransferable):
+    """The simplest possible clipboard payload: one string."""
+
+    def __init__(self, text):
+        self._text = text
+
+    def getTransferData(self, flavor):
+        return self._text
+
+    def getTransferDataFlavors(self):
+        flavor = DataFlavor()
+        flavor.MimeType = "text/plain;charset=utf-16"
+        flavor.HumanPresentableName = "Unicode text"
+        flavor.DataType = uno.getTypeByName("string")
+        return (flavor,)
+
+    def isDataFlavorSupported(self, flavor):
+        return flavor.MimeType.startswith("text/plain")
 
 
 class MainThreadCall(unohelper.Base, XCallback):
