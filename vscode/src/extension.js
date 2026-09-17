@@ -248,6 +248,27 @@ async function transform() {
       `LAITA: that selection is ${selected.length} characters, over the ${s.maxChars} limit.`);
   }
 
+  // The selection may be larger than the model's context window, in which case Ollama
+  // truncates the input silently, the model rewrites only the part it saw, and Replace
+  // then swaps the WHOLE selection for that fragment - ten pages in, one page out, no
+  // warning. The browser guards against exactly this (background/main.js); it was never
+  // ported here. A failed probe must not block a transform, so an unreadable window is
+  // treated as no answer rather than a refusal.
+  const needed = core.estimateTransformTokens(selected.length);
+  let ctx = null;
+  try { ctx = await core.effectiveContext(s); } catch { /* leave ctx null */ }
+  if (ctx && needed > ctx.tokens) {
+    const where = {
+      pinned: `the ${ctx.tokens}-token window pinned in the settings`,
+      server: `the ${ctx.tokens}-token window Ollama has this model loaded with`,
+      assumed: `Ollama's default window of ${ctx.tokens} (the model is not loaded, so its ` +
+               `real window could not be read)`
+    }[ctx.source];
+    return vscode.window.showWarningMessage(
+      `LAITA: this selection needs roughly ${needed} tokens to rewrite, more than ${where}. ` +
+      `Select less, or raise the window with OLLAMA_CONTEXT_LENGTH and reload the model.`);
+  }
+
   const fallback = vscode.workspace.getConfiguration("laita").get("transformDefault") || "polish";
   const instruction = (await vscode.window.showInputBox({
     title: "LAITA: transform the selection",
