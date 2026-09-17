@@ -528,6 +528,38 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         except Exception:
             log("could not leave edit mode\n%s" % traceback.format_exc())
 
+    def _survey(self, note):
+        """Every open document and what its first cell holds.
+
+        The log has now said "wrote it" and "it is still there" about a document the
+        user was looking at unchanged. Either we are writing to a different document
+        than the visible one, or to a different cell. This says which, instead of
+        inviting a sixth guess.
+        """
+        try:
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            current = desktop.getCurrentComponent()
+            components = desktop.getComponents().createEnumeration()
+            n = 0
+            while components.hasMoreElements():
+                doc = components.nextElement()
+                n += 1
+                title = getattr(doc, "Title", "?")
+                mark = " <- getCurrentComponent()" if doc == current else ""
+                cell = ""
+                try:
+                    if hasattr(doc, "Sheets"):
+                        cell = " A1=%r" % doc.Sheets.getByIndex(0) \
+                            .getCellByPosition(0, 0).getString()[:40]
+                except Exception:
+                    pass
+                log("  survey/%s: [%d] %r%s%s" % (note, n, title, cell, mark))
+            if not n:
+                log("  survey/%s: no documents open" % note)
+        except Exception:
+            log("survey failed\n%s" % traceback.format_exc())
+
     def _enter_string(self, text):
         """Write the current Calc cell the way typing does.
 
@@ -761,16 +793,34 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             verdict = dialog.execute()
             log("transform dialog closed with %r, %d characters of output"
                 % (verdict, len(state["output"])))
+            self._survey("at close")
             # Dispose BEFORE writing. Disposing a modal dialog hands focus back to the
             # document, and if that happens after we have written, a cell editor that
             # regains focus can put its own stale buffer over the top. Driven from a
             # script the write survives in this order and was reverted in the other,
             # which is the only difference the two had.
             dialog.dispose()
-            if state.get("append", "").strip():
-                write_back(selected + " " + state["append"], "append")
-            elif verdict == 1 and state["output"].strip():
-                write_back(state["output"], "replace")
+
+            # Do the writing in a LATER turn of the main loop, once the dialog is
+            # properly gone and focus is back in the document. Writing inline happens
+            # while LibreOffice is still unwinding the dialog and the dispatch, which is
+            # the one part of the sequence that could never be reproduced from a script.
+            def do_write():
+                self._survey("before writing")
+                if state.get("append", "").strip():
+                    write_back(selected + " " + state["append"], "append")
+                elif verdict == 1 and state["output"].strip():
+                    write_back(state["output"], "replace")
+                self._survey("after writing")
+
+            try:
+                async_cb = self.ctx.ServiceManager.createInstanceWithContext(
+                    "com.sun.star.awt.AsyncCallback", self.ctx)
+                async_cb.addCallback(MainThreadCall(do_write), None)
+            except Exception:
+                log("could not defer the write; doing it inline\n%s"
+                    % traceback.format_exc())
+                do_write()
         except Exception:
             log("transform failed\n%s" % traceback.format_exc())
             self._tell("LAITA", "The transform dialog could not open. See "
