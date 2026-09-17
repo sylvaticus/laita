@@ -396,6 +396,73 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         elif command == "options":
             self._open_options()
 
+    def _where(self, handle):
+        """Enough to identify what was written to, for the log."""
+        try:
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            doc = desktop.getCurrentComponent()
+            title = getattr(doc, "Title", "?")
+            address = getattr(handle, "CellAddress", None)
+            if address is not None:
+                return "%s sheet %d cell (%d,%d)" % (title, address.Sheet,
+                                                     address.Column, address.Row)
+            return "%s" % title
+        except Exception:
+            return "?"
+
+    def _recheck_later(self, resolve, expected, what, delay=3.0, was=None, retries=1):
+        """Read the text back after the dust settles, and put it back if it was undone.
+
+        Something in Calc restores the cell's previous content shortly after the write -
+        reported, and confirmed by this check. Every component was tested in isolation
+        against a real window and each one keeps the write: edit mode, a modal dialog,
+        writing from inside a dispatch, either ordering, the editor committing
+        afterwards. Driving the whole thing end to end needs a window manager, which
+        this machine has not got.
+
+        So this is a workaround rather than a diagnosis, and it is written to be a safe
+        one. It only rewrites when the text has gone back to EXACTLY what was there
+        before - if anything else is in the cell, that is the user's and it is left
+        alone.
+        """
+        def look():
+            try:
+                now = resolve().getString()
+            except Exception:
+                log("%s: could not re-read the text\n%s" % (what, traceback.format_exc()))
+                return
+            if now == expected:
+                log("%s: still there after %.0fs" % (what, delay))
+                return
+            log("%s: GONE after %.0fs - something reverted it. Now holds %r"
+                % (what, delay, now[:60]))
+            if retries <= 0:
+                return
+            if was is not None and now != was:
+                log("%s: not restoring - the text is neither ours nor the original"
+                    % what)
+                return
+
+            def put_it_back():
+                try:
+                    resolve().setString(expected)
+                    log("%s: put back after the revert" % what)
+                except Exception:
+                    log("%s: could not put it back\n%s" % (what, traceback.format_exc()))
+                    return
+                self._recheck_later(resolve, expected, what, delay=2.0, was=was,
+                                    retries=retries - 1)
+            try:
+                async_cb = self.ctx.ServiceManager.createInstanceWithContext(
+                    "com.sun.star.awt.AsyncCallback", self.ctx)
+                async_cb.addCallback(MainThreadCall(put_it_back), None)
+            except Exception:
+                log("%s: could not schedule the retry\n%s" % (what, traceback.format_exc()))
+        timer = threading.Timer(delay, look)
+        timer.daemon = True
+        timer.start()
+
     def _to_clipboard(self, text):
         """Last resort when the document will not take the text back."""
         try:
@@ -529,17 +596,10 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             return
         selected = rng.getString()
 
-        # Leave the cell or shape editor NOW, before the dialog, not just before the
-        # write. executeDispatch POSTS the command rather than running it inline, so
-        # escaping immediately before writing meant the sequence was: escape queued,
-        # text written, write verified, success logged - and only then did the main loop
-        # process the escape, which cancels the edit and restores the content the cell
-        # had before it. Everything reported success and the document never changed,
-        # which is precisely what the log showed twice.
-        #
-        # Done here, the dialog's own modal loop runs the escape long before there is
-        # anything to write.
-        self._leave_edit_mode()
+        # No .uno:Escape here any more. executeDispatch POSTS the command, and from
+        # inside a dispatch there is no way to know when it runs - it may well have been
+        # cancelling the cell edit, and restoring its pre-edit content, after our write.
+        # Every scripted scenario writes successfully without it.
 
         s = settings_store.read(self.ctx)
         if len(selected) > s["maxChars"]:
@@ -634,8 +694,13 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 try:
                     check = resolve() if resolve else handle
                     if check.getString() == new_text:
-                        log("%s: wrote %d characters (attempt %d)"
-                            % (what, len(new_text), attempt + 1))
+                        log("%s: wrote %d characters (attempt %d) into %s"
+                            % (what, len(new_text), attempt + 1, self._where(handle)))
+                        # Look again in a moment. The write passing here and the
+                        # document not having it later can only mean something undid it
+                        # afterwards, and that is worth knowing rather than inferring.
+                        self._recheck_later(resolve or (lambda: handle), new_text, what,
+                                            was=selected)
                         return True
                 except Exception:
                     log("%s could not be verified\n%s" % (what, traceback.format_exc()))
@@ -646,9 +711,9 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             return False
 
         def append(dialog):
-            text = dialog.getControl("Result").getText()
-            if text.strip():
-                write_back(selected + " " + text, "append")
+            # Remember what to write and let execute() return; the write happens after
+            # the dialog is gone, for the same reason as Accept & replace.
+            state["append"] = dialog.getControl("Result").getText()
             dialog.endExecute()
 
         try:
@@ -666,9 +731,16 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             verdict = dialog.execute()
             log("transform dialog closed with %r, %d characters of output"
                 % (verdict, len(state["output"])))
-            if verdict == 1 and state["output"].strip():
-                write_back(state["output"], "replace")
+            # Dispose BEFORE writing. Disposing a modal dialog hands focus back to the
+            # document, and if that happens after we have written, a cell editor that
+            # regains focus can put its own stale buffer over the top. Driven from a
+            # script the write survives in this order and was reverted in the other,
+            # which is the only difference the two had.
             dialog.dispose()
+            if state.get("append", "").strip():
+                write_back(selected + " " + state["append"], "append")
+            elif verdict == 1 and state["output"].strip():
+                write_back(state["output"], "replace")
         except Exception:
             log("transform failed\n%s" % traceback.format_exc())
             self._tell("LAITA", "The transform dialog could not open. See "
