@@ -88,6 +88,54 @@ Two things about `src/description.xml` that are not guessable:
   error: the entry just appears nameless with no description and nothing says why.
   `build-oxt.sh` refuses to build in that case, and `test_wiring.py` checks it too.
 
+### What it is compatible with, and why
+
+| | |
+|---|---|
+| Declared minimum | LibreOffice 6.1 |
+| Technical minimum | LibreOffice 4.0 |
+| Declared maximum | none |
+| Tested | 26.2, Linux |
+
+**4.0 is the real floor, and it is about Python, not UNO.** LibreOffice 4.0 replaced the
+bundled Python 2.6 with 3.3 and made the Python scripting provider core rather than an
+extension; this is Python 3 code, so 3.x cannot run it at all. Everything else predates
+that comfortably: `XProofreader` and the grammar-checking API arrived in OOo 3.0.1,
+`uno.invoke`/`uno.Any` are documented in the OOo 2.x Python bridge, and not one of the
+interfaces used here carries an `@since` tag - they are all older than the convention.
+The Python needs nothing past 3.3 either: no f-strings, no annotations, no `typing`, no
+dict-ordering assumptions. `test_wiring.py` does not enforce that; a quick check is
+
+```bash
+grep -rnE '(^|[^A-Za-z0-9_])f["'"'"']' src/*.py src/pythonpath/*.py     # must be empty
+```
+
+**6.1 is margin, not necessity.** It is the oldest release worth claiming to support -
+old enough to cover every LTS distribution anyone still runs, new enough that no part of
+this is near the edge of what the version can do. Lowering it towards 4.0 would be
+defensible on paper and untestable in practice.
+
+**No maximum, deliberately.** Nothing used here has been removed. The one change on the
+horizon is an addition: from LibreOffice 26.8, `uno.Any` can be passed to a method
+directly, so the `uno.invoke` in `laita_settings.py` is no longer required. `uno.invoke`
+is not deprecated and is still in master - that is a simplification to take one day, not
+a break to defend against.
+
+### Windows and macOS
+
+`platform` is `all`, which is a claim about the code, not a tested fact - it has only
+been run on Linux. Nothing in it is POSIX-specific: no `subprocess`, no shell, no
+hardcoded separators, and the only filesystem path is
+`os.path.expanduser("~/laita-libreoffice.log")`, which resolves on all three. Ollama runs
+on all three too. Two things to check first if someone reports a failure there:
+
+- **`urllib.request` uses the system proxy by default.** `getproxies()` reads the WinINET
+  registry on Windows and System Configuration on macOS. A corporate proxy without a
+  loopback bypass would swallow a request meant for `localhost`.
+- **`localhost` is not always `127.0.0.1`.** Windows resolves it to `::1` first, and
+  Ollama binds IPv4 by default. Setting the endpoint to `http://127.0.0.1:11434`
+  sidesteps both of these.
+
 To check a package without disturbing your own LibreOffice, install it into a throwaway
 profile - this works while LibreOffice is running, which `tools/install.sh` cannot:
 

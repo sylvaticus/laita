@@ -6,14 +6,32 @@
   and test_wiring.py checks they still agree. It is also what an update replaces: change
   it and existing installs get a second, unrelated extension instead of a new version.
 
-  The version floor needs BOTH elements. LibreOffice reports its OpenOffice.org
-  compatibility as 4.1 and always will, whatever release it is - so asking for
-  OpenOffice.org-minimal-version 6.1 makes every LibreOffice on earth report
-  "unsatisfied dependencies" and refuse to install. Measured on 26.2. The real floor
-  goes in lo:LibreOffice-minimal-version, which only LibreOffice reads; the OOo line
-  stays at 4.1 as a formality. Nothing here needs a recent LibreOffice anyway - the
-  Python is deliberately plain, no f-strings, no annotations - but 6.1 is the oldest
-  release this could plausibly be run on. Developed and tested on 26.2, on Linux.
+  The version floor needs BOTH elements, and the OpenOffice.org one is a formality.
+  LibreOffice reports its OpenOffice.org compatibility as 4.1 and always will, whatever
+  release it is - so asking for OpenOffice.org-minimal-version 6.1 makes every
+  LibreOffice on earth answer "unsatisfied dependencies" and refuse the package.
+  Measured on 26.2. The real floor goes in lo:LibreOffice-minimal-version, which only
+  LibreOffice reads.
+
+  Where 6.1 comes from. The hard technical floor is LibreOffice 4.0: that is where the
+  bundled Python went from 2.6 to 3.3 and the Python scripting provider became core
+  rather than an extension, and this is Python 3 code. Everything else is older than
+  that - XProofreader and the grammar-checking API are OOo 3.0.1, uno.invoke and
+  uno.Any are documented in the OOo 2.x Python bridge, and nothing used here carries an
+  @since tag at all. Nothing in the Python needs more than 3.3 either: no f-strings, no
+  annotations, no ordering assumptions. 6.1 is therefore margin, not necessity - it is
+  simply the oldest release worth claiming to support, and far newer than anything the
+  code actually needs.
+
+  No maximum. None of these APIs has been removed, and the one thing that changed is an
+  addition: from LibreOffice 26.8, uno.Any can be passed to a method directly, so
+  uno.invoke is no longer needed for the string-list write in laita_settings.py. It is
+  not deprecated and still exists in master - this is a simplification waiting to be
+  taken, not a break waiting to happen.
+
+  Platform is "all" because nothing here is compiled, and nothing is POSIX: the only
+  filesystem path is os.path.expanduser("~/laita-libreoffice.log"), which resolves on
+  Windows and macOS too. Untested there, though - see libreoffice/README.md.
 -->
 <description xmlns="http://openoffice.org/extensions/description/2006"
              xmlns:d="http://openoffice.org/extensions/description/2006"
