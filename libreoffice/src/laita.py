@@ -539,21 +539,53 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             log("survey failed\n%s" % traceback.format_exc())
 
     def _write_model(self, read, handle, new_text, what, was):
-        """Write the document model and confirm it, with the clipboard as last resort."""
+        """Write the document model, and if that will not take, paste instead.
+
+        The order matters and is the opposite of Calc's. A Draw or Impress SHAPE takes
+        setString happily, and pasting onto a selected shape inserts a new object and
+        empties it - measured. But when the selection is a text range INSIDE a shape,
+        because the user went into the shape's text editor, the same editor problem
+        as Calc's applies and only pasting goes through it.
+
+        Rather than try to tell those two apart by type - the guesses in this feature
+        have not gone well - write the model, check, and paste only if it did not take.
+        A shape that accepted setString never reaches the paste, so it can never be
+        emptied by one.
+        """
         try:
             handle.setString(new_text)
-        except Exception:
-            log("%s: writing failed\n%s" % (what, traceback.format_exc()))
-            self._offer_clipboard(new_text, what)
-            return False
-        try:
-            landed = read().getString() == new_text
-        except Exception:
-            landed = False
-        if not landed:
-            log("%s: the text could not be written back" % what)
-            self._offer_clipboard(new_text, what)
-            return False
+            failed = None
+        except Exception as err:
+            failed = err
+            log("%s: setString raised: %r" % (what, err))
+        if failed is None:
+            try:
+                if read().getString() == new_text:
+                    log("%s: wrote %d characters into %s"
+                        % (what, len(new_text), self._where(handle)))
+                    self._recheck_later(read, new_text, what, was=was)
+                    return True
+            except Exception as err:
+                log("%s: could not confirm the write: %r" % (what, err))
+            log("%s: the model write did not take" % what)
+
+        # Second route: the editor, via a paste. Only reached when writing the model
+        # did not work, which is exactly the case where an editor is in the way.
+        if self._paste_over_selection(new_text):
+            def confirm():
+                try:
+                    if read().getString() == new_text:
+                        log("%s: pasted %d characters" % (what, len(new_text)))
+                        return
+                except Exception:
+                    pass
+                log("%s: neither writing nor pasting took" % what)
+                self._offer_clipboard(new_text, what)
+            later_on_main(self.ctx, 1.5, confirm, "paste check")
+            return True
+
+        self._offer_clipboard(new_text, what)
+        return False
         log("%s: wrote %d characters into %s"
             % (what, len(new_text), self._where(handle)))
         self._recheck_later(read, new_text, what, was=was)
@@ -687,9 +719,12 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 return None
             if not target.getString().strip():
                 return None
-            log("selection: %s" % (target.getImplementationName()
-                                   if hasattr(target, "getImplementationName")
-                                   else type(target).__name__))
+            log("selection: %s  (from %s, %d chars)"
+                % (target.getImplementationName()
+                   if hasattr(target, "getImplementationName") else type(target).__name__,
+                   selection.getImplementationName()
+                   if hasattr(selection, "getImplementationName") else type(selection).__name__,
+                   len(target.getString())))
             return target
         except Exception:
             log("could not read the selection\n%s" % traceback.format_exc())
