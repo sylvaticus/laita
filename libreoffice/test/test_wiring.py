@@ -15,6 +15,7 @@ import os
 import re
 import sys
 import xml.dom.minidom as minidom
+from struct import unpack
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "src")
@@ -148,7 +149,6 @@ def main():
     for rel in images:
         check("the icon file %s exists" % rel,
               os.path.exists(os.path.join(SRC, *rel.split("/"))), True)
-    from struct import unpack
     for rel in images:
         with open(os.path.join(SRC, *rel.split("/")), "rb") as fh:
             head = fh.read(24)
@@ -171,6 +171,25 @@ def main():
     # --- the options page: identifier, handler service, dialog path -----------------------
     desc = minidom.parseString(read("description.xml"))
     identifier = desc.getElementsByTagName("identifier")[0].getAttribute("value")
+
+    # --- what the Extension Manager and extensions.libreoffice.org read ------------------
+    # A missing file here is not an error on install: the entry simply appears nameless,
+    # with no description and no icon, and nothing says why.
+    for tag in ("display-name", "extension-description", "icon", "publisher",
+                "platform", "dependencies", "version"):
+        check("description.xml declares <%s>" % tag,
+              len(desc.getElementsByTagName(tag)) > 0, True)
+    for node in desc.getElementsByTagName("*"):
+        href = node.getAttribute("xlink:href")
+        if href and not href.startswith("http"):
+            check("description.xml points at a file that exists (%s)" % href,
+                  os.path.exists(os.path.join(SRC, *href.split("/"))), True)
+    # 42x42 is the size the Extension Manager draws; anything else is rescaled badly.
+    with open(os.path.join(SRC, "icons", "extension_42.png"), "rb") as fh:
+        head = fh.read(24)
+    check("the Extension Manager icon is 42x42", unpack(">II", head[16:24]), (42, 42))
+    check("the licence travels with the package",
+          os.path.exists(os.path.join(SRC, "LICENSE.txt")), True)
     opts = read("OptionsDialog.xcu")
     check("OptionsDialog.xcu Id is the extension identifier",
           "<value>%s</value>" % identifier in opts, True)

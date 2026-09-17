@@ -64,6 +64,40 @@ Four things learned drawing them:
 - **The transform glyphs are measured with `textbbox`, not placed by eye.** At this
   size a few percent is the difference between two letters and one smudge.
 
+## Publishing
+
+```bash
+./tools/build-oxt.sh --release      # -> dist/laita-<version>.oxt
+```
+
+That file is what you upload to <https://extensions.libreoffice.org> (Add extension: it
+wants the `.oxt`, a licence choice, a category, and screenshots; the description and icon
+it shows come from inside the package, not from the form).
+
+Bump `<version>` in `src/description.xml` first - the release file is named after it, and
+the Extension Manager will not replace an install with the same version number.
+
+Two things about `src/description.xml` that are not guessable:
+
+- **The dependency needs both elements.** LibreOffice reports its *OpenOffice.org*
+  compatibility as `4.1` and always will, whatever release it is. Raise
+  `OpenOffice.org-minimal-version` above that and every LibreOffice refuses to install
+  with `unsatisfied dependencies` - measured on 26.2. The real floor goes in
+  `lo:LibreOffice-minimal-version`, which only LibreOffice reads.
+- **Every `xlink:href` must resolve.** A missing `desc_en.txt` or icon is not an install
+  error: the entry just appears nameless with no description and nothing says why.
+  `build-oxt.sh` refuses to build in that case, and `test_wiring.py` checks it too.
+
+To check a package without disturbing your own LibreOffice, install it into a throwaway
+profile - this works while LibreOffice is running, which `tools/install.sh` cannot:
+
+```bash
+P=$(mktemp -d)
+/usr/lib/libreoffice/program/unopkg add -f "-env:UserInstallation=file://$P" \
+    dist/laita-0.4.0.oxt
+/usr/lib/libreoffice/program/unopkg list "-env:UserInstallation=file://$P"
+```
+
 ## Testing
 
 ```bash

@@ -48,6 +48,7 @@ vscode/*.vsix
 # LibreOffice extension packages - built by libreoffice/tools/build-oxt.sh, same reason
 # the Chrome folder is not committed: it is a zip of src/ and nothing else.
 libreoffice/*.oxt
+libreoffice/dist/
 
 # Python bytecode, from LibreOffice importing the extension in place
 __pycache__/

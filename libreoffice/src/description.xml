@@ -1,16 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  What the Extension Manager and extensions.libreoffice.org read.
+
+  The identifier is the name every other file keys off - OptionsDialog.xcu repeats it,
+  and test_wiring.py checks they still agree. It is also what an update replaces: change
+  it and existing installs get a second, unrelated extension instead of a new version.
+
+  The version floor needs BOTH elements. LibreOffice reports its OpenOffice.org
+  compatibility as 4.1 and always will, whatever release it is - so asking for
+  OpenOffice.org-minimal-version 6.1 makes every LibreOffice on earth report
+  "unsatisfied dependencies" and refuse to install. Measured on 26.2. The real floor
+  goes in lo:LibreOffice-minimal-version, which only LibreOffice reads; the OOo line
+  stays at 4.1 as a formality. Nothing here needs a recent LibreOffice anyway - the
+  Python is deliberately plain, no f-strings, no annotations - but 6.1 is the oldest
+  release this could plausibly be run on. Developed and tested on 26.2, on Linux.
+-->
 <description xmlns="http://openoffice.org/extensions/description/2006"
              xmlns:d="http://openoffice.org/extensions/description/2006"
+             xmlns:lo="http://libreoffice.org/extensions/description/2011"
              xmlns:xlink="http://www.w3.org/1999/xlink">
   <identifier value="org.lobianco.laita" />
+  <version value="0.4.0" />
+
   <display-name>
     <name lang="en">LAITA - Local AI Text Assistant</name>
   </display-name>
-  <version value="0.4.0" />
+  <extension-description>
+    <src lang="en" xlink:href="description/desc_en.txt" />
+  </extension-description>
+  <icon>
+    <default xlink:href="icons/extension_42.png" />
+  </icon>
+
   <publisher>
     <name lang="en" xlink:href="https://github.com/sylvaticus/laita">Antonello Lobianco</name>
   </publisher>
+
+  <!-- Pure Python and configuration: nothing here is compiled for an architecture. -->
+  <platform value="all" />
   <dependencies>
-    <OpenOffice.org-minimal-version value="4.1" d:name="LibreOffice 4.1" />
+    <OpenOffice.org-minimal-version value="4.1" d:name="LibreOffice" />
+    <lo:LibreOffice-minimal-version value="6.1" d:name="LibreOffice 6.1" />
   </dependencies>
 </description>

@@ -1,0 +1,24 @@
+Grammar and style checking, and on-demand rewriting, from a large language model you run
+yourself with Ollama.
+
+Writer gets a proofreader that underlines problems as you type and offers a fix on
+click - only in the paragraph you are editing, unless you ask it to check the whole
+document. Writer, Calc, Impress and Draw all get "Transform selection": describe what you
+want done to the selected text ("make this formal", "translate to French", "shorten"), and
+the result is written back or appended.
+
+Nothing is sent anywhere except to the Ollama endpoint you configure. That endpoint is
+http://localhost:11434 by default, so with the default settings and a model you have
+pulled locally, your text does not leave your machine. Point it at a remote Ollama, or
+choose one of Ollama's cloud models, and it does - the choice is yours and it is visible
+in the settings.
+
+You need Ollama installed and a model pulled - the default is qwen3.5:9b, so: ollama pull qwen3.5:9b.
+
+After installing, enable it for your language:
+Tools - Options - Languages and Locales - Writing Aids - Available Language Modules -
+Edit... - choose your language - tick LAITA.
+
+Settings are under Tools - Options - LAITA - Local AI Text Assistant. The commands
+are in the LAITA menu, and on the LAITA toolbar if you turn it on under View -
+Toolbars.
