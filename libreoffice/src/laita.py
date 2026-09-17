@@ -635,8 +635,17 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
         try:
             clip = self.ctx.ServiceManager.createInstanceWithContext(
                 "com.sun.star.datatransfer.clipboard.SystemClipboard", self.ctx)
+            # Copy the previous contents out as a STRING rather than keeping the
+            # transferable. That object belongs to whoever put it there - another
+            # document, or another application - and handing it back two seconds later,
+            # after it may have gone, is a plausible way to take LibreOffice down with
+            # it. Anything that is not text is simply not restored.
             try:
-                previous = clip.getContents()
+                held = clip.getContents()
+                for flavor in held.getTransferDataFlavors():
+                    if flavor.MimeType.startswith("text/plain"):
+                        previous = str(held.getTransferData(flavor))
+                        break
             except Exception:
                 previous = None
             clip.setContents(_PlainText(text), None)
@@ -657,7 +666,7 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                 # thread, because the clipboard is UNO like everything else.
                 def restore():
                     try:
-                        clip.setContents(previous, None)
+                        clip.setContents(_PlainText(previous), None)
                     except Exception:
                         pass
                 later_on_main(self.ctx, 2.0, restore, "clipboard restore")
@@ -863,9 +872,25 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             """
             handle, resolve = self._stable_handle(rng)
             read = resolve if resolve else (lambda: handle)
-            is_cell = getattr(handle, "CellAddress", None) is not None
 
-            if is_cell and self._paste_over_selection(new_text):
+            # Who owns the text decides the route, and the selection's type says who.
+            #
+            #   ScCellObj      a spreadsheet cell, whose editor reverts model writes
+            #   SvxUnoText*    a cursor inside a Draw or Impress shape's text editor,
+            #                  which reverts them in exactly the same way - the log
+            #                  showed "wrote 23 characters" and then "GONE, now holds
+            #                  ''" for precisely this type
+            #
+            # Both are editors, so both need pasting, and pasting is safe in both
+            # because the editor is open to receive it. It is only unsafe when a SHAPE
+            # is selected rather than its text, and that case never reaches here: a
+            # shape takes setString and is done.
+            name = (handle.getImplementationName()
+                    if hasattr(handle, "getImplementationName") else "")
+            is_cell = getattr(handle, "CellAddress", None) is not None
+            in_editor = is_cell or name.startswith("SvxUnoText")
+
+            if in_editor and self._paste_over_selection(new_text):
                 def confirm():
                     if self._present(read, handle, new_text):
                         log("%s: pasted %d characters" % (what, len(new_text)))
