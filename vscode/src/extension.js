@@ -304,21 +304,111 @@ async function transform() {
     });
   if (!output) return;
 
-  const choice = await vscode.window.showInformationMessage(
-    output.length > 300 ? output.slice(0, 300) + "…" : output,
-    { modal: true, detail: "Replace the selection with this, or insert it after?" },
-    "Replace", "Insert after");
+  // A modal message box is the wrong surface for this: it is a fixed size, it cannot
+  // scroll, and it truncated the preview to 300 characters - so a long rewrite could not
+  // be read in full before deciding. A webview panel can show the original and the
+  // rewrite as two scrollable fields at the editor's own font size, which is what lets
+  // the user actually compare them.
+  const target = ed.selection;                         // captured: the panel takes focus
+  const choice = await showTransformResult(selected, output, instruction || fallback);
   if (!choice) return;
 
   await ed.edit((e) => {
-    if (choice === "Replace") {
+    if (choice === "replace") {
       const lead = selected.match(/^\s*/)[0], trail = selected.match(/\s*$/)[0];
-      e.replace(ed.selection, lead + output.trim() + trail);
+      e.replace(target, lead + output.trim() + trail);
     } else {
       const sep = /\s$/.test(selected) || /^\s/.test(output) ? ""
                 : /\n/.test(selected) || /\n/.test(output) ? "\n\n" : " ";
-      e.insert(ed.selection.end, sep + output);
+      e.insert(target.end, sep + output);
     }
+  });
+}
+
+/**
+ * Show the original and the rewrite side by side and wait for a decision.
+ *
+ * A webview rather than a message box, for three reasons the user hit: a message box is a
+ * fixed size, it cannot scroll, and it truncated the preview - so a long rewrite could
+ * not be read before choosing. Here both texts are scrollable fields at the editor's font
+ * size, stacked original-over-rewrite.
+ *
+ * Resolves to "replace", "insert", or null (Cancel, Escape, or closing the tab). The text
+ * is handed to the page as JSON and written with .value, never interpolated into the
+ * markup, so a rewrite containing "</textarea>" or any markup cannot break out or run.
+ */
+function showTransformResult(original, output, instruction) {
+  return new Promise((resolve) => {
+    const panel = vscode.window.createWebviewPanel(
+      "laitaTransform", "LAITA: review transform",
+      vscode.ViewColumn.Beside, { enableScripts: true });
+
+    let settled = false;
+    const finish = (choice) => {
+      if (settled) return;
+      settled = true;
+      resolve(choice);
+      panel.dispose();
+    };
+    panel.webview.onDidReceiveMessage((m) => finish(m && m.choice !== "cancel" ? m.choice : null));
+    panel.onDidDispose(() => finish(null));
+
+    const nonce = String(Math.random()).slice(2);
+    const data = JSON.stringify({ original, output, instruction }).replace(/</g, "\\u003c");
+    panel.webview.html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;
+         padding: 12px; font-family: var(--vscode-font-family);
+         color: var(--vscode-foreground); background: var(--vscode-editor-background); }
+  .instruction { margin: 0; font-size: 12px; opacity: .85; }
+  .instruction b { opacity: 1; }
+  .pane { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
+  .pane h2 { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .05em;
+             text-transform: uppercase; opacity: .7; }
+  textarea { flex: 1 1 0; width: 100%; box-sizing: border-box; resize: none;
+             padding: 8px; border-radius: 4px; overflow: auto; white-space: pre-wrap;
+             font-family: var(--vscode-editor-font-family, monospace);
+             font-size: var(--vscode-editor-font-size, 13px); line-height: 1.5;
+             color: var(--vscode-input-foreground);
+             background: var(--vscode-input-background);
+             border: 1px solid var(--vscode-input-border, transparent); }
+  .buttons { display: flex; gap: 8px; justify-content: flex-end; }
+  button { font-family: inherit; font-size: 13px; padding: 6px 16px; border: none;
+           border-radius: 4px; cursor: pointer;
+           color: var(--vscode-button-foreground);
+           background: var(--vscode-button-background); }
+  button:hover { background: var(--vscode-button-hoverBackground); }
+  button.secondary { color: var(--vscode-button-secondaryForeground);
+                     background: var(--vscode-button-secondaryBackground); }
+  button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+</style></head>
+<body>
+  <p class="instruction">Instruction: <b id="instruction"></b></p>
+  <div class="pane"><h2>Original</h2><textarea id="original" readonly></textarea></div>
+  <div class="pane"><h2>Transformed</h2><textarea id="output" readonly></textarea></div>
+  <div class="buttons">
+    <button class="secondary" id="cancel">Cancel</button>
+    <button class="secondary" id="insert">Insert after</button>
+    <button id="replace">Replace</button>
+  </div>
+  <script nonce="${nonce}">
+    const api = acquireVsCodeApi();
+    const data = ${data};
+    document.getElementById("instruction").textContent = data.instruction;
+    document.getElementById("original").value = data.original;
+    document.getElementById("output").value = data.output;
+    const send = (choice) => api.postMessage({ choice });
+    document.getElementById("replace").onclick = () => send("replace");
+    document.getElementById("insert").onclick = () => send("insert");
+    document.getElementById("cancel").onclick = () => send("cancel");
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") send("cancel"); });
+    document.getElementById("replace").focus();
+  </script>
+</body></html>`;
   });
 }
 
