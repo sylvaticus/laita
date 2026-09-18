@@ -325,91 +325,57 @@ async function transform() {
   });
 }
 
+// The two sides of the review diff, served as read-only virtual documents. A webview was
+// tried first and hit "Could not register service worker: the document is in an invalid
+// state" - a VS Code webview-host failure on some Linux setups that an extension cannot
+// fix from its own code. A diff between two content-provider documents needs no webview,
+// is a real scrollable editor at the editor's own font, shows the whole rewrite, and
+// highlights what actually changed - which is what the comparison is for.
+const REVIEW_SCHEME = "laita-review";
+const reviewDocs = new Map();   // uri.path -> text
+
+const reviewProvider = {
+  provideTextDocumentContent(uri) { return reviewDocs.get(uri.path) || ""; }
+};
+
 /**
- * Show the original and the rewrite side by side and wait for a decision.
+ * Open original-vs-rewrite as a diff and wait for a decision.
  *
- * A webview rather than a message box, for three reasons the user hit: a message box is a
- * fixed size, it cannot scroll, and it truncated the preview - so a long rewrite could
- * not be read before choosing. Here both texts are scrollable fields at the editor's font
- * size, stacked original-over-rewrite.
- *
- * Resolves to "replace", "insert", or null (Cancel, Escape, or closing the tab). The text
- * is handed to the page as JSON and written with .value, never interpolated into the
- * markup, so a rewrite containing "</textarea>" or any markup cannot break out or run.
+ * Resolves to "replace", "insert", or null (dismissed). The prompt is a NON-modal message
+ * on purpose: a modal one would block scrolling the diff, which is the one thing the user
+ * needs to do before deciding. The diff tab is closed by identity afterwards, not with
+ * closeActiveEditor, so a stray click cannot make us close the wrong editor.
  */
-function showTransformResult(original, output, instruction) {
-  return new Promise((resolve) => {
-    const panel = vscode.window.createWebviewPanel(
-      "laitaTransform", "LAITA: review transform",
-      vscode.ViewColumn.Beside, { enableScripts: true });
+async function showTransformResult(original, output, instruction) {
+  const id = Date.now();
+  const leftPath = `/${id}/original`;
+  const rightPath = `/${id}/transformed`;
+  reviewDocs.set(leftPath, original);
+  reviewDocs.set(rightPath, output);
+  const left = vscode.Uri.from({ scheme: REVIEW_SCHEME, path: leftPath });
+  const right = vscode.Uri.from({ scheme: REVIEW_SCHEME, path: rightPath });
 
-    let settled = false;
-    const finish = (choice) => {
-      if (settled) return;
-      settled = true;
-      resolve(choice);
-      panel.dispose();
-    };
-    panel.webview.onDidReceiveMessage((m) => finish(m && m.choice !== "cancel" ? m.choice : null));
-    panel.onDidDispose(() => finish(null));
-
-    const nonce = String(Math.random()).slice(2);
-    const data = JSON.stringify({ original, output, instruction }).replace(/</g, "\\u003c");
-    panel.webview.html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
-<style>
-  html, body { height: 100%; margin: 0; }
-  body { display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;
-         padding: 12px; font-family: var(--vscode-font-family);
-         color: var(--vscode-foreground); background: var(--vscode-editor-background); }
-  .instruction { margin: 0; font-size: 12px; opacity: .85; }
-  .instruction b { opacity: 1; }
-  .pane { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
-  .pane h2 { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .05em;
-             text-transform: uppercase; opacity: .7; }
-  textarea { flex: 1 1 0; width: 100%; box-sizing: border-box; resize: none;
-             padding: 8px; border-radius: 4px; overflow: auto; white-space: pre-wrap;
-             font-family: var(--vscode-editor-font-family, monospace);
-             font-size: var(--vscode-editor-font-size, 13px); line-height: 1.5;
-             color: var(--vscode-input-foreground);
-             background: var(--vscode-input-background);
-             border: 1px solid var(--vscode-input-border, transparent); }
-  .buttons { display: flex; gap: 8px; justify-content: flex-end; }
-  button { font-family: inherit; font-size: 13px; padding: 6px 16px; border: none;
-           border-radius: 4px; cursor: pointer;
-           color: var(--vscode-button-foreground);
-           background: var(--vscode-button-background); }
-  button:hover { background: var(--vscode-button-hoverBackground); }
-  button.secondary { color: var(--vscode-button-secondaryForeground);
-                     background: var(--vscode-button-secondaryBackground); }
-  button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
-</style></head>
-<body>
-  <p class="instruction">Instruction: <b id="instruction"></b></p>
-  <div class="pane"><h2>Original</h2><textarea id="original" readonly></textarea></div>
-  <div class="pane"><h2>Transformed</h2><textarea id="output" readonly></textarea></div>
-  <div class="buttons">
-    <button class="secondary" id="cancel">Cancel</button>
-    <button class="secondary" id="insert">Insert after</button>
-    <button id="replace">Replace</button>
-  </div>
-  <script nonce="${nonce}">
-    const api = acquireVsCodeApi();
-    const data = ${data};
-    document.getElementById("instruction").textContent = data.instruction;
-    document.getElementById("original").value = data.original;
-    document.getElementById("output").value = data.output;
-    const send = (choice) => api.postMessage({ choice });
-    document.getElementById("replace").onclick = () => send("replace");
-    document.getElementById("insert").onclick = () => send("insert");
-    document.getElementById("cancel").onclick = () => send("cancel");
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") send("cancel"); });
-    document.getElementById("replace").focus();
-  </script>
-</body></html>`;
-  });
+  try {
+    await vscode.commands.executeCommand(
+      "vscode.diff", left, right, `LAITA: ${instruction} — original ↔ transformed`);
+    const choice = await vscode.window.showInformationMessage(
+      "Apply this transform to the document?",
+      "Replace", "Insert after");
+    return choice === "Replace" ? "replace" : choice === "Insert after" ? "insert" : null;
+  } finally {
+    // Close our diff tab by matching its two URIs, and drop the backing content.
+    for (const group of vscode.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input = tab.input;
+        if (input && input.original && input.modified &&
+            input.original.scheme === REVIEW_SCHEME && input.original.path === leftPath) {
+          await vscode.window.tabGroups.close(tab);
+        }
+      }
+    }
+    reviewDocs.delete(leftPath);
+    reviewDocs.delete(rightPath);
+  }
 }
 
 // ---------------------------------------------------------------- as you type
@@ -706,6 +672,7 @@ async function activate(context) {
 
   context.subscriptions.push(
     diagnostics, status,
+    vscode.workspace.registerTextDocumentContentProvider(REVIEW_SCHEME, reviewProvider),
     vscode.commands.registerCommand("laita.checkParagraph", checkParagraph),
     vscode.commands.registerCommand("laita.checkDocument", checkDocument),
     vscode.commands.registerCommand("laita.transform", transform),

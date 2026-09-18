@@ -18,6 +18,7 @@ const ok = (n, c, d = "") => { if (c) pass++; else { fail++; console.log("FAIL "
 // ---------------------------------------------------------------- the stub
 const registered = new Map();
 const providers = [];
+const contentProviders = [];
 const listeners = [];
 const config = {
   checkOnType: true, languages: ["markdown"], endpoint: "http://localhost:11434",
@@ -61,7 +62,11 @@ const vscodeStub = {
     }),
     onDidChangeTextDocument: event("onDidChangeTextDocument"),
     onDidSaveTextDocument: event("onDidSaveTextDocument"),
-    onDidCloseTextDocument: event("onDidCloseTextDocument")
+    onDidCloseTextDocument: event("onDidCloseTextDocument"),
+    registerTextDocumentContentProvider: (scheme, provider) => {
+      contentProviders.push({ scheme, provider });
+      return disposable();
+    }
   },
   languages: {
     createDiagnosticCollection: () => ({
@@ -123,6 +128,9 @@ ok("a code action provider is registered", providers.length === 1);
 ok("its selectors all carry a scheme",
    providers[0].sel.every((x) => typeof x === "object" && x.scheme),
    JSON.stringify(providers[0].sel));
+ok("the transform review diff has a content provider",
+   contentProviders.some((p) => p.scheme === "laita-review" &&
+     typeof p.provider.provideTextDocumentContent === "function"));
 ok("it watches document changes", listeners.includes("onDidChangeTextDocument"));
 ok("the status bar leads somewhere real", registered.has("laita.showMenu"));
 ok("the shared core exposes the hash the cache key needs",

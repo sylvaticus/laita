@@ -44,7 +44,8 @@ const vscodeStub = {
   workspace: { getConfiguration: () => ({ get: () => undefined, update: async () => {} }),
                onDidChangeTextDocument: () => ({ dispose() {} }),
                onDidSaveTextDocument: () => ({ dispose() {} }),
-               onDidCloseTextDocument: () => ({ dispose() {} }) },
+               onDidCloseTextDocument: () => ({ dispose() {} }),
+               registerTextDocumentContentProvider: () => ({ dispose() {} }) },
   languages: { createDiagnosticCollection: () => ({ set() {}, get: () => [], delete() {}, clear() {}, dispose() {} }),
                registerCodeActionsProvider: () => ({ dispose() {} }) },
   commands: { registerCommand: () => ({ dispose() {} }), executeCommand: async () => {} }
