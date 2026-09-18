@@ -125,7 +125,7 @@
           },
           "laita.keepAlive": {
             "type": "string",
-            "default": "10m",
+            "default": "1h",
             "description": "How long Ollama keeps the model loaded. Needs a unit; -1m means indefinitely.",
             "scope": "machine"
           },

@@ -12,7 +12,7 @@ export const DEFAULTS = {
   // from. Pin a number only to deliberately override the server.
   numCtx: 0,
   think: false,            // disable "thinking" on reasoning models: much faster
-  keepAlive: "10m",        // keep the model resident between checks
+  keepAlive: "1h",         // keep the model resident between checks
   requestTimeoutMs: 90000,
   // Ollama serialises requests unless OLLAMA_NUM_PARALLEL is raised, and its own default
   // is 1. Sending a second chunk early therefore gains nothing and costs something: the

@@ -18,7 +18,7 @@ DEFAULTS = {
     "model": "qwen3.5:9b",
     "temperature": 0.0,
     "numCtx": 0,
-    "keepAlive": "10m",
+    "keepAlive": "1h",
     "requestTimeoutMs": 90000,
     "think": False,
     "enabled": True,

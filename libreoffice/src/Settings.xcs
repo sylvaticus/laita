@@ -19,7 +19,7 @@
       <prop oor:name="Model" oor:type="xs:string"><value>qwen3.5:9b</value></prop>
       <prop oor:name="Temperature" oor:type="xs:double"><value>0</value></prop>
       <prop oor:name="NumCtx" oor:type="xs:int"><value>0</value></prop>
-      <prop oor:name="KeepAlive" oor:type="xs:string"><value>10m</value></prop>
+      <prop oor:name="KeepAlive" oor:type="xs:string"><value>1h</value></prop>
       <prop oor:name="RequestTimeoutMs" oor:type="xs:int"><value>90000</value></prop>
       <prop oor:name="Think" oor:type="xs:boolean"><value>false</value></prop>
     </group>
