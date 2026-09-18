@@ -7,16 +7,16 @@
 
 A **multi-app** extension that uses your **local** GPU to deliver **high-quality**, **AI-based**, real-time **syntax, grammar, and style suggestions**, plus **text transformations** (*polishing, translation, summarization, etc.*).
 
-* Unlike integrated spellcheckers or syntax checkers, the judgment comes from a Large Language Model (LLM) rather than handwritten rules, so it handles style and phrasing as well as hard grammar errors.
-* Unlike commercial products, with default settings, nothing leaves your machine. No need for API keys, internet, or subscriptions.
+* unlike integrated spellcheckers or syntax checkers, the judgment comes from a Large Language Model (LLM) rather than handwritten rules, so it handles style and phrasing as well as hard grammar errors.
+* unlike commercial products, with default settings, nothing leaves your machine. No need for API keys, internet, or subscriptions.
 
-It works in any language that the model knows. It requires a mid-range GPU on your laptop or PC.
+It works in any language that the model knows. It requires a mid-range GPU** on your laptop or PC.
 
-Available as a [Chrome extension](https://chromewebstore.google.com/detail/laita-local-ai-text-assis/kkonkblgjafnampabmfflabkdkggpnjn), [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita), [Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/local-ai-text-assistant/)*, and [LibreOffice extension*](https://extensions.libreoffice.org)
+Available as a [Chrome extension](https://chromewebstore.google.com/detail/laita-local-ai-text-assis/kkonkblgjafnampabmfflabkdkggpnjn), [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita), [Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/local-ai-text-assistant/)*, and [LibreOffice extension](https://extensions.libreoffice.org)
 
 
-
-*Currently FireFox and LibreOffice extensions are still under review. To package and install the extension from this git repository see the [install](#2-install) section.*
+\* *Currently, the FireFox extension is still under review. To package and install the extension from this git repository see the [install](#2-install) section.*
+\** *The default model (`qwen3.5:9b`) requires 8 GB of GPU RAM, but syntax and grammar errors can be reliably spotted by smaller models like `qwen3.5:4b`.* 
 
 **[What it does](#1-what-it-does) · [Install](#2-install) · [Using it](#3-using-it) · [Options](#4-options) · [Troubleshooting](#5-troubleshooting) · [Privacy](#6-privacy) · [Development](#7-development) · [Licence](#8-licence) · [Acknowledgements](#9-acknowledgements)**
 
