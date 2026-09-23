@@ -138,21 +138,25 @@ class StreamDebouncer:
         """Remember this text, and schedule the model unless it is a first sighting we
         were told not to act on.
 
-        Returns True when this text continues a paragraph already seen - which is the
-        only evidence available that somebody is editing it. A paragraph the client merely
-        displayed arrives once and never changes; the one under the cursor arrives again
-        and again, a character apart.
+        Returns True when this text CHANGES a paragraph already seen - which is the only
+        evidence available that somebody is editing it.
+
+        "Changes", not "matches", and the difference was a bug. Closing a document and
+        reopening it offers every paragraph again, unchanged, and each one matched the
+        stream remembered from the previous session - so a reopen swept the whole
+        document, exactly what scope "typed" exists to prevent. An identical text is a
+        re-display; somebody typing produces one that is similar but DIFFERENT.
         """
         with self._lock:
             self._reap()
             sid = self._find(text)
-            known = sid is not None
-            if known:
-                self._streams[sid]["timer"].cancel()
-            else:
+            editing = sid is not None and self._streams[sid]["text"] != text
+            if sid is None:
                 self._next_id += 1
                 sid = self._next_id
-            if known or arm_new:
+            else:
+                self._streams[sid]["timer"].cancel()
+            if editing or arm_new:
                 timer = self._timer_factory(self._delay, self._ring,
                                              [sid, text, lang, settings])
                 timer.daemon = True
@@ -160,7 +164,7 @@ class StreamDebouncer:
                 timer = _Unarmed()
             self._streams[sid] = {"text": text, "timer": timer, "seen": time.time()}
             timer.start()
-            return known
+            return editing
 
     def _find(self, text):
         best, best_shared = None, 0

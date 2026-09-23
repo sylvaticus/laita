@@ -29,7 +29,7 @@ _(the following screenshots are based on the Firefox extension)_
 
 Problems get a coloured wavy underline. Click one for the explanation and the fix.
 
-![An error highlight: the card explains "Use 'I' instead of 'me' as the subject" and offers to replace "me" with "I"](assets/imgs/screenshot_laita_firefox5.png)
+<img src="assets/imgs/screenshot_laita_firefox5.png" alt="" width="400">
 
 Three kinds of problem, each with its own colour:
 
@@ -39,7 +39,8 @@ Three kinds of problem, each with its own colour:
 | 🟡 yellow | **style** | Not wrong, but weak: wordiness, redundancy, needless passive, repetition. |
 | 🔵 blue | **rephrase** | A better word or a more natural formulation. |
 
-![A rephrase suggestion: "too well english" becomes "very well English"](assets/imgs/screenshot_laita_firefox4.png)
+
+<img src="assets/imgs/screenshot_laita_firefox4.png" alt="" width="400">
 
 Each card offers **Apply**, **Dismiss**, **Never suggest** — and **Add to dictionary** when
 the text is a single word.
@@ -48,15 +49,15 @@ the text is a single word.
 
 Select text, right-click, and pick **Transform…**:
 
-![The Firefox context menu showing the Local AI Text Assistant submenu with "Transform…" and "Pause spell check on this site"](assets/imgs/screenshot_laita_firefox3.png)
+<img src="assets/imgs/screenshot_laita_firefox3.png" alt="" width="400">
 
 Type what you want done with it. Press Enter on an empty box for the default, `polish`:
 
-![The transform box, a single line containing the word "polish", with the hint "Enter to run · Esc to cancel · ↑ ↓ for recent"](assets/imgs/screenshot_laita_firefox2.png)
+<img src="assets/imgs/screenshot_laita_firefox2.png" alt="" width="400">
 
 The result can replace the selection, be inserted after it, or be thrown away:
 
-![The transform result: "Sorry, me don't speak too well english." rewritten as "Sorry, I don't speak English very well.", with buttons Accept & replace, Reject, Accept & append](assets/imgs/screenshot_laita_firefox1.png)
+<img src="assets/imgs/screenshot_laita_firefox1.png" alt="" width="400">
 
 `translate to French`, `shorten it`, `make it more formal`, `turn into bullet points` — the instruction is free text, so anything the model understands works.
 
@@ -399,22 +400,28 @@ fences inside them are never sent.
 
 > [!IMPORTANT]
 > 
-> To avoid long delays, unless you explicitly use the option _Check this document_ in the desktop version or , the document is NOT automatically proofread on loading. Only the paragraphs that you are working on are proofread.
+> To avoid long delays, unless you explicitly use the option _Check this document_ in the desktop version or `--scope=document` in the LanguageTool server version, the document is NOT automatically proofread on loading. Only the paragraphs that you are working on are proofread.
 
 **LibreOffice desktop**:
-- settings are under `Tools` ⇒ `Options` ⇒ `LAITA` and the Toolbar has _Check this document_, _Stop checking_, _Transform selection_ (only Writer) and _LAITA options_
+- Settings are under `Tools` ⇒ `Options` ⇒ `LAITA` and the Toolbar has _Check this document_, _Stop checking_, _Transform selection_ (only Writer) and _LAITA options_
 
-- you can use the right-click contextual menu for the same operations
+- You can use the right-click contextual menu for the same operations
 
 **Collabora online** (and possible other consumers of the LanguageTools/DeepL API):
 
-- settings are defined in the installation step (see the [doc](languagetool/README.md)), there are no settings on the user interface 
+- Settings are defined during installation; see the [doc](languagetool/README.md). There are no settings on the user interface.
+- Proofreading happens as you type. Right-click on the highlighted errors to accept or reject suggestions.
+- To translate some text, select it and click on the `Translate` button (under `Tools` or in the `Reviewer` toolbar) and choose the destination language. Note that all formatting (italics, bold...) is lost in the translated text.
+
+<img src="assets/imgs/screenshot_laita_languagetool.png" alt="" width="400">\
+<img src="assets/imgs/screenshot_laita_deepl1.png" alt="" width="400">\
+<img src="assets/imgs/screenshot_laita_deepl2.png" alt="" width="400">
 
 ---
 
 ## 4. Options
 
-Open them from the toolbar popup, or from `about:addons` → Local AI Text Assistant → Preferences.
+_Note: not all options are available on all versions of LAITA. The list above concerns the browser extensions_.
 
 | Setting | Default | Notes |
 | --- | --- | --- |

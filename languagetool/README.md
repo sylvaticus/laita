@@ -278,6 +278,15 @@ So `scope` defaults to `"typed"`: a first sighting is remembered but not sent to
 and a text continuing one already seen is. Remembering is what makes the first keystroke in
 a paragraph recognised immediately rather than costing a round trip.
 
+"Being edited" means the text **changed**, not that it matched something seen before.
+Reopening a document offers every paragraph again unchanged, and treating that as evidence
+of editing swept the whole document — the very thing this setting exists to prevent.
+
+Reopening is fast for a different reason: the cache is keyed on the paragraph's text, so a
+document that has been checked before — or a *copy* of it, which has the same text — is
+answered from cache in about a millisecond, with no model call. That is the service's own
+cache, not anything Collabora or Nextcloud keeps.
+
 Two costs, both pinned by tests rather than left to be found:
 
 - A document nobody types in is never checked, and a brand-new paragraph costs one

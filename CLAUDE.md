@@ -57,6 +57,13 @@ by PID instead.
 overrides it. A second copy of `anchor.py`'s four guards would be a third place for them to
 be wrong, which `doc/roadmap.md` already flags as this project's main risk.
 
+**"Editing" means the text CHANGED, not that it matched.** Closing a document and
+reopening it offers every paragraph again, unchanged, and each one matches the stream
+remembered from the previous session — so a reopen swept the whole document, which is
+exactly what `scope: "typed"` exists to prevent. Somebody typing produces a text that is
+similar but DIFFERENT; a re-display produces one that is identical. `StreamDebouncer.note`
+returns `editing`, not `known`, for that reason.
+
 **Only paragraphs somebody is editing are sent to the model (`scope: "typed"`).** The
 client offers every paragraph of a document at once on open; under `"document"` each is a
 model call, so typing on page five queued the answer behind fifty paragraphs. There is no

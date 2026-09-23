@@ -293,6 +293,38 @@ def main():
     check("...but is on the next keystroke",
           wait_for(lambda: swept == [fresh + " More."]), True)
 
+    # Close the document and open it again. Every paragraph is offered a second time,
+    # unchanged - and matching a remembered stream is NOT evidence of editing, or a
+    # reopen sweeps the whole document, which is what scope "typed" exists to prevent.
+    FakeTimer.reset()
+    del swept[:]
+    outcomes = [c7.check(par, "en")[1] for par in document]
+    check("reopening a document asks the model nothing", swept, [])
+    check("...and nothing is queued", FakeTimer.pending, [])
+    # Not every one says "not being edited": a paragraph similar enough to the one that
+    # WAS edited has a previous answer to show, and showing it is right. What matters is
+    # that none of them needed the model.
+    check("...and every paragraph is answered without it",
+          all(o == "not being edited" or o.startswith(("provisional", "cache"))
+              for o in outcomes), True)
+
+    # ...but typing in one of them still works, on the first keystroke.
+    again = document[2] + " Typed after reopening."
+    c7.check(again, "en")
+    FakeTimer.fire_all()
+    check("typing after a reopen is still recognised at once",
+          wait_for(lambda: swept == [again]), True)
+
+    # A paragraph whose answer is already cached needs no stream logic at all: reopening
+    # a document - or opening a copy of it, which has the same text - is a cache hit.
+    FakeTimer.reset()
+    del swept[:]
+    cached_para = document[5] + " And now I am writing here."
+    issues, why = c7.check(cached_para, "en")
+    check("a paragraph answered earlier is served from cache on reopen",
+          why.startswith("cache"), True)
+    check("...without asking the model again", swept, [])
+
     # The limitation, pinned rather than discovered: paragraphs that differ only in a
     # word or two read as edits of one another, so a document of near-identical lines -
     # a list, a table of similar entries - degrades towards checking everything. That is
