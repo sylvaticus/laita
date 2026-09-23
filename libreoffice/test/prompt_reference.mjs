@@ -62,7 +62,11 @@ const CLEAN = [
   ["wrapped in quotes", '"The rewritten text."', "original"],
   ["quotes the original also had", '"The rewritten text."', '"original"'],
   ["thinking first", "<think>hmm</think>The rewritten text.", "original"],
-  ["quotes inside, not wrapping", 'He said "no" to it.', "original"]
+  ["quotes inside, not wrapping", 'He said "no" to it.', "original"],
+  ["an echoed closing fence", "The rewritten text.\nTEXT_3082eae76f9d", "original"],
+  ["the whole fence echoed",
+   "<<<TEXT_3082eae76f9d\nThe rewritten text.\nTEXT_3082eae76f9d>>>", "original"],
+  ["a fence-shaped word inside prose", "He wrote TEXT_3082eae76f9d in the middle.", "original"]
 ];
 const LONG = "word ".repeat(200);
 const TRUNC = [

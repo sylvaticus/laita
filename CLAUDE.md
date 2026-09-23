@@ -268,6 +268,13 @@ closed shadow root still lets events bubble out retargeted to the host, so `pane
 stops `keydown`/`keyup`/`keypress` propagation. Removing that makes typing an instruction
 trigger the page underneath.
 
+**The model hands its own fence back.** Usually the closing marker alone on a line, and
+sometimes without its `>>>`. Observed as `Hello world\nTEXT_3082eae76f9d` from a
+translation, which was then pasted into the document; neither `cleanTransformOutput` nor
+its port stripped it, so it had been reaching browser and VS Code transforms too, just less
+visibly. `FENCE_ECHO`/`_FENCE_ECHO` removes any line that is only `TEXT_<hex>`, in both
+ports, with the cases in both halves of the parity list.
+
 **The model also abbreviates its own answer.** Asked to add a comma to a long sentence
 it replied with the sentence's opening followed by "...", and applying that deleted the
 rest of the paragraph. `looksTruncated` in `anchor.js` drops a replacement carrying an

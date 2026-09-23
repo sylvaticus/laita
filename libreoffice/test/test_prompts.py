@@ -126,6 +126,14 @@ def main():
         ("quotes the original also had", '"The rewritten text."', '"original"'),
         ("thinking first", "<think>hmm</think>The rewritten text.", "original"),
         ("quotes inside, not wrapping", 'He said "no" to it.', "original"),
+        # The model hands its own fence back, usually the closing marker alone and
+        # sometimes without the ">>>". Observed from a translation, which the caller
+        # then pasted into the document.
+        ("an echoed closing fence", "The rewritten text.\nTEXT_3082eae76f9d", "original"),
+        ("the whole fence echoed",
+         "<<<TEXT_3082eae76f9d\nThe rewritten text.\nTEXT_3082eae76f9d>>>", "original"),
+        ("a fence-shaped word inside prose",
+         "He wrote TEXT_3082eae76f9d in the middle.", "original"),
     ]
     for (name, content, original), want in zip(CLEAN, ref["cleaned"]):
         check("clean: %s" % name, O.clean_transform_output(content, original), want["out"])

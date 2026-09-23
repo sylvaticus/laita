@@ -82,10 +82,10 @@ Go to https://ollama.com/download and follow the instructions for your OS.
 
 ### 2.2. Pull a model
 
-I suggest `qwen3.5:9b` for a GPU with VRAM >= 8 GB, `qwen3.5:3b` otherwise: 
+I suggest `qwen3.5:9b` for a GPU with VRAM >= 8 GB, `qwen3.5:4b` otherwise: 
 
 - VRAM >= 8 GB: ` ollama pull qwen3.5:9b`
-- VRAM < 8 GB: ` ollama pull qwen3.5:3b`
+- VRAM < 8 GB: ` ollama pull qwen3.5:4b`
 
 `qwen3.5:4b` is fine for basic spell check, but may be too limited for text transformative tasks..
 
