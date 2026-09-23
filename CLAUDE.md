@@ -57,6 +57,16 @@ by PID instead.
 overrides it. A second copy of `anchor.py`'s four guards would be a third place for them to
 be wrong, which `doc/roadmap.md` already flags as this project's main risk.
 
+**Only paragraphs somebody is editing are sent to the model (`scope: "typed"`).** The
+client offers every paragraph of a document at once on open; under `"document"` each is a
+model call, so typing on page five queued the answer behind fifty paragraphs. There is no
+caret in this protocol and no document id — the only evidence is that an edited paragraph
+arrives repeatedly, a character apart, which is the same question `laita_engine.same_stream`
+already answers for the debounce. First sightings are remembered but unarmed, so the first
+keystroke in a paragraph is recognised without a round trip. Known limitation, tested: near
+identical paragraphs read as edits of one another and degrade towards checking everything,
+which is the safe direction.
+
 **Answer immediately if there is anything to answer with; wait only when there is not.**
 The order in `Checker.check` is the whole design and both halves were measured against a
 real Collabora. Waiting only when the cache missed but a previous answer existed made every

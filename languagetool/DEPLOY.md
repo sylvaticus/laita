@@ -235,6 +235,7 @@ The settings worth knowing:
 | `categories` | turn off `style` and `rephrase` for corrections only — far less model time |
 | `dictionary` | words never to flag: place names, jargon, people |
 | `extraInstructions` | house style, in plain language, added to the prompt |
+| `scope` | `"typed"` (default) checks only paragraphs somebody is working in; `"document"` checks every paragraph the client offers. Leave it alone unless you want a whole document proofread on open, which on a long one is a model call per paragraph |
 | `minChars` | paragraphs shorter than this are not sent. Raise it on a busy server |
 | `debounceMs` | how long a paragraph must be still before the model is asked. Comes straight off the answer's latency, so lower it to ~800 if you want faster underlines and can afford more model calls |
 | `waitMs` | how long a check may wait for the model before giving up and answering empty. Must exceed `debounceMs`; capped at 9000 because the editor gives up at 10 s |
@@ -263,6 +264,7 @@ Ollama a second GPU.
 | Log full of `queued`, no underlines | The model is not answering inside `waitMs`. Check the `model:` lines for how long it really takes, then raise `waitMs` (max 9000), lower `debounceMs`, or use a smaller model |
 | A long paragraph shows nothing, short ones work | Same cause: the budget ran out. The answer is cached, so editing it again shows it |
 | Nothing on one paragraph, fine on others | No language set on that text, or shorter than `minChars` |
+| `not being edited` in the log, no underlines on an open document | Working as intended: `scope` is `"typed"`, so a paragraph is checked once somebody types in it. Set `scope` to `"document"` to check on open |
 | `address already in use` recreating the container | Orphaned `docker-proxy` on 9980 (§6) |
 
 Everything the service does is in the journal, one line per check:

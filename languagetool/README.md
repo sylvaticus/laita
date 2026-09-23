@@ -167,6 +167,34 @@ characters shared at **both** ends, which is why editing the *start* of a paragr
 recognised as the same stream; a shared-prefix key would have called every keystroke there a
 new person and fired a request for each.
 
+## Only the paragraph somebody is working in
+
+Opening a long document makes the client offer **every** paragraph to the checker at once.
+Each one is a model call, so starting to type on page five put the answer behind fifty
+paragraphs nobody had asked about.
+
+The extension solves this with `checkScope: "caret"` — it knows where the cursor is.
+Nothing in this protocol says where the cursor is, or even which document a request belongs
+to. What it does say is the text, and that turns out to be enough: **a paragraph being
+edited arrives again and again, a character apart, while a paragraph merely displayed
+arrives once and never changes.** `laita_engine.same_stream` already answers exactly that
+question, for the debounce.
+
+So `scope` defaults to `"typed"`: a first sighting is remembered but not sent to the model,
+and a text continuing one already seen is. Remembering is what makes the first keystroke in
+a paragraph recognised immediately rather than costing a round trip.
+
+Two costs, both pinned by tests rather than left to be found:
+
+- A document nobody types in is never checked, and a brand-new paragraph costs one
+  keystroke before it is recognised.
+- Paragraphs that differ only in a word or two read as edits of one another, so a document
+  of near-identical lines — a list, a table of similar entries — degrades towards checking
+  everything. That is the safe direction to fail in.
+
+`scope: "document"` restores checking everything. `"caret"` is accepted as a synonym for
+`"typed"`, so a configuration copied from the extension means what it looks like.
+
 ## The word being typed
 
 This is the only LAITA surface asked about text on every keystroke, so it sees half-written

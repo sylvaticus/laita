@@ -139,7 +139,7 @@ def main():
         release.wait(10)
         return [{"type": "error", "original": "teh", "replacement": "the", "message": "typo"}]
 
-    s = settings(minChars=5, waitMs=4000, debounceMs=1500)
+    s = settings(minChars=5, waitMs=4000, debounceMs=1500, scope="document")
     c = Checker(s, log=lambda m: None, timer_factory=FakeTimer, ask=model)
     para = "I saw teh cat sitting on the mat this morning."
 
@@ -193,7 +193,7 @@ def main():
     # exists to prevent, so it is asserted against a model that never answers at all.
     FakeTimer.reset()
     stuck = threading.Event()
-    c2 = Checker(settings(minChars=5, waitMs=400, debounceMs=100),
+    c2 = Checker(settings(minChars=5, waitMs=400, debounceMs=100, scope="document"),
                  log=lambda m: None, timer_factory=FakeTimer,
                  ask=lambda text, lang: stuck.wait(30) or [])
     other = "A paragraph the model will never answer about, however long we wait."
@@ -206,7 +206,7 @@ def main():
 
     # --- waitMs 0 restores the original never-wait behaviour ------------------------------
     FakeTimer.reset()
-    c3 = Checker(settings(minChars=5, waitMs=0), log=lambda m: None,
+    c3 = Checker(settings(minChars=5, waitMs=0, scope="document"), log=lambda m: None,
                  timer_factory=FakeTimer, ask=lambda text, lang: [])
     started = time.time()
     issues, why = c3.check("Another paragraph, long enough to be sent off.", "en")
@@ -218,8 +218,8 @@ def main():
     def broken_model(text, lang):
         raise RuntimeError("ollama is down")
 
-    c4 = Checker(settings(minChars=5, waitMs=4000, debounceMs=1500), log=lambda m: None,
-                 timer_factory=FakeTimer, ask=broken_model)
+    c4 = Checker(settings(minChars=5, waitMs=4000, debounceMs=1500, scope="document"),
+                 log=lambda m: None, timer_factory=FakeTimer, ask=broken_model)
     broke = "A paragraph entirely its own, with quite different words in it."
     started = time.time()
     pending = pool.submit(c4.check, broke, "en")
@@ -235,25 +235,103 @@ def main():
     # asking for a language absent from it must be served, not refused.
     FakeTimer.reset()
     asked_lang = []
-    c5 = Checker(settings(minChars=5, waitMs=400, debounceMs=100), log=lambda m: None,
-                 timer_factory=FakeTimer,
+    c5 = Checker(settings(minChars=5, waitMs=400, debounceMs=100, scope="document"),
+                 log=lambda m: None, timer_factory=FakeTimer,
                  ask=lambda text, lang: asked_lang.append(lang) or [])
     c5.check("Jeg gikk til butikken i gar for a kjope melk.", "nn-NO")
     FakeTimer.fire_all()
     check("an unadvertised language reaches the model",
           wait_for(lambda: asked_lang == ["nn-NO"]), True)
 
+    # --- 3. only the paragraph somebody is working in --------------------------------
+    # Opening a long document makes the client offer every paragraph at once. Under
+    # "document" each is a model call, so typing on page five queues the answer behind
+    # fifty paragraphs nobody asked about - which is what was reported. There is no caret
+    # in this protocol, so the evidence used is that an edited paragraph arrives again
+    # and again a character apart, while a displayed one arrives once and never changes.
+    FakeTimer.reset()
+    swept = []
+    c7 = Checker(settings(minChars=5, waitMs=400, debounceMs=100),
+                 log=lambda m: None, timer_factory=FakeTimer,
+                 ask=lambda text, lang: swept.append(text) or [])
+
+    document = [
+        "The wheat harvest came in later than usual this year, and the yields were poor.",
+        "Rainfall between April and June was barely half the long term average.",
+        "Irrigation would have helped, but the licence was refused in February.",
+        "Our neighbours to the south reported much the same thing, in stronger terms.",
+        "A second cut of hay looks unlikely unless something changes very soon.",
+        "The cooperative has asked everyone to submit their figures before Friday.",
+        "Prices at market held up, which is the only cheerful sentence in this report.",
+        "Next season we will trial two drought tolerant varieties on the lower field.",
+    ]
+    started = time.time()
+    outcomes = [c7.check(par, "en")[1] for par in document]
+    check("opening a document asks the model nothing", swept, [])
+    check("...and every paragraph says why", set(outcomes), {"not being edited"})
+    check("...without waiting for any of them", time.time() - started < 0.5, True)
+    check("...and nothing was even queued", FakeTimer.pending, [])
+
+    # Now type in the middle of it. The first keystroke continues a paragraph already
+    # seen, so it is recognised at once rather than costing a round trip.
+    edited_para = document[5] + " And now I am writing here."
+    c7.check(edited_para, "en")
+    check("the first keystroke in a swept paragraph is recognised",
+          FakeTimer.pending != [], True)
+    FakeTimer.fire_all()
+    check("...and that paragraph alone reaches the model",
+          wait_for(lambda: swept == [edited_para]), True)
+
+    # A paragraph that never existed before costs one keystroke to recognise.
+    FakeTimer.reset()
+    del swept[:]
+    fresh = "A completely new paragraph, typed from nothing at all."
+    check("a brand new paragraph is not sent on sight",
+          c7.check(fresh, "en")[1], "not being edited")
+    c7.check(fresh + " More.", "en")
+    FakeTimer.fire_all()
+    check("...but is on the next keystroke",
+          wait_for(lambda: swept == [fresh + " More."]), True)
+
+    # The limitation, pinned rather than discovered: paragraphs that differ only in a
+    # word or two read as edits of one another, so a document of near-identical lines -
+    # a list, a table of similar entries - degrades towards checking everything. That is
+    # the safe direction to fail in, and it is why the test above uses real prose.
+    FakeTimer.reset()
+    del swept[:]
+    c9 = Checker(settings(minChars=5, waitMs=0), log=lambda m: None,
+                 timer_factory=FakeTimer, ask=lambda text, lang: [])
+    rows = ["Paragraph number %d, which nobody has touched at all today." % n
+            for n in range(4)]
+    outcomes = [c9.check(r, "en")[1] for r in rows]
+    check("near-identical paragraphs are taken for edits of each other",
+          outcomes[0] == "not being edited" and "not being edited" not in outcomes[1:],
+          True)
+
+    # scope "document" restores checking everything, for anyone who wants it.
+    FakeTimer.reset()
+    del swept[:]
+    c8 = Checker(settings(minChars=5, waitMs=0, scope="document"),
+                 log=lambda m: None, timer_factory=FakeTimer,
+                 ask=lambda text, lang: swept.append(text) or [])
+    for par in document[:3]:
+        c8.check(par, "en")
+    FakeTimer.fire_all()
+    check("scope document asks about every paragraph",
+          wait_for(lambda: len(swept) == 3), True)
+
     # --- the guards --------------------------------------------------------------------
     FakeTimer.reset()
-    c3 = Checker(settings(minChars=25, maxChars=100), log=lambda m: None,
-                 timer_factory=FakeTimer, ask=lambda text, lang: [])
+    c3 = Checker(settings(minChars=25, maxChars=100, scope="document"),
+                 log=lambda m: None, timer_factory=FakeTimer,
+                 ask=lambda text, lang: [])
     check("too short is not sent", c3.check("Hello.", "en")[1], "out of range")
     check("too long is not sent", c3.check("x" * 200, "en")[1], "out of range")
     check("nothing was queued", FakeTimer.pending, [])
 
-    c4 = Checker(settings(enabled=False), log=lambda m: None, timer_factory=FakeTimer,
+    c6 = Checker(settings(enabled=False), log=lambda m: None, timer_factory=FakeTimer,
                  ask=lambda text, lang: [])
-    check("disabled answers nothing", c4.check("A sentence long enough to pass.", "en")[1],
+    check("disabled answers nothing", c6.check("A sentence long enough to pass.", "en")[1],
           "disabled")
 
     print("%d passed, %d failed" % (passes, len(fails)))

@@ -54,6 +54,7 @@ def main():
     # --- and the ones that need a window are gone rather than ignored -------------------
     for key in config.IRRELEVANT:
         check("%s is not offered" % key, key in d, False)
+    check("scope IS offered, with its own meaning", "scope" in d, True)
 
     # The advertised list is derived, not a second shorter list that drifts away from the
     # one the prompts use.
@@ -87,13 +88,27 @@ def main():
         check("an unknown setting is refused", "chunkMaxChar" in str(err), True)
     os.unlink(path)
 
-    path = wrote({"scope": "document"})
+    path = wrote({"checkAsYouType": False})
     try:
         config.load(path)
         check("a setting that cannot work here is refused too", "no error", "ValueError")
     except ValueError as err:
         check("a setting that cannot work here says so, not 'unknown'",
               "no cursor" in str(err), True)
+    os.unlink(path)
+
+    # --- scope ------------------------------------------------------------------------
+    check("only the edited paragraph by default", d["scope"], "typed")
+    check("document is accepted", config.load(wrote({"scope": "document"}))["scope"],
+          "document")
+    check("caret is accepted as a synonym, so a config copied from the extension works",
+          config.load(wrote({"scope": "caret"}))["scope"], "typed")
+    path = wrote({"scope": "sentence"})
+    try:
+        config.load(path)
+        check("an unknown scope is refused", "no error", "ValueError")
+    except ValueError as err:
+        check("an unknown scope is refused", "must be" in str(err), True)
     os.unlink(path)
 
     # --- clamped, because a number in a file is not a promise ---------------------------

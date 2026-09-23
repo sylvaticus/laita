@@ -24,9 +24,11 @@ import laita_settings                                      # noqa: E402
 # Settings the extension has that mean nothing without a user interface.
 #
 #   checkAsYouType  there is no other kind of check here
-#   scope           there is no caret, so no paragraph "under" it
 #   transform*      the transform is not reachable through this protocol at all
-IRRELEVANT = ("checkAsYouType", "scope", "transformDefault", "transformHistory")
+#
+# `scope` is NOT in this list. It means the same thing as the extension's - what to check -
+# but its values differ, because there is no caret to name. See SERVER_DEFAULTS.
+IRRELEVANT = ("checkAsYouType", "transformDefault", "transformHistory")
 
 SERVER_DEFAULTS = {
     # 127.0.0.1 by default. The document text of everyone using the server passes through
@@ -44,6 +46,24 @@ SERVER_DEFAULTS = {
     # protocol has no better authentication, and Collabora can supply both.
     "apiKey": "",
     "userName": "",
+    # What to check.
+    #
+    #   "typed"     only paragraphs somebody is working in. The default.
+    #   "document"  every paragraph the client offers.
+    #
+    # Opening a long document makes the client offer EVERY paragraph at once, and under
+    # "document" each one is a model call: start typing on page five and your answer
+    # queues behind fifty paragraphs nobody asked about. The extension avoids this with
+    # checkScope "caret", naming the paragraph under the cursor. Nothing in this protocol
+    # says where the cursor is, so "typed" uses the only evidence there is - a paragraph
+    # being edited arrives again and again, a character apart, while one merely displayed
+    # arrives once and never changes. First sightings are remembered but not sent, so the
+    # first keystroke in a paragraph is recognised immediately.
+    #
+    # The cost: a document nobody types in is never checked, and a brand-new paragraph
+    # costs one keystroke before it is recognised. "caret" is accepted as a synonym for
+    # "typed", so a configuration copied from the extension means what it looks like.
+    "scope": "typed",
     # "" logs to stderr, which is what a systemd unit wants.
     "logFile": "",
     # How long a check may hold its request open waiting for the model. It must cover
@@ -109,6 +129,11 @@ def load(path=None):
                 out[key] = SERVER_DEFAULTS[key]
         elif key not in SERVER_DEFAULTS:
             out[key] = laita_settings.clamp(key, out[key])
+    out["scope"] = {"caret": "typed"}.get(out["scope"], out["scope"])
+    if out["scope"] not in ("typed", "document"):
+        raise ValueError(
+            "scope must be \"typed\" (only paragraphs somebody is working in) or "
+            "\"document\" (every paragraph the client offers), not %r" % (out["scope"],))
     if out["waitMs"] and out["waitMs"] <= out["debounceMs"]:
         # Otherwise every check waits, times out and answers empty: the budget is spent
         # before the model is even asked. Worth refusing rather than debugging.

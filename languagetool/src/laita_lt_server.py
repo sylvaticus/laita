@@ -92,6 +92,21 @@ def make_log(path):
     return log
 
 
+class _Unarmed:
+    """A timer that will never fire, for a paragraph we are remembering rather than
+    checking. Keeping the shape of a timer means the rest of StreamDebouncer needs no
+    special case for it."""
+
+    def start(self):
+        pass
+
+    def cancel(self):
+        pass
+
+    def is_alive(self):
+        return False
+
+
 class StreamDebouncer:
     """One debounce timer per paragraph being typed, rather than one for the server.
 
@@ -118,22 +133,33 @@ class StreamDebouncer:
         self._streams = {}          # id -> {"text", "timer", "seen"}
         self._next_id = 0
 
-    def note(self, text, lang, settings):
-        """This text wants checking once it has stopped changing."""
+    def note(self, text, lang, settings, arm_new=True):
+        """Remember this text, and schedule the model unless it is a first sighting we
+        were told not to act on.
+
+        Returns True when this text continues a paragraph already seen - which is the
+        only evidence available that somebody is editing it. A paragraph the client merely
+        displayed arrives once and never changes; the one under the cursor arrives again
+        and again, a character apart.
+        """
         with self._lock:
             self._reap()
             sid = self._find(text)
-            if sid is None:
+            known = sid is not None
+            if known:
+                self._streams[sid]["timer"].cancel()
+            else:
                 self._next_id += 1
                 sid = self._next_id
+            if known or arm_new:
+                timer = self._timer_factory(self._delay, self._ring,
+                                             [sid, text, lang, settings])
+                timer.daemon = True
             else:
-                self._streams[sid]["timer"].cancel()
-            timer = self._timer_factory(self._delay, self._ring,
-                                         [sid, text, lang, settings])
-            timer.daemon = True
+                timer = _Unarmed()
             self._streams[sid] = {"text": text, "timer": timer, "seen": time.time()}
             timer.start()
-            return sid
+            return known
 
     def _find(self, text):
         best, best_shared = None, 0
@@ -262,7 +288,14 @@ class Checker:
         if raw is not None:
             self.hits += 1
         else:
-            self.debouncer.note(text, lang, s)
+            # Opening a long document makes the client offer EVERY paragraph at once,
+            # and each one is a model call: start typing on page five and the answer
+            # queues behind fifty paragraphs nobody asked about. The extension solves
+            # this with checkScope "caret"; there is no caret here, so the evidence used
+            # instead is that an edited paragraph arrives repeatedly, a character apart,
+            # while a displayed one arrives once and never changes.
+            editing = self.debouncer.note(text, lang, s,
+                                          arm_new=(s["scope"] == "document"))
             # Answer NOW if there is anything at all to answer with, and only wait when
             # there is not. Order matters, and it is the whole of this method.
             #
@@ -279,6 +312,10 @@ class Checker:
             raw = self.engine.provisional(text)
             source = "provisional"
             if raw is None:
+                if not editing and s["scope"] != "document":
+                    # A paragraph the user has not touched. Remembered, so the first
+                    # keystroke in it is recognised at once, but not sent to the model.
+                    return [], "not being edited"
                 # Nothing to show. Now waiting is strictly better than an empty answer:
                 # a cold paragraph would otherwise never be underlined at all, because
                 # the client stops asking the moment the user stops typing.
