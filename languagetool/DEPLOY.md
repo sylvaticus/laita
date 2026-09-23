@@ -92,6 +92,21 @@ sudo tools/install.sh --host 172.17.0.1 --port 8181 --model qwen3.5:9b
 
 Add `--dry-run` first if you want to see every file it writes and change nothing.
 
+**Decide `--scope` now**, because it is the one choice that changes what your users see:
+
+| | |
+|---|---|
+| `--scope typed` (default) | Only paragraphs somebody is working in. Opening a document asks the model nothing, and a paragraph is checked from the first keystroke in it. An untouched document is never checked. |
+| `--scope document` | Every paragraph the editor offers, so a document is proofread on open. That is one model call per paragraph — on a long document, somebody typing on page five waits behind all of them. |
+
+`typed` is the default because the alternative was reported as unusable on a long
+document. Choose `document` if your users expect to open something they did not write and
+see it marked up, and you have the GPU to pay for it.
+
+It only applies when the configuration file is created. To change it afterwards, edit
+`scope` in `/etc/laita/languagetool.json` and `systemctl restart laita-languagetool`; the
+installer prints the value actually in force when it finds an existing file.
+
 It creates an unprivileged system account `laita`, copies the code to `/opt/laita`, writes
 `/etc/laita/languagetool.json` and a hardened systemd unit, and starts it. The clone is
 disposable afterwards — nothing runs out of it.

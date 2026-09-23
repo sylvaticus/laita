@@ -25,6 +25,7 @@ HOST=127.0.0.1
 PORT=8181
 MODEL=qwen3.5:9b
 ENDPOINT=http://127.0.0.1:11434
+SCOPE=typed
 DRY=0
 UNINSTALL=0
 
@@ -37,6 +38,15 @@ usage: sudo $0 [options]
   --port N        port to bind (default $PORT)
   --model NAME    Ollama model (default $MODEL)
   --endpoint URL  Ollama endpoint (default $ENDPOINT)
+  --scope WHICH   what to proofread (default $SCOPE)
+                    typed     only paragraphs somebody is working in. Opening a
+                              document asks the model nothing; a paragraph is
+                              checked from the first keystroke in it.
+                    document  every paragraph the editor offers, so a document is
+                              proofread on open. That is one model call per
+                              paragraph, and on a long document somebody typing on
+                              page five waits behind all of them. Choose it if your
+                              users want untouched documents checked.
   --prefix DIR    where to install the code (default $PREFIX)
   --user NAME     system account to run as (default $SERVICE_USER, created if absent)
   --config PATH   configuration file (default $CONF)
@@ -51,6 +61,7 @@ while [ $# -gt 0 ]; do
     --port) PORT="$2"; shift 2 ;;
     --model) MODEL="$2"; shift 2 ;;
     --endpoint) ENDPOINT="$2"; shift 2 ;;
+    --scope) SCOPE="$2"; shift 2 ;;
     --prefix) PREFIX="$2"; shift 2 ;;
     --user) SERVICE_USER="$2"; shift 2 ;;
     --config) CONF="$2"; shift 2 ;;
@@ -88,6 +99,10 @@ fi
 
 # ---------------------------------------------------------------- checks first
 command -v python3 >/dev/null || { echo "python3 is not installed" >&2; exit 1; }
+case "$SCOPE" in
+  typed|document) ;;
+  *) echo "--scope must be 'typed' or 'document', not '$SCOPE'" >&2; exit 1 ;;
+esac
 for d in "$SRC/src" "$REPO/libreoffice/src/pythonpath"; do
   [ -d "$d" ] || { echo "missing: $d - run this from a full LAITA checkout" >&2; exit 1; }
 done
@@ -96,6 +111,7 @@ echo "installing from $REPO"
 echo "  prefix   $PREFIX"
 echo "  config   $CONF"
 echo "  service  $SERVICE_USER, ${HOST}:${PORT}, model $MODEL"
+echo "  scope    $SCOPE"
 echo
 
 # A dedicated unprivileged account. Everything anyone types passes through this process,
@@ -117,7 +133,13 @@ did "copied the server and the shared modules into $PREFIX"
 
 # ---------------------------------------------------------------- the config
 if [ -f "$CONF" ]; then
+  # --scope only writes a NEW config. Say what is actually in force, so that passing the
+  # flag to an upgrade does not look like it did something it did not.
+  IN_USE=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('scope','typed'))" \
+           "$CONF" 2>/dev/null || echo "?")
   echo "keeping the existing $CONF (delete it to get a fresh one)"
+  echo "  its scope is '$IN_USE'; --scope only applies when this file is created."
+  echo "  To change it: edit the file, then systemctl restart laita-languagetool"
 else
   run mkdir -p "$(dirname "$CONF")"
   if [ "$DRY" = "1" ]; then
@@ -128,7 +150,8 @@ else
   "host": "$HOST",
   "port": $PORT,
   "model": "$MODEL",
-  "endpoint": "$ENDPOINT"
+  "endpoint": "$ENDPOINT",
+  "scope": "$SCOPE"
 }
 JSON
   fi
@@ -205,6 +228,10 @@ cat <<NOTE
 Bound to ${HOST}:${PORT}, running since ${STARTED}.  Check it answers:
 
     curl -s http://${HOST}:${PORT}/status
+
+Proofreading scope is '${SCOPE}'. With 'typed' the log says "not being edited"
+until somebody types in a paragraph, and opening a document costs nothing; with
+'document' every paragraph is checked on open.
 
 NOTE
 

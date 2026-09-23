@@ -13,7 +13,7 @@ A **multi-app** extension that uses your **local** GPU to deliver **high-quality
 It works in any language that the model knows. It requires a mid-range GPU* on your laptop or PC.
 
 Available as a [Chrome extension](https://chromewebstore.google.com/detail/laita-local-ai-text-assis/kkonkblgjafnampabmfflabkdkggpnjn), [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita), [Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/local-ai-text-assistant/), and [LibreOffice extension](https://extensions.libreoffice.org)
-(including as a LanguageTool server for Collabora Online).
+(including as a LanguageTool/DeepL server for Collabora Online).
 
 \* *The default model (`qwen3.5:9b`) requires 8 GB of GPU RAM, but syntax and grammar errors can be reliably spotted by smaller models like `qwen3.5:4b`.* 
 
@@ -250,24 +250,24 @@ Open the VSCode extensions panel ⇒ look for "LAITA" ⇒ install
 
 #### 2.4.4 LibreOffice (and Collabora Online)
 
-Local desktop LibreOffice:
+- **Local desktop LibreOffice**:
 
-- **Download LAITA from the [LibreOffice extensions repository](https://extensions.libreoffice.org/en/extensions/show/99655)**
+  - Download LAITA from the [LibreOffice extensions repository](https://extensions.libreoffice.org/en/extensions/show/99655)
 
--  From LibreOffice: `Tools` ⇒ `Extensions` ⇒ `Add` ⇒ upload the extension package that you downloaded in the previous point
+  -  From LibreOffice: `Tools` ⇒ `Extensions` ⇒ `Add` ⇒ upload the extension package that you downloaded in the previous point
 
-Collabora Online (proofreading and translation):
+  - **Then enable it for your language**, which installing does not do:
+    `Tools` ▸ `Options` ▸ `Languages and Locales` ▸ `Writing Aids` ▸ *Available Language Modules* ▸ `Edit…` ▸ choose your language ▸ tick **LAITA**
 
-Refer to the documentation in the `languagetool` folder ([README](languagetool/README.md), [DEPLOY](languagetool/DEPLOY.md)) for how to deploy a small proxy server that speaks the LanguageTool API and connects to your local Ollama.
-In theory the server could be used by any other program that consumes the LanguageTool API. Untested on anything other than LibreOffice/Collabora Online.
+- **Collabora Online** (_proofreading and translation_):
+
+  - Refer to the documentation in the `languagetool` folder ([README](languagetool/README.md), [DEPLOY](languagetool/DEPLOY.md)) for how to deploy a small proxy server that speaks the LanguageTool and DeepL APIs (respectively for proofreading and translation) and connects to your local Ollama.
+  - In theory the server could be used by any other program that consumes the LanguageTool/DeepL API. Untested on anything other than LibreOffice/Collabora Online.
 
 ---
 
 ## 3. Using it
 
-LAITA is the same idea in two very different hosts. The browser extension draws its own
-highlights because a web page offers nothing better; in VS Code the suggestions are
-ordinary diagnostics, so they behave like every other linter you already use.
 
 ### 3.1. In Firefox and Chrome
 
@@ -377,16 +377,7 @@ To exclude anything else, add `data-laita="off"` to it or to any ancestor. The o
 
 ### 3.2. In VS Code
 
-Search for **LAITA** in the Extensions panel, or from a terminal:
-
-```bash
-code --install-extension sylvaticus.laita
-```
-
-It is on the
-[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita).
-
-Then write. Prose files are checked **as you type**, a paragraph at a time:
+Just write. Prose files are checked **as you type**, a paragraph at a time:
 
 - **Squiggles** in the editor and entries in the **Problems** panel, rather than a custom
   overlay. Severity follows the category — error → Warning, style and rephrase →
@@ -404,9 +395,20 @@ Which file types are checked automatically is `laita.languages` — Markdown, Qu
 LaTeX, AsciiDoc, reStructuredText, HTML, plain text and commit messages by default. Code
 fences inside them are never sent.
 
-**No `OLLAMA_ORIGINS` setting is needed here.** Requests come from Node rather than a
-page, so they carry no `Origin` header and Ollama does not refuse them — step 2.3 above
-is only for the browsers.
+### 3.3. In LibreOffice/Collabora online
+
+> [!IMPORTANT]
+> 
+> To avoid long delays, unless you explicitly use the option _Check this document_ in the desktop version or , the document is NOT automatically proofread on loading. Only the paragraphs that you are working on are proofread.
+
+**LibreOffice desktop**:
+- settings are under `Tools` ⇒ `Options` ⇒ `LAITA` and the Toolbar has _Check this document_, _Stop checking_, _Transform selection_ (only Writer) and _LAITA options_
+
+- you can use the right-click contextual menu for the same operations
+
+**Collabora online** (and possible other consumers of the LanguageTools/DeepL API):
+
+- settings are defined in the installation step (see the [doc](languagetool/README.md)), there are no settings on the user interface 
 
 ---
 
