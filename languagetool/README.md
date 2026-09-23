@@ -37,6 +37,14 @@ Ollama reachable, model present
 `GET /status` reports the same plus cache hits and whether the model is busy. `POST
 /v2/check` takes `text` and `language`; `GET /v2/languages` lists what it advertises.
 
+**`/v2/languages` advertises, it does not gate.** Nothing in the check path consults it: a
+request naming a language absent from the list is proofread in that language anyway,
+because the prompt simply says what the client said. The list defaults to every language
+`laita_ollama.LANGUAGE_NAMES` can name — derived from that table rather than restated, so
+the two cannot drift apart — and LibreOffice does not read the endpoint at all, taking its
+locale list from its own linguistic configuration. Set `languages` only if some client
+insists on region variants such as `fr-FR`.
+
 ### Configuration
 
 One JSON file, read once at start, applying to everybody. The proofreading settings are

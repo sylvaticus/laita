@@ -243,7 +243,8 @@ class Checker:
 
 def handler_class(checker, settings, log):
     key = str(settings.get("apiKey") or "")
-    languages = protocol.languages_response(settings["languages"])
+    languages = protocol.languages_response(settings["languages"],
+                                            ollama.LANGUAGE_NAMES)
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"

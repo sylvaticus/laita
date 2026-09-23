@@ -237,6 +237,7 @@ The settings worth knowing:
 | `minChars` | paragraphs shorter than this are not sent. Raise it on a busy server |
 | `debounceMs` | how long a paragraph must be still before the model is asked |
 | `model` | a smaller model is dramatically cheaper and still catches hard errors |
+| `languages` | what `/v2/languages` advertises. It restricts nothing — any language the model knows is proofread whether it is listed or not, and Collabora does not read the list at all |
 
 An unknown key is refused and the service will not start — deliberately, so a typo does not
 silently do nothing. `journalctl -u laita-languagetool` names the offending key.

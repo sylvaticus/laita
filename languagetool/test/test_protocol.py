@@ -96,9 +96,14 @@ def main():
           protocol.check_response(text, [], "en-US", to_utf16_index)["matches"], [])
 
     # --- languages listing --------------------------------------------------------------
-    langs = protocol.languages_response(["fr-FR", "en-GB"])
+    from laita_ollama import LANGUAGE_NAMES                  # noqa: E402
+    langs = protocol.languages_response(["fr-FR", "en-GB"], LANGUAGE_NAMES)
     check("longCode is the full tag", [x["longCode"] for x in langs], ["fr-FR", "en-GB"])
     check("code is the primary subtag", [x["code"] for x in langs], ["fr", "en"])
+    check("the name comes from the prompts' own table",
+          [x["name"] for x in langs], ["French", "English"])
+    check("an unnamed code is shown as itself",
+          protocol.languages_response(["xx"], LANGUAGE_NAMES)[0]["name"], "xx")
 
     # --- end to end: a model answer becomes matches --------------------------------------
     # anchor_issues is the extension's, unmodified; this checks the join, not the anchoring.

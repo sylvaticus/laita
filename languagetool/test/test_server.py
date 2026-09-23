@@ -182,6 +182,18 @@ def main():
     check("...and the next check still answers at once", time.time() - started < 0.5, True)
     check("...with nothing rather than an error", issues, [])
 
+    # --- a language nobody advertised is still checked -----------------------------------
+    # /v2/languages is advisory. Nothing in the check path consults it, and a client
+    # asking for a language absent from it must be served, not refused.
+    FakeTimer.reset()
+    asked_lang = []
+    c5 = Checker(settings(minChars=5), log=lambda m: None, timer_factory=FakeTimer,
+                 ask=lambda text, lang: asked_lang.append(lang) or [])
+    c5.check("Jeg gikk til butikken i gar for a kjope melk.", "nn-NO")
+    FakeTimer.fire_all()
+    check("an unadvertised language reaches the model",
+          wait_for(lambda: asked_lang == ["nn-NO"]), True)
+
     # --- the guards --------------------------------------------------------------------
     FakeTimer.reset()
     c3 = Checker(settings(minChars=25, maxChars=100), log=lambda m: None,

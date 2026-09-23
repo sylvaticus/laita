@@ -22,6 +22,7 @@ import laita_lt_shared                                      # noqa: E402
 laita_lt_shared.install()
 
 import laita_lt_config as config                            # noqa: E402
+import laita_ollama                                         # noqa: E402
 import laita_settings                                       # noqa: E402
 
 fails, passes = [], 0
@@ -53,6 +54,11 @@ def main():
     # --- and the ones that need a window are gone rather than ignored -------------------
     for key in config.IRRELEVANT:
         check("%s is not offered" % key, key in d, False)
+
+    # The advertised list is derived, not a second shorter list that drifts away from the
+    # one the prompts use.
+    check("every language LAITA can name is advertised",
+          d["languages"], sorted(laita_ollama.LANGUAGE_NAMES))
 
     # --- server defaults are safe ------------------------------------------------------
     check("binds to loopback by default", d["host"], "127.0.0.1")

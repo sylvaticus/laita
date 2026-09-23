@@ -129,20 +129,20 @@ def check_response(text, issues, lang, to_utf16, name="LAITA", version="0"):
     }
 
 
-def languages_response(codes):
-    """/v2/languages. LibreOffice does not read this - it takes its locale list from its
-    own linguistic configuration - but the endpoint is part of the API and a client that
-    asks and gets a 404 may decide the server is not one."""
+def languages_response(codes, names):
+    """/v2/languages, advisory only.
+
+    LibreOffice does not read it - it takes its locale list from its own linguistic
+    configuration - and nothing here restricts what will be checked: a request naming a
+    language absent from this list is proofread in that language regardless, because the
+    prompt simply says what the client said. The endpoint exists because it is part of
+    the API and a client that asks and gets a 404 may decide the server is not one.
+
+    `names` is laita_ollama.LANGUAGE_NAMES, passed in for the same reason `to_utf16` is:
+    this module imports nothing. An unlisted code is shown as itself.
+    """
     out = []
     for code in codes:
         primary = code.split("-")[0]
-        out.append({"name": NAMES.get(primary, code), "code": primary, "longCode": code})
+        out.append({"name": names.get(primary, code), "code": primary, "longCode": code})
     return out
-
-
-# Only for the /v2/languages display name; the prompt uses laita_ollama.LANGUAGE_NAMES.
-NAMES = {
-    "en": "English", "fr": "French", "it": "Italian", "de": "German",
-    "es": "Spanish", "pt": "Portuguese", "nl": "Dutch", "ca": "Catalan",
-    "pl": "Polish", "ru": "Russian",
-}

@@ -17,6 +17,7 @@ import os
 import laita_lt_shared
 
 laita_lt_shared.install()
+import laita_ollama                                        # noqa: E402
 import laita_settings                                      # noqa: E402
 
 
@@ -33,9 +34,12 @@ SERVER_DEFAULTS = {
     # reach - see README.md for the Collabora case, which is 172.17.0.1.
     "host": "127.0.0.1",
     "port": 8181,
-    # Advertised by /v2/languages. Does not restrict what will be checked: the prompt
-    # names whatever language the client asked for.
-    "languages": ["en-US", "en-GB", "fr-FR", "it-IT", "de-DE", "es-ES"],
+    # Advertised by /v2/languages, and advisory only - nothing here restricts what will
+    # be checked, because the prompt names whatever language the client asked for and an
+    # unknown code is passed through as itself. Derived from the model prompts' own table
+    # rather than being a second, shorter list that drifts away from it. Override it to
+    # advertise region variants ("fr-FR", "en-GB") if some client insists on them.
+    "languages": sorted(laita_ollama.LANGUAGE_NAMES),
     # Sent as `username`/`apiKey` by a LanguageTool client. Empty means no check. The
     # protocol has no better authentication, and Collabora can supply both.
     "apiKey": "",
