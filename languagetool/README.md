@@ -110,6 +110,41 @@ server out of this checkout. It does not copy the code: the service reuses
 `libreoffice/src/pythonpath/`, so the repository has to stay where it is, or
 `LAITA_SHARED_PATH` has to say where those modules went.
 
+## Can this be used as a general LanguageTool server for other programs?
+
+Partly. It speaks the protocol — `POST /v2/check` with `text` and `language`, `GET
+/v2/languages` — so anything that can be pointed at a LanguageTool server can talk to it.
+**Desktop LibreOffice 7.4 or newer works with it unchanged**, since Collabora and desktop
+LibreOffice run the same client code: point the LanguageTool Server settings page in
+Options at the same `base_url`.
+
+Beyond that family, four things are shaped for a client that re-sends text as somebody
+types, and they are worth knowing before assuming it is a drop-in replacement.
+
+**A client that submits text once will get nothing back.** This is the important one.
+`scope: "typed"` infers "somebody is editing this" from the same paragraph arriving
+repeatedly; a tool that submits a document once — a command-line checker, a mail client
+checking on send, a CI lint step — is a permanent first sighting and is answered `not being
+edited`, with no matches, forever. Such clients need `scope: "document"`.
+
+**The category ids are chosen for their colour, not their meaning.** `style` goes out as
+`GRAMMAR` and `rephrase` as `STYLE`, purely because that is what yields orange and blue in
+LibreOffice's fixed table. A client that displays the category name will show something
+odd. There is no setting for this yet.
+
+**The last word of an unpunctuated paragraph is not checked**, because
+`laita_lt_typing.without_part_typed_word` assumes it is a word still being typed. Right
+while typing, wrong for checking a finished document.
+
+**Only `text` is accepted, not `data`.** The real API takes either, `data` being a JSON
+object carrying `text` or `annotation` (text with markup). Clients that use `data` —
+including the official LanguageTool browser add-on — would get nothing. There is also no
+`/v2/words` (personal dictionaries), and `enabledRules`/`disabledRules` and the other rule
+selection parameters are ignored rather than honoured.
+
+So: a drop-in replacement for LibreOffice-family clients, and a conditional one elsewhere.
+None of the four is hard to fix; none has been, because nothing has needed it yet.
+
 ## The constraint that shapes all of it
 
 **LibreOffice sets `CURLOPT_TIMEOUT` to 10 seconds on this call** and does not make it

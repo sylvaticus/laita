@@ -10,13 +10,12 @@ A **multi-app** extension that uses your **local** GPU to deliver **high-quality
 * unlike integrated spellcheckers or syntax checkers, the judgment comes from a Large Language Model (LLM) rather than handwritten rules, so it handles style and phrasing as well as hard grammar errors.
 * unlike commercial products, with default settings, nothing leaves your machine. No need for API keys, internet, or subscriptions.
 
-It works in any language that the model knows. It requires a mid-range GPU** on your laptop or PC.
+It works in any language that the model knows. It requires a mid-range GPU* on your laptop or PC.
 
-Available as a [Chrome extension](https://chromewebstore.google.com/detail/laita-local-ai-text-assis/kkonkblgjafnampabmfflabkdkggpnjn), [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita), [Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/local-ai-text-assistant/)*, and [LibreOffice extension](https://extensions.libreoffice.org)
+Available as a [Chrome extension](https://chromewebstore.google.com/detail/laita-local-ai-text-assis/kkonkblgjafnampabmfflabkdkggpnjn), [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita), [Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/local-ai-text-assistant/), and [LibreOffice extension](https://extensions.libreoffice.org)
+(including as a LanguageTool server for Collabora Online).
 
-
-\* *Currently, the FireFox extension is still under review. To package and install the extension from this git repository see the [install](#2-install) section.*
-\** *The default model (`qwen3.5:9b`) requires 8 GB of GPU RAM, but syntax and grammar errors can be reliably spotted by smaller models like `qwen3.5:4b`.* 
+\* *The default model (`qwen3.5:9b`) requires 8 GB of GPU RAM, but syntax and grammar errors can be reliably spotted by smaller models like `qwen3.5:4b`.* 
 
 **[What it does](#1-what-it-does) · [Install](#2-install) · [Using it](#3-using-it) · [Options](#4-options) · [Troubleshooting](#5-troubleshooting) · [Privacy](#6-privacy) · [Development](#7-development) · [Licence](#8-licence) · [Acknowledgements](#9-acknowledgements)**
 
@@ -72,7 +71,7 @@ The language of each field is detected automatically (English and French are the
 
 - [Install Ollama](#21-install-ollama)
 - [Pull a model](#22-pull-a-model)
-- [Let Ollama talk to the extension  ⚠️ required](#23-let-ollama-accept-requests-from-the-extension---required)
+- [Let Ollama talk to the extension](#23-let-ollama-accept-requests-from-the-extension---required-for-the-browser-versions) (⚠️ _required for the browser extensions_)
 - [Install the extension](#24-install-the-extension)
 
 The Firefox extension requires **Firefox 142** or newer, the Chrome extension requires **Chrome 116** or newer.
@@ -83,7 +82,7 @@ Go to https://ollama.com/download and follow the instructions for your OS.
 
 ### 2.2. Pull a model
 
-I suggest `qwen3.5:9b` for GPU with a VRAB >= 8 GB, `qwen3.5:3b` ottherwise: 
+I suggest `qwen3.5:9b` for a GPU with VRAM >= 8 GB, `qwen3.5:3b` otherwise: 
 
 - VRAM >= 8 GB: ` ollama pull qwen3.5:9b`
 - VRAM < 8 GB: ` ollama pull qwen3.5:3b`
@@ -94,7 +93,7 @@ I suggest `qwen3.5:9b` for GPU with a VRAB >= 8 GB, `qwen3.5:3b` ottherwise:
 
 ---
 
-### 2.3. Let Ollama accept requests from the extension  ⚠️ required
+### 2.3. Let Ollama accept requests from the extension  ⚠️ required for the browser versions
 
 Ollama refuses requests whose `Origin` is a browser extension unless you allow it.
 Firefox **does** send `Origin: moz-extension://…`, so without this step every check fails.
@@ -217,45 +216,50 @@ means Ollama was not restarted.
 
 #### 2.4.1. Firefox
 
-> **[LAITA on addons.mozilla.org](https://addons.mozilla.org/firefox/addon/local-ai-text-assistant/)**
+> **[LAITA on addons.mozilla.org](https://addons.mozilla.org/firefox/addon/laita/)**
 
-**The listing is still awaiting Mozilla's review, so that link does not resolve yet.**
-Until it does there is no Firefox build you can install — Firefox only accepts add-ons
-signed by Mozilla, and the packages on the releases page are unsigned submissions rather
-than installable files.
-
-The options page opens by itself the first time, and the add-on updates itself from then
-on.
+Type "about:addons" in the Firefox address bar ⇒ search for "LAITA" ⇒ install
 
 #### 2.4.2. Chrome
 
 > **[Install LAITA from the Chrome Web Store](https://chromewebstore.google.com/detail/kkonkblgjafnampabmfflabkdkggpnjn)**
 
-It updates itself, and its ID is the one already given in
-[Step 2.3](#23-let-ollama-accept-requests-from-the-extension---required).
+Type "chrome://extensions/" in the Chrome address bar ⇒ search for "LAITA" ⇒ install
 
 > Loading an unreleased build, or working on the code? That lives in
 > [`doc/dev_doc.md`](doc/dev_doc.md).
 
-#### 2.4.3. Keep the toolbar button where you can reach it
 
-The toolbar button is LAITA's status light and its menu-of-last-resort: it offers the
+> [!TIP]
+> **Keep the toolbar button where you can reach it**
+> The toolbar button is LAITA's status light and its menu-of-last-resort: it offers the
 transform and the per-site pause even on pages that replace their own right-click menu.
-
-**Chrome hides every extension behind a puzzle-piece icon by default.** Click the
+> 
+> **Chrome hides every extension behind a puzzle-piece icon by default.** Click the
 🧩 **puzzle piece** to the right of the address bar, find *LAITA*, and click the **pin**
 next to it. The icon then stays in the toolbar.
-
-**Firefox** usually shows it already. If not, open the **≫** overflow menu, or right-click
+> 
+> **Firefox** usually shows it already. If not, open the **≫** overflow menu, or right-click
 the toolbar → *Customise Toolbar…*, and drag LAITA where you want it.
 
-#### 2.4.4. Check the connection
+#### 2.4.3 VSCode
 
-On the options page press **Test connection**. You should see
-*"Connected. N models available, "qwen3.5:9b" is one of them."*
+> **Install LAITA from the [VSCode MarketPlace](https://marketplace.visualstudio.com/items?itemName=sylvaticus.laita) or the [Open VSX registry](https://open-vsx.org/extension/sylvaticus/laita)**
 
-That test deliberately performs a `POST`, because a plain `GET` carries no `Origin` header
-and would report success even while real checks were being refused.
+Open the VSCode extensions panel ⇒ look for "LAITA" ⇒ install
+
+#### 2.4.4 LibreOffice (and Collabora Online)
+
+Local desktop LibreOffice:
+
+- **Download LAITA from the [LibreOffice extensions repository](https://extensions.libreoffice.org/en/extensions/show/99655)**
+
+-  From LibreOffice: `Tools` ⇒ `Extensions` ⇒ `Add` ⇒ upload the extension package that you downloaded in the previous point
+
+Collabora Online (proofreading):
+
+Refer to the documentation in the `languagetool` folder ([README](languagetool/README.md), [DEPLOY](languagetool/DEPLOY.md)) for how to deploy a small proxy server that speaks the LanguageTool API and connects to your local Ollama.
+In theory the server could be used by any other program that consumes the LanguageTool API. Untested on anything other than LibreOffice/Collabora Online.
 
 ---
 
