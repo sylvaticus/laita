@@ -34,7 +34,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
 
 ---
 
-## State — last updated 2026-09-17
+## State — last updated 2026-09-23
 
 ### Identity
 
@@ -51,8 +51,13 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   published, and the README gives it as the value for `OLLAMA_ORIGINS`. An unpacked
   `dist-chrome/` load gets a different local id, which is why development needs the
   wildcard.
-- All three packages are at **0.4.0** and the release workflow refuses to publish unless
-  all three manifests match the tag.
+- All packages are at **0.4.3** and the release workflow refuses to publish unless the
+  manifests match the tag. There are now **four** things to keep in step:
+  `browser/manifest.json`, `browser/manifest.chrome.json`, `vscode/package.json` and
+  `libreoffice/src/description.xml`.
+- **`languagetool/` is a fourth component and is versioned separately** (`VERSION` in
+  `laita_lt_server.py`, currently 0.1.0). It is a server, not a client, and is not part of
+  any store release.
 
 ### Store status
 
@@ -330,7 +335,41 @@ installed, but LibreOffice maps no window on the virtual display, so the transfo
 dialog could never be driven end to end here - every fix to it was confirmed by the
 user.
 
+### The LanguageTool server (new since 2026-09-22)
+
+`languagetool/` serves LAITA over the LanguageTool HTTP API, which is how **Collabora
+Online** reaches it — Collabora cannot install extensions, and draws its own UI, so the
+`.oxt` is impossible there. Deployed and in daily use on this server for the lab's
+Nextcloud. It also answers Collabora's DeepL hook, so translation runs on the same local
+model.
+
+Everything about it is in `languagetool/README.md` (design) and `languagetool/DEPLOY.md`
+(runbook), and its invariants are in `CLAUDE.md`. What matters for a fresh session:
+
+- It **reuses** `libreoffice/src/pythonpath/` rather than copying it, so a change there is
+  a change to the server too. `libreoffice/test/run.sh` must pass after any such change.
+- Four bugs were found only by running it against real Collabora, and each is now an
+  invariant in `CLAUDE.md` with the measurement attached. Do not "simplify" the order of
+  operations in `Checker.check`; both halves of it were paid for.
+- Deployed by `sudo languagetool/tools/install.sh`, which copies to `/opt/laita` and
+  restarts the systemd unit. It does **not** run from the checkout.
+
 ### Open items
+
+- **LibreOffice desktop 0.4.3 has reported issues, not yet diagnosed.** The user found
+  them after the 0.4.3 artefacts were built and will continue from a desktop machine.
+  Nothing is known about them beyond that, and nothing has been attempted. Start by asking
+  what the symptoms are rather than guessing; `~/laita-libreoffice.log` is the first place
+  to look.
+- **Two screenshots are out of date.** `assets/imgs/sceenshot_laita_lo4.png` shows the
+  transform dialog without its Copy button, and `sceenshot_laita_lo5.png` the options
+  dialog without "Paragraphs to remember". Both changed in 0.4.3 and want retaking.
+- **VS Code cannot edit a transform before applying it**, unlike the browser and
+  LibreOffice. Both sides of its review diff are served by a `TextDocumentContentProvider`
+  and are read-only by construction; making the right-hand side writable needs a
+  `FileSystemProvider` on its own scheme. Copy is offered instead. Deliberate, not missed.
+- **0.4.3 is built but not tested by a human on any surface**, and not uploaded anywhere.
+  The artefacts are in `browser/web-ext-artifacts/`, `vscode/` and `libreoffice/dist/`.
 
 - **Firefox has no installable build.** See Store status above. This is the one thing a
   user can currently not do.
@@ -359,8 +398,9 @@ user.
   700 kept on the browser; LibreOffice flipped 0 → 700 to match. The false latency line in
   the browser options page was corrected.
 - The 16px icon is legible but weak; a hand-drawn simplified mark was offered and not done.
-- The LibreOffice extension is not packaged for distribution: no release artefact and
-  no listing. `libreoffice/laita.oxt` is gitignored like every other build output.
+- ~~The LibreOffice extension is not packaged for distribution.~~ **Done.** It is on
+  <https://extensions.libreoffice.org> and `tools/build-oxt.sh --release` produces
+  `dist/laita-<version>.oxt`.
 - The transform dialog gives no progress beyond a status line while the model works.
   It runs off the UI thread so LibreOffice stays responsive, but a long selection is
   a long wait with nothing moving.
