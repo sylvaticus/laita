@@ -123,6 +123,22 @@ guard is the load-bearing one, because it is what makes a stale cached answer sa
 edited text. It must stay script-aware: in Japanese, Chinese and Korean every character
 abuts another, and a naive test would reject every suggestion in those languages.
 
+**Translation must never return an empty string.** Core pastes the reply over the user's
+selection with `SwTransferable::Paste`, and pastes an empty string when the request fails —
+a reported bug in the real DeepL integration. So every failure path in `Checker.translate`
+and its handler returns the ORIGINAL text with HTTP 200: model down, whitespace answer,
+exception, missing target language, wrong `auth_key`, feature switched off. A 4xx would
+make core paste nothing, so there are none. A wrong key costs a model call, not a
+paragraph. Core sets no timeout on this call (`// todo add timeout`), so nothing here has
+to be fast.
+
+**The model is never shown markup on the translate path.** The selection arrives as HTML;
+block tags pass through and inline tags are dropped, so the model only ever sees and writes
+text. It cannot then invent, drop or reorder a tag — and this path PASTES, so a mangled tag
+is damage rather than a bad suggestion. Its output is HTML-escaped on the way out for the
+same reason. Translation also does not go through the `Engine`: proofreading and
+transforming do not share a code path anywhere in LAITA.
+
 **The guards are in `languagetool/`, not in `laita_anchor.py`, deliberately.** That file is
 a transcription of `browser/src/background/anchor.js` and the two are tested against each
 other. A guard added to one and not the other breaks the parity. If this proves right, it

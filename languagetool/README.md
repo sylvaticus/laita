@@ -110,6 +110,65 @@ server out of this checkout. It does not copy the code: the service reuses
 `libreoffice/src/pythonpath/`, so the repository has to stay where it is, or
 `LAITA_SHARED_PATH` has to say where those modules went.
 
+## Translation, through the DeepL hook
+
+Collabora has a second hook: `deepl.api_url`, behind the Translate entry in the Tools
+menu. Point it here and translation runs on the same local model, with no DeepL account
+and nothing leaving the machine.
+
+```
+--o:deepl.enabled=true
+--o:deepl.api_url=http://172.17.0.1:8181/v2/translate
+--o:deepl.auth_key=<anything, or the apiKey you configured>
+```
+
+Unlike `languagetool.base_url`, `api_url` is the **whole endpoint**, not a base — the
+DeepL default it replaces is `https://api-free.deepl.com/v2/translate`.
+
+A translation is a transform with a fixed instruction, so it rides on
+`laita_ollama.request_transform` and inherits the fence against prompt injection, the
+output cleaning and the truncation guard the extension's *Transform selection* already
+uses. It does **not** go through the `Engine`: proofreading is automatic, cached and
+debounced, a translation is one thing a person asked for once. Nothing in LAITA lets those
+two share a code path.
+
+### The rule that cannot break
+
+The reply is pasted back over the user's selection with `SwTransferable::Paste`, and when
+the request fails core pastes **an empty string** — that is a
+[reported bug](https://forum.collaboraonline.com/t/deepl-integration-removes-text-to-be-translated/3341)
+in the real DeepL integration, and it is not ours to reproduce. So:
+
+> **Never return an empty translation.** Every failure returns the *original* text, so the
+> paste is a no-op instead of a deletion.
+
+That includes a model that is down, that returns whitespace, that raises, a missing target
+language, a wrong `auth_key`, and translation being switched off. All of them answer HTTP
+200 carrying the text unchanged — a 4xx would make core paste nothing. A wrong key costs a
+model call, not a paragraph. `test_translate.py` asserts it from each of those directions.
+
+Two more consequences of the reply being pasted rather than displayed: the model's output
+is HTML-escaped on the way out, so anything tag-shaped in its answer lands as text rather
+than as structure; and there is no timeout to respect, because core sets none on this call
+(`// todo add timeout`) — unlike the ten seconds it allows a grammar check.
+
+### What happens to the markup
+
+The text arrives as HTML, because the selection is exported through the HTML filter.
+Block structure is kept and inline formatting is dropped: `<p>`, `<li>`, `<td>` and
+anything unrecognised pass through untouched, while `<b>`, `<i>`, `<a>` and `<span>` are
+removed and their text translated as part of the sentence around them.
+
+The model is never shown a tag and never asked to write one, so it cannot invent, drop or
+reorder them. DeepL's own `tag_handling=html` preserves markup because DeepL guarantees
+it; a local model does not, and this path pastes over the user's work. Inline spans rarely
+survive a translation intact anyway — the words move.
+
+One case worth knowing: a single paragraph arrives wrapped in `<span>` rather than `<p>`,
+which is how Collabora avoids inserting a paragraph break. `<span>` is inline, so it is
+dropped, and the property is preserved by accident of the rule rather than by a special
+case.
+
 ## Can this be used as a general LanguageTool server for other programs?
 
 Partly. It speaks the protocol — `POST /v2/check` with `text` and `language`, `GET
@@ -266,6 +325,7 @@ the same way and have the same latent bug.
 | --- | --- |
 | `src/laita_lt_server.py` | the debounce, the cache, the HTTP, and `main()` |
 | `src/laita_lt_typing.py` | the part-typed word, at both ends |
+| `src/laita_lt_translate.py` | HTML in, HTML out, and the prompt between them |
 | `src/laita_lt_protocol.py` | LAITA issues as LanguageTool matches. No I/O, no clock |
 | `src/laita_lt_config.py` | the JSON file, the environment, and what is refused |
 | `src/laita_lt_shared.py` | the one place that says where the ported modules live |

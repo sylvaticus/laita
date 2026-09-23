@@ -57,6 +57,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import laita_lt_config                                      # noqa: E402
 import laita_lt_protocol as protocol                        # noqa: E402
+import laita_lt_translate as translate_                      # noqa: E402
 import laita_lt_typing as typing_                            # noqa: E402
 import laita_lt_shared                                      # noqa: E402
 
@@ -338,6 +339,46 @@ class Checker:
             source, len(raw), len(kept),
             (" (%d part-word dropped)" % dropped) if dropped else "")
 
+    # --- translation -----------------------------------------------------------------
+    # Deliberately NOT through the Engine: proofreading and transforming do not share a
+    # code path anywhere in LAITA. Proofreading is automatic, cached and debounced; this
+    # is one thing a user asked for, once, and is never cached or queued.
+    def translate(self, html, target_lang):
+        """Translated HTML, and why. NEVER returns empty or raises.
+
+        The caller pastes whatever comes back over the user's selection, and pastes an
+        empty string when the request fails - so every failure here returns the ORIGINAL
+        text instead, making the paste a no-op rather than a deletion.
+        """
+        s = self.settings
+        if not s["translate"]:
+            return html, "translation is switched off"
+        language = translate_.language_name(target_lang, ollama.LANGUAGE_NAMES)
+        if not language:
+            return html, "no target language given"
+        parts = translate_.split(html)
+        runs = translate_.segments(parts)
+        if not runs:
+            return html, "nothing to translate"
+
+        instruction = translate_.instruction(language)
+        timeout = float(s["translateTimeoutMs"]) / 1000.0
+        done = {}
+        for indices, text in runs:
+            # lang=None: we are not told the source language and do not guess. The prompt
+            # then says "the language of the text", and the instruction names the target.
+            try:
+                out = ollama.request_transform(text, instruction, None, s, timeout=timeout)
+            except Exception as err:
+                # Caught HERE, not only in the HTTP handler, so that the promise in this
+                # method's docstring is true of the method. A caller that used it any
+                # other way would otherwise paste an empty string over somebody's text.
+                return html, "%s text left unchanged" % ollama.describe_error(err)
+            if not out or not out.strip():
+                return html, "the model returned nothing; text left unchanged"
+            done[indices[0]] = out
+        return translate_.rebuild(parts, done), "%d run(s) into %s" % (len(runs), language)
+
     def status(self):
         return {
             "version": VERSION,
@@ -386,6 +427,8 @@ def handler_class(checker, settings, log):
             path = urllib.parse.urlparse(self.path).path.rstrip("/")
             if path.endswith("/check"):
                 return self._check()
+            if path.endswith("/translate"):
+                return self._translate()
             if path.endswith("/languages"):
                 return self._send(languages)
             if path in ("", "/status"):
@@ -419,6 +462,32 @@ def handler_class(checker, settings, log):
                     "up at 10s" % (elapsed, settings["waitMs"]))
             self._send(protocol.check_response(text, issues, lang, anchor.to_utf16_index,
                                                name="LAITA", version=VERSION))
+
+        def _translate(self):
+            """DeepL's shape, because that is the hook Collabora offers.
+
+            Every path out of here is HTTP 200 carrying text. A 4xx or 5xx would make the
+            caller paste an empty string over the user's selection - that is a reported
+            bug in the real DeepL integration, and it is not ours to reproduce. A wrong
+            auth key therefore costs a model call, not a paragraph.
+            """
+            fields = self._fields()
+            text = (fields.get("text") or [""])[0]
+            target = (fields.get("target_lang") or [""])[0]
+            if key and (fields.get("auth_key") or [""])[0] != key:
+                log("translate refused: wrong or missing auth_key")
+                out, why = text, "bad auth_key; text left unchanged"
+            else:
+                started = time.time()
+                try:
+                    out, why = checker.translate(text, target)
+                except Exception as err:
+                    log("translate failed: %r" % (err,))
+                    out, why = text, "failed; text left unchanged"
+                why = "%s, %.0fms" % (why, (time.time() - started) * 1000)
+            log("translate: %d chars -> %s, %s" % (len(text), target or "?", why))
+            self._send({"translations": [
+                {"detected_source_language": "", "text": out}]})
 
         def do_GET(self):
             self._route()

@@ -64,6 +64,14 @@ SERVER_DEFAULTS = {
     # costs one keystroke before it is recognised. "caret" is accepted as a synonym for
     # "typed", so a configuration copied from the extension means what it looks like.
     "scope": "typed",
+    # The translation endpoint, which Collabora reaches by having deepl.api_url point at
+    # it. false makes it hand every fragment back untranslated - never an error, because
+    # an error deletes the user's selection. See laita_lt_translate.
+    "translate": True,
+    # Translation has no ceiling to respect: core sets no timeout at all on that call,
+    # unlike the ten seconds it allows a grammar check. This is only a backstop against a
+    # model that has hung.
+    "translateTimeoutMs": 300000,
     # "" logs to stderr, which is what a systemd unit wants.
     "logFile": "",
     # How long a check may hold its request open waiting for the model. It must cover
@@ -81,6 +89,7 @@ _CLAMP = {
     # 9000 rather than 10000: the answer still has to be serialised and sent.
     "waitMs": (0, 9000),
     "port": (1, 65535),
+    "translateTimeoutMs": (5000, 3600000),
 }
 
 

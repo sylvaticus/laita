@@ -182,6 +182,40 @@ sudo docker exec collabora sh -c 'for f in /proc/[0-9]*/cmdline; do
 
 ---
 
+## 6b. Translation (optional)
+
+The same service also answers Collabora's **Translate** button, so your users get
+translation from the same local model — no DeepL account, no API key, nothing leaving the
+server. Two more options on coolwsd:
+
+```
+--o:deepl.enabled=true
+--o:deepl.api_url=http://172.17.0.1:8181/v2/translate
+--o:deepl.auth_key=laita
+```
+
+Note the difference from the grammar setting: `api_url` is the **whole endpoint**, ending
+in `/v2/translate`, because it replaces DeepL's own full URL. `auth_key` can be anything
+unless you set `apiKey` in the configuration, in which case it must match that.
+
+To use it: select some text, then **Tools ▸ Translate**, and pick a language. Expect about
+half a second for a sentence.
+
+Two things to tell users:
+
+- **It is a local model, not DeepL.** Quality is good for the major European languages and
+  falls off for the rest. Try it in the languages your people actually write in before
+  announcing it.
+- **Bold, italics and links inside the selection are lost**, though paragraphs, lists and
+  tables survive. The model is deliberately never shown the markup, because a model that
+  invents a tag here damages the document rather than making a bad suggestion.
+
+If the model is unreachable or answers nothing, the text comes back **unchanged** rather
+than empty. That is deliberate: the editor pastes the reply over your selection, so an
+empty reply would delete it.
+
+---
+
 ## 7. Test it
 
 Open a Writer document from Nextcloud. Set the text language (**Tools ▸ Language**) and make
@@ -239,6 +273,8 @@ The settings worth knowing:
 | `minChars` | paragraphs shorter than this are not sent. Raise it on a busy server |
 | `debounceMs` | how long a paragraph must be still before the model is asked. Comes straight off the answer's latency, so lower it to ~800 if you want faster underlines and can afford more model calls |
 | `waitMs` | how long a check may wait for the model before giving up and answering empty. Must exceed `debounceMs`; capped at 9000 because the editor gives up at 10 s |
+| `translate` | `false` makes the Translate button hand text back untouched. Never an error: an error would delete the selection |
+| `translateTimeoutMs` | backstop for a hung model. There is no ceiling to respect here — the editor sets no timeout on translation at all |
 | `model` | a smaller model is dramatically cheaper and still catches hard errors |
 | `languages` | what `/v2/languages` advertises. It restricts nothing — any language the model knows is proofread whether it is listed or not, and Collabora does not read the list at all |
 
@@ -266,6 +302,8 @@ Ollama a second GPU.
 | Nothing on one paragraph, fine on others | No language set on that text, or shorter than `minChars` |
 | `not being edited` in the log, no underlines on an open document | Working as intended: `scope` is `"typed"`, so a paragraph is checked once somebody types in it. Set `scope` to `"document"` to check on open |
 | `address already in use` recreating the container | Orphaned `docker-proxy` on 9980 (§6) |
+| Translate returns the text unchanged | The model was unreachable or answered nothing — `journalctl` says which. Unchanged is the safe failure; empty would delete the selection |
+| Translate does nothing at all | `deepl.enabled` or `deepl.api_url` did not reach coolwsd; check it the same way as §6, grepping for `deepl` |
 
 Everything the service does is in the journal, one line per check:
 
@@ -290,8 +328,8 @@ it gone.
 
 ## Privacy, for the notice you owe your users
 
-Text people type in Collabora is sent to the LAITA service and to Ollama, both on this
-server, and to nothing else. No API key, no external service, no internet. The service
+Text people type in Collabora, and any text they ask to have translated, is sent to the
+LAITA service and to Ollama, both on this server, and to nothing else. No API key, no external service, no internet. The service
 keeps recent paragraphs in memory to avoid asking the model twice; it writes none of them
 to disk, and they are gone when it restarts. The journal records the length of each
 paragraph checked and the first 60 characters of paragraphs the model was asked about —

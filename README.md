@@ -256,7 +256,7 @@ Local desktop LibreOffice:
 
 -  From LibreOffice: `Tools` ⇒ `Extensions` ⇒ `Add` ⇒ upload the extension package that you downloaded in the previous point
 
-Collabora Online (proofreading):
+Collabora Online (proofreading and translation):
 
 Refer to the documentation in the `languagetool` folder ([README](languagetool/README.md), [DEPLOY](languagetool/DEPLOY.md)) for how to deploy a small proxy server that speaks the LanguageTool API and connects to your local Ollama.
 In theory the server could be used by any other program that consumes the LanguageTool API. Untested on anything other than LibreOffice/Collabora Online.
