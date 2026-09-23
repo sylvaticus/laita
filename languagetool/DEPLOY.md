@@ -33,12 +33,13 @@ to Ollama, all on your own host.
 Suggestions appear as coloured underlines with a right-click menu, exactly like the
 built-in spell checker — errors in red, style in orange, rephrasings in blue.
 
-Two limits are worth telling your users about, because both look like bugs otherwise:
+Two things are worth telling your users, because both look like bugs otherwise:
 
-- **Suggestions arrive a few seconds late, on the next keystroke.** The service answers
-  instantly and asks the model in the background; there is no way for it to tell the editor
-  "look again". If someone stops typing and waits, nothing appears — one more keystroke, or
-  clicking back into the paragraph, brings it up.
+- **Suggestions take a few seconds.** A local model is not a dictionary lookup: about three
+  seconds for a normal paragraph on a server with a GPU. They appear while typing continues.
+- **A long paragraph may show nothing at first.** If the model cannot answer within
+  `waitMs`, that check comes back empty and the answer is kept for the next one. Editing
+  the paragraph again brings it up.
 - **"Ignore All" silences a whole category, not one suggestion.** The protocol gives no
   place to identify an individual suggestion. A permanent ignore list exists, but it is
   server-wide and set by you in the configuration file.
@@ -235,7 +236,8 @@ The settings worth knowing:
 | `dictionary` | words never to flag: place names, jargon, people |
 | `extraInstructions` | house style, in plain language, added to the prompt |
 | `minChars` | paragraphs shorter than this are not sent. Raise it on a busy server |
-| `debounceMs` | how long a paragraph must be still before the model is asked |
+| `debounceMs` | how long a paragraph must be still before the model is asked. Comes straight off the answer's latency, so lower it to ~800 if you want faster underlines and can afford more model calls |
+| `waitMs` | how long a check may wait for the model before giving up and answering empty. Must exceed `debounceMs`; capped at 9000 because the editor gives up at 10 s |
 | `model` | a smaller model is dramatically cheaper and still catches hard errors |
 | `languages` | what `/v2/languages` advertises. It restricts nothing — any language the model knows is proofread whether it is listed or not, and Collabora does not read the list at all |
 
@@ -258,7 +260,8 @@ Ollama a second GPU.
 | No underlines at all, nothing in the log | Collabora never called. Check the `--o:` options reached coolwsd (§6) |
 | Every check takes exactly 10 s | The firewall is dropping the packets (§5) |
 | `WARNING: Ollama has no model` at startup | `ollama pull <model>` |
-| Underlines appear only when typing continues | Expected — there is no way to push a result (§1) |
+| Log full of `queued`, no underlines | The model is not answering inside `waitMs`. Check the `model:` lines for how long it really takes, then raise `waitMs` (max 9000), lower `debounceMs`, or use a smaller model |
+| A long paragraph shows nothing, short ones work | Same cause: the budget ran out. The answer is cached, so editing it again shows it |
 | Nothing on one paragraph, fine on others | No language set on that text, or shorter than `minChars` |
 | `address already in use` recreating the container | Orphaned `docker-proxy` on 9980 (§6) |
 

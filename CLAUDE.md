@@ -57,13 +57,25 @@ by PID instead.
 overrides it. A second copy of `anchor.py`'s four guards would be a third place for them to
 be wrong, which `doc/roadmap.md` already flags as this project's main risk.
 
-**The client gives up after 10 seconds and it is not configurable.** LibreOffice core sets
-`CURLOPT_TIMEOUT, 10L` in `lingucomponent/source/spellcheck/languagetool/languagetoolimp.cxx`,
-and a paragraph takes this model 8–50 s. So a check must NEVER wait for the model: answer
-from cache, or from `provisional()`, or with nothing, and let the model run behind. There is
-no `PROOFREAD_AGAIN` on this path, so the answer is collected by the next keystroke instead
-of appearing by itself. `test_server.py` asserts the no-waiting property directly; if a
-change makes `check()` block, that is the one bug this design exists to prevent.
+**A check must wait for the model, within a budget — the opposite of the extension.** The
+first version did not wait, reasoning as the extension does: answer empty, fill the cache,
+let the next keystroke collect it. Measured against a real Collabora that is worthless — 75
+checks, 25 answered `queued`, **not one match ever delivered** — because the client stops
+asking when the user stops typing and there is no `PROOFREAD_AGAIN` here to tell it
+otherwise. The last check of a paragraph is the one that matters and the one with no answer
+yet. Do not "restore" the non-blocking version; `waitMs: 0` is kept for a client that polls.
+
+Waiting is safe for two measured reasons, and both must hold: LibreOffice never proofreads
+one document concurrently (`doc/roadmap.md`), so the call throttles that document rather
+than queueing behind itself; and the 8–50 s figures were a throttling laptop GPU, where a
+server with the model resident answers in 0.7–2.2 s.
+
+**The budget is a hard promise.** `CURLOPT_TIMEOUT, 10L` is compiled into the client
+(`lingucomponent/source/spellcheck/languagetool/languagetoolimp.cxx`). `waitMs` is capped at
+9000 and must exceed `debounceMs` — it spans the debounce *and* the model, so a smaller
+budget means every check times out empty, which is the failure the wait was added to fix.
+Config refuses it at startup. `test_server.py` asserts the budget is never overrun, against
+a model that never answers at all.
 
 **One debounce timer per paragraph, not per server.** The extension's single pending slot is
 right for one cursor and wrong for many: the protocol carries no session, document or user,

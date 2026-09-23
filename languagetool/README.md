@@ -116,19 +116,33 @@ server out of this checkout. It does not copy the code: the service reuses
 configurable (`lingucomponent/source/spellcheck/languagetool/languagetoolimp.cxx`). A
 paragraph takes this model 8–50 seconds.
 
-So the model is never waited for while a request is open. A check answers from the cache,
-or with the nearest previous answer, or with nothing — always at once — and the model runs
-behind it. LibreOffice re-checks a paragraph on every keystroke, so the next one collects
-the answer. Measured on this machine: **59 ms** to answer a cache miss, the real answer
-arriving about six seconds later.
+So a check waits for the answer, but only up to `waitMs` (7 s by default), then falls back
+to the cache, to the nearest previous answer, or to nothing.
 
-That is the same architecture as the extension, for the same measured reasons, with one
-piece removed and one added.
+**The first version did not wait at all**, on the extension's reasoning: answer empty, fill
+the cache behind, let the next keystroke collect it. It was measured against a real
+Collabora and it does not work. 75 checks, 25 of them answered `queued`, and **not one
+non-empty answer ever reached a user.** The client stops asking the moment the user stops
+typing, and there is no `PROOFREAD_AGAIN` on this path to tell it to look again — so the
+last check of a paragraph is always the one that matters, and always the one with no answer
+yet. The mock used to prove the plumbing had worked precisely because it answered
+synchronously.
 
-**Removed: there is no `PROOFREAD_AGAIN`.** The extension fires it when an answer lands and
-the underline appears by itself. Nothing here can tell a client to look again, so an answer
-for a paragraph the user has stopped touching waits in the cache until they touch it again
-— one more keystroke, or clicking back into it.
+Waiting is affordable because the 8–50 s in `doc/roadmap.md` was a laptop GPU under thermal
+throttling. On a server with the model resident, a real paragraph comes back in 0.7–2.2 s,
+and LibreOffice never proofreads one document concurrently (measured, same file), so a call
+that waits throttles that document rather than queueing behind itself. Measured end to end
+here: **3.1 s** for a first check — 1.5 s of debounce plus 1.6 s of model — against a
+ceiling of 10.
+
+`waitMs` has to cover the debounce *and* the model, so a value below `debounceMs` is refused
+at startup rather than left to be discovered: every check would wait, time out and answer
+empty, which is the exact failure the wait was added to fix.
+
+**What is still lost against the extension.** A paragraph slower than the budget — a long
+one, or one queued behind other people's — still answers empty, and its answer then sits in
+the cache until the client happens to ask again. The debounce and the cache keep that rare
+rather than impossible.
 
 **Added: several people at once.** The protocol carries no session, no document and no user;
 two requests are indistinguishable except by their text. The extension's single debounce

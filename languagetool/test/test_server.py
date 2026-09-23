@@ -18,6 +18,7 @@ import os
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "src"))
@@ -124,70 +125,101 @@ def main():
     check("editing the start of a paragraph is still one stream", len(fired), 1)
     check("...and it is the newest text", fired, ["He slow" + tail])
 
-    # --- 2. check() never waits for the model ------------------------------------------
+    # --- 2. a check waits for the answer, within a budget -------------------------------
+    # The first draft answered empty and relied on the client asking again. Measured
+    # against a real Collabora that produced 25 "queued" answers and not one match: the
+    # client stops asking when the user stops typing, and there is no PROOFREAD_AGAIN
+    # here to tell it otherwise. The last check of a paragraph is the one that matters
+    # and it is the one with no answer yet.
     FakeTimer.reset()
     asked, release = [], threading.Event()
 
-    def slow_model(text, lang):
+    def model(text, lang):
         asked.append(text)
-        release.wait(10)                      # a model that has not answered yet
+        release.wait(10)
         return [{"type": "error", "original": "teh", "replacement": "the", "message": "typo"}]
 
-    s = settings(minChars=5)
-    c = Checker(s, log=lambda m: None, timer_factory=FakeTimer, ask=slow_model)
-
+    s = settings(minChars=5, waitMs=4000, debounceMs=1500)
+    c = Checker(s, log=lambda m: None, timer_factory=FakeTimer, ask=model)
     para = "I saw teh cat sitting on the mat this morning."
-    started = time.time()
-    issues, why = c.check(para, "en")
-    check("a miss answers at once", time.time() - started < 0.5, True)
-    check("...with nothing", issues, [])
-    check("...and says why", why, "queued")
 
-    FakeTimer.fire_all()                      # the paragraph has settled; the model runs
-    check("the model is now being asked", wait_for(lambda: asked == [para]), True)
+    pool = ThreadPoolExecutor(2)
+    pending = pool.submit(c.check, para, "en")
+    check("the check is still holding its request open",
+          wait_for(lambda: FakeTimer.pending != []) and not pending.done(), True)
 
-    started = time.time()
-    issues, why = c.check(para, "en")
-    check("a check while the model is running still answers at once",
-          time.time() - started < 0.5, True)
-    check("...and does not ask a second time", asked, [para])
-
+    FakeTimer.fire_all()                      # the paragraph settles; the model is asked
+    check("the model is asked", wait_for(lambda: asked == [para]), True)
+    check("and the check is still waiting for it", pending.done(), False)
     release.set()
-    check("the answer lands", wait_for(lambda: c.engine.lookup(para) is not None), True)
 
-    issues, why = c.check(para, "en")
-    check("the next check serves it from cache", len(issues), 1)
+    issues, why = pending.result(timeout=5)
+    check("the FIRST check returns the real matches", len(issues), 1)
     check("...anchored to the text", para[issues[0]["start"]:issues[0]["end"]], "teh")
+    check("...having waited for them", why.startswith("waited"), True)
+
+    # A second look is a plain cache hit and must not wait at all.
+    started = time.time()
+    issues, why = c.check(para, "en")
+    check("a cached answer is instant", time.time() - started < 0.2, True)
     check("...and says so", why.startswith("cache"), True)
 
-    # A one-character edit is a cache miss, and must not blank the underline.
-    edited = para + " "
-    issues, why = c.check(edited, "en")
+    # A one-character edit is a miss again, and must not blank the underline while the
+    # new answer is computed.
+    FakeTimer.reset()
+    issues, why = c.check(para + " ", "en")
     check("an edit keeps the previous underlines", len(issues), 1)
     check("...from the provisional answer", why.startswith("provisional"), True)
+
+    # --- the budget is a promise: never past it, whatever the model does ----------------
+    # LibreOffice gives up at 10s. Overrunning the budget is the one failure this design
+    # exists to prevent, so it is asserted against a model that never answers at all.
+    FakeTimer.reset()
+    stuck = threading.Event()
+    c2 = Checker(settings(minChars=5, waitMs=400, debounceMs=100),
+                 log=lambda m: None, timer_factory=FakeTimer,
+                 ask=lambda text, lang: stuck.wait(30) or [])
+    other = "A paragraph the model will never answer about, however long we wait."
+    started = time.time()
+    issues, why = c2.check(other, "en")
+    elapsed = time.time() - started
+    check("a model that never answers still returns", issues, [])
+    check("...within the budget", 0.35 < elapsed < 1.5, True)
+    stuck.set()
+
+    # --- waitMs 0 restores the original never-wait behaviour ------------------------------
+    FakeTimer.reset()
+    c3 = Checker(settings(minChars=5, waitMs=0), log=lambda m: None,
+                 timer_factory=FakeTimer, ask=lambda text, lang: [])
+    started = time.time()
+    issues, why = c3.check("Another paragraph, long enough to be sent off.", "en")
+    check("waitMs 0 answers at once", time.time() - started < 0.2, True)
+    check("...with nothing", why, "queued")
 
     # --- a model that fails must not take the server with it ----------------------------
     FakeTimer.reset()
     def broken_model(text, lang):
         raise RuntimeError("ollama is down")
 
-    c2 = Checker(settings(minChars=5), log=lambda m: None, timer_factory=FakeTimer,
-                 ask=broken_model)
-    other = "Another paragraph entirely, with different words in it."
-    c2.check(other, "en")
-    FakeTimer.fire_all()
-    check("a failing model is recorded", wait_for(lambda: c2.engine.last_error is not None), True)
+    c4 = Checker(settings(minChars=5, waitMs=4000, debounceMs=1500), log=lambda m: None,
+                 timer_factory=FakeTimer, ask=broken_model)
+    broke = "A paragraph entirely its own, with quite different words in it."
     started = time.time()
-    issues, why = c2.check(other, "en")
-    check("...and the next check still answers at once", time.time() - started < 0.5, True)
-    check("...with nothing rather than an error", issues, [])
+    pending = pool.submit(c4.check, broke, "en")
+    wait_for(lambda: FakeTimer.pending != [])
+    FakeTimer.fire_all()                      # let the doomed request actually happen
+    issues, why = pending.result(timeout=5)
+    check("a failing model still answers", issues, [])
+    check("...promptly, not after the whole budget", time.time() - started < 3.0, True)
+    check("...and the failure is recorded", c4.engine.last_error is not None, True)
 
     # --- a language nobody advertised is still checked -----------------------------------
     # /v2/languages is advisory. Nothing in the check path consults it, and a client
     # asking for a language absent from it must be served, not refused.
     FakeTimer.reset()
     asked_lang = []
-    c5 = Checker(settings(minChars=5), log=lambda m: None, timer_factory=FakeTimer,
+    c5 = Checker(settings(minChars=5, waitMs=400, debounceMs=100), log=lambda m: None,
+                 timer_factory=FakeTimer,
                  ask=lambda text, lang: asked_lang.append(lang) or [])
     c5.check("Jeg gikk til butikken i gar for a kjope melk.", "nn-NO")
     FakeTimer.fire_all()

@@ -46,6 +46,21 @@ SERVER_DEFAULTS = {
     "userName": "",
     # "" logs to stderr, which is what a systemd unit wants.
     "logFile": "",
+    # How long a check may hold its request open waiting for the model. It must cover
+    # debounceMs AND the model's own time, and must stay clear of the 10 SECONDS at which
+    # LibreOffice gives up - that limit is compiled into the client and cannot be raised.
+    #
+    # 0 restores the original behaviour: never wait, answer empty, let the next check
+    # collect the answer. That reads well and does not work, because the client stops
+    # asking when the user stops typing; it is kept only for a client that does poll.
+    "waitMs": 7000,
+}
+
+# Bounds for the server's own settings. laita_settings.clamp covers the shared ones.
+_CLAMP = {
+    # 9000 rather than 10000: the answer still has to be serialised and sent.
+    "waitMs": (0, 9000),
+    "port": (1, 65535),
 }
 
 
@@ -86,8 +101,21 @@ def load(path=None):
             else:
                 out[key] = value
     for key in out:
-        if key not in SERVER_DEFAULTS:
+        if key in _CLAMP:
+            low, high = _CLAMP[key]
+            try:
+                out[key] = max(low, min(high, type(low)(out[key])))
+            except (TypeError, ValueError):
+                out[key] = SERVER_DEFAULTS[key]
+        elif key not in SERVER_DEFAULTS:
             out[key] = laita_settings.clamp(key, out[key])
+    if out["waitMs"] and out["waitMs"] <= out["debounceMs"]:
+        # Otherwise every check waits, times out and answers empty: the budget is spent
+        # before the model is even asked. Worth refusing rather than debugging.
+        raise ValueError(
+            "waitMs (%s) must exceed debounceMs (%s), or no check can ever be answered "
+            "in time - the wait covers the debounce as well as the model."
+            % (out["waitMs"], out["debounceMs"]))
     return out
 
 

@@ -104,6 +104,29 @@ def main():
     check("temperature is clamped", c["temperature"], 2.0)
     os.unlink(path)
 
+    # --- the budget must be able to cover the debounce -------------------------------------
+    # waitMs spans the debounce AND the model. A budget smaller than the debounce means
+    # every check waits, times out and answers empty - the exact failure this whole
+    # mechanism was added to fix, reintroduced by a plausible-looking config file.
+    check("the budget clears the debounce by default",
+          d["waitMs"] > d["debounceMs"], True)
+    path = wrote({"waitMs": 1000, "debounceMs": 1500})
+    try:
+        config.load(path)
+        check("a budget under the debounce is refused", "no error", "ValueError")
+    except ValueError as err:
+        check("a budget under the debounce is refused", "must exceed" in str(err), True)
+    os.unlink(path)
+
+    path = wrote({"waitMs": 30000})
+    check("the budget is clamped below the client's 10s limit",
+          config.load(path)["waitMs"], 9000)
+    os.unlink(path)
+
+    path = wrote({"waitMs": 0})
+    check("0 is allowed, and means never wait", config.load(path)["waitMs"], 0)
+    os.unlink(path)
+
     # --- environment ---------------------------------------------------------------------
     c = config.from_env(config.defaults(),
                         {"LAITA_LT_HOST": "172.17.0.1", "LAITA_LT_PORT": "8181",

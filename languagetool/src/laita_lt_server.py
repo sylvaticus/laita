@@ -16,17 +16,27 @@ The one hard constraint, and the reason this file is shaped as it is:
     lingucomponent/source/spellcheck/languagetool/languagetoolimp.cxx. It is not
     configurable. A paragraph takes this model 8-50 seconds (doc/roadmap.md).
 
-So the model is NEVER waited for while a request is open. A check answers from the cache,
-or answers with the nearest previous answer, or answers with nothing - always at once -
-and the model runs behind it. LibreOffice re-checks a paragraph on every keystroke, so the
-answer is collected by the next one.
+So a check waits for the answer, but only up to `waitMs` - comfortably under the ceiling -
+and falls back to the cache, to the nearest previous answer, or to nothing.
 
-What this loses against the extension, and cannot get back:
+The first draft did not wait at all: answer empty, fill the cache behind, and let the next
+keystroke collect it. That is what the extension does, and here it does not work. Measured
+against a real Collabora: 75 checks, 25 of them answered "queued", and not one non-empty
+answer ever reached a user. The reason is that **the client stops asking the moment the
+user stops typing**, and there is no PROOFREAD_AGAIN on this path to tell it to look
+again. The last check of a paragraph is always the one that matters, and it is always the
+one there is no answer for yet.
 
-  * There is no PROOFREAD_AGAIN. The extension fires it when an answer lands and the
-    underline appears by itself; here nothing can tell the client to look again, so an
-    answer for a paragraph the user has stopped touching waits in the cache until they
-    touch it again.
+Waiting is affordable because the numbers that argued against it were measured on a laptop
+GPU. On a server with the model resident, a real paragraph comes back in 0.7-2.2 s, and
+LibreOffice never calls a proofreader concurrently for one document (measured -
+doc/roadmap.md), so a call that waits simply throttles that document instead of queueing.
+
+What is still lost against the extension, and cannot be got back:
+
+  * A paragraph slower than `waitMs` - a long one, or one behind a queue of other people's
+    - still answers empty, and its answer then sits in the cache until the client happens
+    to ask again. The debounce and the cache are what keep that rare.
   * "Ignore All" cannot be per-suggestion, because the reader never sets aRuleIdentifier
     on this path. The ignore list is server-wide.
 
@@ -164,10 +174,15 @@ class Checker:
     def __init__(self, settings, log, timer_factory=None, ask=None):
         self.settings = settings
         self.log = log
+        # One event per text somebody is waiting on, reference counted because two people
+        # can be editing the same paragraph of the same document.
+        self._waiters = {}
+        self._waiters_lock = threading.Lock()
         # `ask` is the seam the tests use. It has to be a constructor argument: the
         # Engine binds the callable it is given, so replacing the attribute afterwards
         # changes nothing and the test quietly exercises the real Ollama path instead.
         self.engine = laita_engine.Engine(ask or self._ask_the_model, log=log,
+                                          on_ready=self._answer_ready,
                                           timer_factory=timer_factory)
         self.debouncer = StreamDebouncer(
             max(0.0, float(settings["debounceMs"]) / 1000.0), self._settled, log,
@@ -193,6 +208,34 @@ class Checker:
                  % (len(text), len(chunks), len(raw), time.time() - started, text[:60]))
         return raw
 
+    def _answer_ready(self, text):
+        """An answer has been cached. Wake anyone holding a request open for it."""
+        with self._waiters_lock:
+            entry = self._waiters.get(text)
+        if entry is not None:
+            entry[0].set()
+
+    def _wait_for(self, text, timeout):
+        """Block until an answer for exactly this text is cached, or the budget runs out.
+
+        Safe to hold a request open here: LibreOffice never proofreads one document
+        concurrently, so this throttles that document rather than queueing behind itself,
+        and every other document has its own connection.
+        """
+        with self._waiters_lock:
+            entry = self._waiters.get(text)
+            if entry is None:
+                entry = [threading.Event(), 0]
+                self._waiters[text] = entry
+            entry[1] += 1
+        try:
+            entry[0].wait(timeout)
+        finally:
+            with self._waiters_lock:
+                entry[1] -= 1
+                if entry[1] <= 0:
+                    self._waiters.pop(text, None)
+
     def _settled(self, text, lang, settings):
         """A paragraph has stopped changing. enqueue(), not request(): the Engine's own
         debounce is global, and this class has already done the debouncing per stream."""
@@ -213,14 +256,24 @@ class Checker:
         source = "cache"
         if raw is None:
             self.debouncer.note(text, lang, s)
-            # Show the previous answer for this paragraph while the new one is computed,
-            # rather than dropping every underline on each keystroke. Anchoring below is
-            # against the CURRENT text, so anything the edit invalidated falls out by
-            # itself - which is why the cache holds raw answers and not ranges.
-            raw = self.engine.provisional(text)
-            source = "provisional"
+            # Hold the request open for the answer. The budget covers the debounce AND the
+            # model, so it has to exceed debounceMs or nothing will ever be waited for.
+            budget = float(s["waitMs"]) / 1000.0
+            if budget > 0:
+                self._wait_for(text, budget)
+                raw = self.engine.lookup(text)
+                source = "waited"
             if raw is None:
-                return [], "queued"
+                # Show the previous answer for this paragraph rather than dropping every
+                # underline. Anchoring below is against the CURRENT text, so anything the
+                # edit invalidated falls out by itself - which is why the cache holds raw
+                # answers and not ranges.
+                raw = self.engine.provisional(text)
+                source = "provisional"
+                if raw is None:
+                    return [], "queued"
+            else:
+                self.hits += 1
         else:
             self.hits += 1
         issues = anchor.anchor_issues(text, raw, categories=s["categories"],
@@ -301,10 +354,11 @@ def handler_class(checker, settings, log):
             elapsed = time.time() - started
             log("check: %d chars, lang=%s, %s, %.0fms"
                 % (len(text), lang or "auto", why, elapsed * 1000))
-            if elapsed > 5.0:
-                # The reader gives up at 10s. Getting near it means something here has
-                # started blocking, which is the one bug this design exists to avoid.
-                log("WARNING: a check took %.1fs; the client's limit is 10s" % elapsed)
+            if elapsed > (float(settings["waitMs"]) / 1000.0) + 1.0:
+                # The reader gives up at 10s, and we promised to answer within waitMs.
+                # Overrunning our own budget means something is blocking that should not.
+                log("WARNING: a check took %.1fs, over its %sms budget; the client gives "
+                    "up at 10s" % (elapsed, settings["waitMs"]))
             self._send(protocol.check_response(text, issues, lang, anchor.to_utf16_index,
                                                name="LAITA", version=VERSION))
 
