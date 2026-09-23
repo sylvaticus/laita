@@ -30,7 +30,12 @@ Nothing here imports uno, which is what lets it be tested without LibreOffice.
 import threading
 import time
 
-CACHE_MAX = 200
+# Paragraphs kept. Measured with tracemalloc against realistic content: 2.2 KB for a
+# typical prose paragraph of ~550 characters with three issues, 4.3 KB for a long one,
+# 0.7 KB for a short one. So this is roughly 45 MB of typical prose, and about twice that
+# if every paragraph is long. It was 200 - a quarter of a megabyte - which threw away
+# answers that were still worth having.
+CACHE_MAX = 20000
 
 # How much of a paragraph must match before a previous answer is reused while the new one
 # is computed. Below this, two short paragraphs starting "The " would borrow each other's
@@ -90,6 +95,9 @@ class Engine:
         timer_factory         -> injected for tests, so they need not sleep in real time.
         """
         self._proofread = proofread
+        # Public on purpose: the caller re-reads its settings as they change, and the cap
+        # is one of them. Nothing here reads it except _remember.
+        self.cache_max = CACHE_MAX
         self._on_ready = on_ready or (lambda text: None)
         self._log = log or (lambda msg: None)
         self._timer_factory = timer_factory or threading.Timer
@@ -223,7 +231,7 @@ class Engine:
             self._order.remove(text)
         self._cache[text] = issues
         self._order.append(text)
-        while len(self._order) > CACHE_MAX:
+        while len(self._order) > max(1, self.cache_max):
             del self._cache[self._order.pop(0)]
 
     # --- control ----------------------------------------------------------------------

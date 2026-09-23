@@ -119,13 +119,26 @@ def main():
     check("forget empties the cache", e3.lookup("some text here"), None)
 
     # --- eviction keeps the cache bounded ---------------------------------------------
+    # cache_max is set here rather than left at the default, which is 20000 - sized in
+    # megabytes rather than for a test, and it is the caller's to set anyway.
     e4, asked4, _ = engine()
+    e4.cache_max = 200
     for i in range(260):
         e4.request("text number %d" % i, "en", SETTINGS)
         FakeTimer.run_all()
     check("the cache is bounded", len(e4._cache) <= 200, True)
     check("the newest is kept", e4.lookup("text number 259") is not None, True)
     check("the oldest is evicted", e4.lookup("text number 0"), None)
+
+    # The cap is the caller's to set, and the caller changes it as its settings change.
+    e4b, _, _ = engine()
+    e4b.cache_max = 3
+    for i in range(10):
+        e4b.request("paragraph number %d" % i, "en", SETTINGS)
+        FakeTimer.run_all()
+    check("a smaller cap is honoured", len(e4b._cache), 3)
+    check("...keeping the newest", e4b.lookup("paragraph number 9") is not None, True)
+    check("...and dropping the oldest", e4b.lookup("paragraph number 0"), None)
 
     # --- busy reports honestly ----------------------------------------------------------
     e5, _, _ = engine()

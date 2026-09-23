@@ -27,6 +27,7 @@ DEFAULTS = {
     "minChars": 25,
     "maxChars": 12000,
     "chunkMaxChars": 700,
+    "cacheMax": 20000,
     "scope": "caret",
     "categories": {"error": True, "style": True, "rephrase": True},
     "dictionary": [],
@@ -51,6 +52,7 @@ _MAP = {
     "minChars": ("Checking", "MinChars"),
     "maxChars": ("Checking", "MaxChars"),
     "chunkMaxChars": ("Checking", "ChunkMaxChars"),
+    "cacheMax": ("Checking", "CacheMax"),
     "scope": ("Checking", "Scope"),
     "dictionary": ("Suggestions", "Dictionary"),
     "ignored": ("Suggestions", "Ignored"),
@@ -71,6 +73,8 @@ _CLAMP = {
     "minChars": (1, 500),
     "maxChars": (500, 200000),
     "chunkMaxChars": (0, 4000),
+    # 100 is about a quarter of a megabyte; 200000 about 450 MB of typical prose.
+    "cacheMax": (100, 200000),
 }
 
 

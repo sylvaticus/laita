@@ -285,6 +285,7 @@ The settings worth knowing:
 | `dictionary` | words never to flag: place names, jargon, people |
 | `extraInstructions` | house style, in plain language, added to the prompt |
 | `scope` | `"typed"` (default) checks only paragraphs somebody is working in; `"document"` checks every paragraph the client offers. Leave it alone unless you want a whole document proofread on open, which on a long one is a model call per paragraph |
+| `cacheMax` | paragraphs of model output kept. Measured at ~2.2 KB each, so the default 20000 is roughly 45 MB. A hit costs no model call, which is why reopening a document is instant |
 | `minChars` | paragraphs shorter than this are not sent. Raise it on a busy server |
 | `debounceMs` | how long a paragraph must be still before the model is asked. Comes straight off the answer's latency, so lower it to ~800 if you want faster underlines and can afford more model calls |
 | `waitMs` | how long a check may wait for the model before giving up and answering empty. Must exceed `debounceMs`; capped at 9000 because the editor gives up at 10 s |
@@ -317,6 +318,7 @@ Ollama a second GPU.
 | Nothing on one paragraph, fine on others | No language set on that text, or shorter than `minChars` |
 | `not being edited` in the log, no underlines on an open document | Working as intended: `scope` is `"typed"`, so a paragraph is checked once somebody types in it. Set `scope` to `"document"` to check on open |
 | Errors appear instantly when reopening a document | The service caches answers by paragraph text, in memory. A document checked before — or a copy of it, which has the same text — is answered from cache with no model call. Restarting the service clears it |
+| The service is using more memory than expected | `cacheMax` paragraphs at roughly 2.2 KB each, plus the model, which is Ollama's memory and not this process's. `curl .../status` reports `cached` and `cacheMax` |
 | `address already in use` recreating the container | Orphaned `docker-proxy` on 9980 (§6) |
 | Translate returns the text unchanged | The model was unreachable or answered nothing — `journalctl` says which. Unchanged is the safe failure; empty would delete the selection |
 | Translate does nothing at all | `deepl.enabled` or `deepl.api_url` did not reach coolwsd; check it the same way as §6, grepping for `deepl` |

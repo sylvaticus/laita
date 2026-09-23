@@ -266,6 +266,7 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
             res.nStartOfNextSentencePosition = len(text)
 
             s = settings_store.read(self.ctx)
+            self.engine.cache_max = s["cacheMax"]
             if not s["enabled"] or self.engine.stopped:
                 return res
             stripped = text.strip()

@@ -106,6 +106,15 @@
         spans sentences.</small>
       </div>
       <div class="row">
+        <label for="cacheMax">Paragraphs to remember</label>
+        <input id="cacheMax" type="number" min="100" max="200000" step="100">
+        <small>Answers already worked out, kept so that the same paragraph is never sent
+        twice - going back to something you wrote earlier costs nothing. About 2&nbsp;KB
+        each, so 20000 is roughly 45&nbsp;MB. They are held in memory only and go when the
+        browser unloads the extension. Lower it if that matters more to you than
+        re-checking text you have already seen.</small>
+      </div>
+      <div class="row">
         <label for="maxChars">Maximum characters per check</label>
         <input id="maxChars" type="number" min="500" max="200000" step="500">
         <small>How much text one check may send, not how long a field may be. With

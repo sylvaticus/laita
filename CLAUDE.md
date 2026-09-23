@@ -345,6 +345,15 @@ one-token reply took 14.5s while the GPU was busy). Hence paragraph-level chunki
 cache of raw model output keyed by content, and re-checking only changed paragraphs. The
 cache stores *raw* responses so that changing the ignore list needs no invalidation.
 
+**The answer cache is sized in megabytes, not in a round number.** `CACHE_MAX` was 200,
+which is about a quarter of a megabyte and threw away answers still worth having. Measured
+with tracemalloc against realistic content: **2.2 KB** for a typical prose paragraph of
+~550 characters with three issues, 4.3 KB for a long one, 0.7 KB for a short one. The
+default of 20000 is therefore ~45 MB, roughly double that if every paragraph is long. It is
+a setting on all four surfaces (`cacheMax`, `laita.cacheMax`, `CacheMax`, `--cache-max`)
+and `Engine.cache_max` is a public attribute because the caller re-reads its settings as
+they change.
+
 ## Conventions
 
 - Content scripts share one sandbox global: `var LAITA` in `common.js`, visible to the files

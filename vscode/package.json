@@ -194,6 +194,13 @@
             "type": "number",
             "default": 700,
             "description": "Paragraphs longer than this are split on sentence boundaries."
+          },
+          "laita.cacheMax": {
+            "type": "number",
+            "default": 20000,
+            "minimum": 100,
+            "maximum": 200000,
+            "description": "Paragraphs of model output to remember, so the same paragraph is never sent twice. About 2 KB each, so the default of 20000 is roughly 45 MB."
           }
         }
       },

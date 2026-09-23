@@ -34,7 +34,9 @@ const lastSent = new Map();
  * Raw rather than anchored, so that adding a word to the dictionary or turning off a
  * category needs no invalidation: only the prompt inputs are part of the key.
  */
-const CACHE_MAX = 400;
+// Fallback only; the laita.cacheMax setting is what decides. ~2 KB a paragraph, so the
+// default of 20000 is roughly 45 MB.
+const CACHE_MAX = 20000;
 const cache = new Map();
 
 function cacheKey(text, lang, s) {
@@ -54,7 +56,9 @@ function cacheGet(key) {
 
 function cacheSet(key, value) {
   cache.set(key, value);
-  while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+  const limit = Number(vscode.workspace.getConfiguration("laita").get("cacheMax"))
+    || CACHE_MAX;
+  while (cache.size > limit) cache.delete(cache.keys().next().value);
 }
 
 /**

@@ -31,6 +31,9 @@ export const DEFAULTS = {
   // an explicit whole-field sweep can exceed this. Also caps a single transform.
   maxChars: 12000,
   chunkMaxChars: 700,      // a paragraph longer than this is split into sentence groups
+  // Paragraphs of model output kept. Measured at ~2.2 KB each for typical prose with
+  // three issues, so this is roughly 45 MB. A hit costs no model call at all.
+  cacheMax: 20000,
   // "caret"  - only the paragraph the caret is in, leaving the rest of a long document
   //            alone until you work on it. Opening a 2000-word post should not queue up
   //            twenty requests before you have typed anything.
@@ -84,6 +87,7 @@ export const LIMITS = {
   debounceMs:       [300, 20000],
   minChars:         [1, 500],
   chunkMaxChars:    [120, 4000],
+  cacheMax:         [100, 200000],
   maxChars:         [500, 200000]
 };
 
@@ -255,7 +259,7 @@ export function isClearTextEndpoint(endpoint) {
  *  needs no tab to hear about it. */
 export const CONTENT_VISIBLE = new Set([
   "enabled", "sites", "siteMode", "siteOverrides", "categories", "colors",
-  "debounceMs", "minChars", "maxChars", "chunkMaxChars", "showBadge", "debug",
+  "debounceMs", "minChars", "maxChars", "chunkMaxChars", "cacheMax", "showBadge", "debug",
   "transformDefault", "language", "triggerMode", "transformHistory"
 ]);
 

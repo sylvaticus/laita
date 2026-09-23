@@ -20,9 +20,12 @@ import { anchorIssues, hash } from "./anchor.js";
 
 // ---------------------------------------------------------------- cache
 
-const CACHE_MAX = 600;
+// Superseded by the cacheMax setting; kept as the fallback for a cache write that
+// happens before settings have loaded.
+const CACHE_MAX = 20000;
 /** key -> raw model issues. Raw, so that changing the ignore list needs no invalidation. */
 const cache = new Map();
+let cacheLimit = 0;            // set from settings; 0 means "use CACHE_MAX"
 
 function cacheKey(text, lang, s) {
   const cats = ["error", "style", "rephrase"].map((c) => (s.categories[c] ? "1" : "0")).join("");
@@ -48,7 +51,7 @@ function cacheGet(key) {
 
 function cacheSet(key, value) {
   cache.set(key, value);
-  while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+  while (cache.size > (cacheLimit || CACHE_MAX)) cache.delete(cache.keys().next().value);
 }
 
 // ---------------------------------------------------------------- queue
@@ -190,6 +193,7 @@ async function withRetry(attempt, signal) {
 async function checkChunk({ text, lang, clientId, gen }) {
   const settings = await getSettings();
   queue.limit = Math.max(1, Number(settings.concurrency) || 1);
+  cacheLimit = Number(settings.cacheMax) || DEFAULTS.cacheMax;
   noteGeneration(clientId, gen);
 
   const anchor = (raw) =>

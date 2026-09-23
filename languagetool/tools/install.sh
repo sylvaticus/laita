@@ -26,6 +26,7 @@ PORT=8181
 MODEL=qwen3.5:9b
 ENDPOINT=http://127.0.0.1:11434
 SCOPE=typed
+CACHE_MAX=20000
 DRY=0
 UNINSTALL=0
 
@@ -38,6 +39,11 @@ usage: sudo $0 [options]
   --port N        port to bind (default $PORT)
   --model NAME    Ollama model (default $MODEL)
   --endpoint URL  Ollama endpoint (default $ENDPOINT)
+  --cache-max N   paragraphs of model output to keep (default $CACHE_MAX).
+                  Measured at 2.2 KB for a typical prose paragraph, so the
+                  default is roughly 45 MB, and about twice that if every
+                  paragraph is long. A hit costs no model call at all, which is
+                  why reopening a document is instant.
   --scope WHICH   what to proofread (default $SCOPE)
                     typed     only paragraphs somebody is working in. Opening a
                               document asks the model nothing; a paragraph is
@@ -62,6 +68,7 @@ while [ $# -gt 0 ]; do
     --model) MODEL="$2"; shift 2 ;;
     --endpoint) ENDPOINT="$2"; shift 2 ;;
     --scope) SCOPE="$2"; shift 2 ;;
+    --cache-max) CACHE_MAX="$2"; shift 2 ;;
     --prefix) PREFIX="$2"; shift 2 ;;
     --user) SERVICE_USER="$2"; shift 2 ;;
     --config) CONF="$2"; shift 2 ;;
@@ -103,6 +110,13 @@ case "$SCOPE" in
   typed|document) ;;
   *) echo "--scope must be 'typed' or 'document', not '$SCOPE'" >&2; exit 1 ;;
 esac
+case "$CACHE_MAX" in
+  ''|*[!0-9]*) echo "--cache-max must be a number, not '$CACHE_MAX'" >&2; exit 1 ;;
+esac
+if [ "$CACHE_MAX" -lt 100 ] || [ "$CACHE_MAX" -gt 200000 ]; then
+  echo "--cache-max must be between 100 and 200000 (about 0.2 MB to 450 MB)" >&2
+  exit 1
+fi
 for d in "$SRC/src" "$REPO/libreoffice/src/pythonpath"; do
   [ -d "$d" ] || { echo "missing: $d - run this from a full LAITA checkout" >&2; exit 1; }
 done
@@ -112,6 +126,7 @@ echo "  prefix   $PREFIX"
 echo "  config   $CONF"
 echo "  service  $SERVICE_USER, ${HOST}:${PORT}, model $MODEL"
 echo "  scope    $SCOPE"
+echo "  cache    $CACHE_MAX paragraphs (~$((CACHE_MAX * 2236 / 1048576)) MB)"
 echo
 
 # A dedicated unprivileged account. Everything anyone types passes through this process,
@@ -151,7 +166,8 @@ else
   "port": $PORT,
   "model": "$MODEL",
   "endpoint": "$ENDPOINT",
-  "scope": "$SCOPE"
+  "scope": "$SCOPE",
+  "cacheMax": $CACHE_MAX
 }
 JSON
   fi

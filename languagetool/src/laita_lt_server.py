@@ -216,6 +216,7 @@ class Checker:
         self.engine = laita_engine.Engine(ask or self._ask_the_model, log=log,
                                           on_ready=self._answer_ready,
                                           timer_factory=timer_factory)
+        self.engine.cache_max = settings["cacheMax"]
         self.debouncer = StreamDebouncer(
             max(0.0, float(settings["debounceMs"]) / 1000.0), self._settled, log,
             timer_factory=timer_factory)
@@ -391,6 +392,7 @@ class Checker:
             "checks": self.checks,
             "cacheHits": self.hits,
             "cached": len(self.engine._cache),
+            "cacheMax": self.engine.cache_max,
             "streamsPending": self.debouncer.pending,
             "busy": self.engine.busy,
             "lastError": str(self.engine.last_error) if self.engine.last_error else None,
@@ -522,9 +524,10 @@ def main(argv=None):
 
     log("LAITA LanguageTool %s starting on %s:%d"
         % (VERSION, settings["host"], settings["port"]))
-    log("model %s at %s, chunk %s, debounce %sms"
+    log("model %s at %s, chunk %s, debounce %sms, cache %s paragraphs (~%d MB)"
         % (settings["model"], settings["endpoint"], settings["chunkMaxChars"],
-           settings["debounceMs"]))
+           settings["debounceMs"], settings["cacheMax"],
+           settings["cacheMax"] * 2236 // (1024 * 1024)))
     # Say at start whether the model is actually there. The alternative is a server that
     # looks healthy and answers every check with nothing, for a reason only visible one
     # request deep in the log.

@@ -496,7 +496,7 @@ export function looksTruncatedTransform(original, output, instruction = "") {
 /**
  * The model sometimes hands the fence back. Usually the closing marker alone on its own
  * line, and sometimes without its `>>>` - observed as `Hello world\nTEXT_3082eae76f9d`
- * from a translation, which the caller then pasted into the document. Nothing a person
+ * from a translation, and the caller pasted it straight into somebody's text. Nothing
  * writes is a line consisting only of `TEXT_<hex>`, so this is safe to remove wherever it
  * appears rather than only at the end.
  */

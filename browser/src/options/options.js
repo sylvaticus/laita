@@ -15,7 +15,8 @@ const SCALARS = [
   ["endpoint", "text"], ["model", "text"], ["temperature", "number"], ["numCtx", "number"],
   ["concurrency", "number"], ["keepAlive", "text"], ["think", "bool"],
   ["triggerMode", "text"], ["checkScope", "text"], ["debounceMs", "number"], ["minChars", "number"],
-  ["chunkMaxChars", "number"], ["maxChars", "number"], ["language", "text"],
+  ["chunkMaxChars", "number"], ["maxChars", "number"], ["cacheMax", "number"],
+  ["language", "text"],
   ["tint", "bool"], ["showBadge", "bool"], ["siteMode", "text"],
   ["enabled", "bool"], ["debug", "bool"], ["extraInstructions", "text"],
   ["transformDefault", "text"]
