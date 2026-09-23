@@ -65,6 +65,12 @@ run() {
   if [ "$DRY" = "1" ]; then echo "  would: $*"; else "$@"; fi
 }
 
+# Past tense only when it actually happened. A dry run that reports things it did not do
+# is worse than no dry run, and this is the mode people are told to trust.
+did() {
+  [ "$DRY" = "1" ] || echo "$*"
+}
+
 if [ "$DRY" = "0" ] && [ "$(id -u)" != "0" ]; then
   echo "run me with sudo (or pass --dry-run to see what it would do)" >&2
   exit 1
@@ -98,7 +104,7 @@ if id "$SERVICE_USER" >/dev/null 2>&1; then
   echo "user $SERVICE_USER exists"
 else
   run useradd --system --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
-  echo "created system user $SERVICE_USER"
+  did "created system user $SERVICE_USER"
 fi
 
 # ---------------------------------------------------------------- the code
@@ -107,7 +113,7 @@ run rm -rf "$PREFIX/languagetool/src" "$PREFIX/libreoffice/src/pythonpath"
 run cp -a "$SRC/src" "$PREFIX/languagetool/src"
 run cp -a "$REPO/libreoffice/src/pythonpath" "$PREFIX/libreoffice/src/pythonpath"
 run find "$PREFIX" -name __pycache__ -type d -exec rm -rf {} +
-echo "copied the server and the shared modules into $PREFIX"
+did "copied the server and the shared modules into $PREFIX"
 
 # ---------------------------------------------------------------- the config
 if [ -f "$CONF" ]; then
@@ -128,7 +134,7 @@ JSON
   fi
   run chown root:"$SERVICE_USER" "$CONF"
   run chmod 640 "$CONF"
-  echo "wrote $CONF"
+  did "wrote $CONF"
 fi
 
 # ---------------------------------------------------------------- the unit
@@ -174,7 +180,7 @@ WantedBy=multi-user.target
 UNITEOF
 fi
 run cp "$SRC/README.md" "$SRC/DEPLOY.md" "$PREFIX/languagetool/"
-echo "wrote $UNIT"
+did "wrote $UNIT"
 
 if [ "$DRY" = "1" ]; then
   echo
