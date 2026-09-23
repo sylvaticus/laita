@@ -60,6 +60,28 @@ def _shared_ends(a, b):
     return prefix + suffix
 
 
+def same_stream(a, b):
+    """How much two texts share, if they are the same paragraph one edit apart; else 0.
+
+    Pulled out of provisional() so that the LanguageTool server can ask the same question
+    for a different reason. It debounces per paragraph rather than globally, because it
+    serves several people at once and the protocol carries nothing to tell them apart -
+    two texts this call says are related are one person still typing, and must supersede
+    each other; two it says are not are two people, and must not.
+    """
+    shared = _shared_ends(a, b)
+    shortest = min(len(a), len(b))
+    if not shortest:
+        return 0
+    # Two conditions, and the floor must never exceed the text itself: deleting from a
+    # paragraph makes it shorter than MIN_SHARED_PREFIX, and it would then be unable to
+    # match the answer it had a moment earlier.
+    floor = min(MIN_SHARED_PREFIX, shortest)
+    if shared >= floor and shared >= shortest * 0.6:
+        return shared
+    return 0
+
+
 class Engine:
     def __init__(self, proofread, on_ready=None, log=None, timer_factory=None):
         """
@@ -104,14 +126,8 @@ class Engine:
             for candidate, issues in self._cache.items():
                 if candidate == text:
                     return issues
-                shared = _shared_ends(candidate, text)
-                shortest = min(len(candidate), len(text))
-                # Two conditions, and the floor must never exceed the text itself:
-                # deleting from a paragraph makes it shorter than MIN_SHARED_PREFIX, and
-                # it would then be unable to match the answer it had a moment earlier.
-                floor = min(MIN_SHARED_PREFIX, shortest)
-                if shortest and shared >= floor and shared >= shortest * 0.6 \
-                        and shared > best_len:
+                shared = same_stream(candidate, text)
+                if shared > best_len:
                     best, best_len = issues, shared
             return best
 

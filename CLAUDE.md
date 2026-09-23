@@ -50,6 +50,48 @@ to run `pkill -f testrun` themselves.
 it matches the shell running it and kills the session. Kill by port (`fuser -k -n tcp N`) or
 by PID instead.
 
+## The LanguageTool server (`languagetool/`)
+
+**It reuses `libreoffice/src/pythonpath/` rather than copying it.** Those modules import no
+`uno`. `laita_lt_shared.py` is the only place that says where they are; `LAITA_SHARED_PATH`
+overrides it. A second copy of `anchor.py`'s four guards would be a third place for them to
+be wrong, which `doc/roadmap.md` already flags as this project's main risk.
+
+**The client gives up after 10 seconds and it is not configurable.** LibreOffice core sets
+`CURLOPT_TIMEOUT, 10L` in `lingucomponent/source/spellcheck/languagetool/languagetoolimp.cxx`,
+and a paragraph takes this model 8–50 s. So a check must NEVER wait for the model: answer
+from cache, or from `provisional()`, or with nothing, and let the model run behind. There is
+no `PROOFREAD_AGAIN` on this path, so the answer is collected by the next keystroke instead
+of appearing by itself. `test_server.py` asserts the no-waiting property directly; if a
+change makes `check()` block, that is the one bug this design exists to prevent.
+
+**One debounce timer per paragraph, not per server.** The extension's single pending slot is
+right for one cursor and wrong for many: the protocol carries no session, document or user,
+so two typists would cancel each other and the timer would fire only for whoever paused
+last. `StreamDebouncer` asks `laita_engine.same_stream` whether two texts are one paragraph
+an edit apart. It counts characters shared at **both ends** — a prefix-only key would treat
+editing the start of a paragraph as a new person and fire a request per keystroke.
+
+**`style` is sent as LanguageTool category `GRAMMAR`, and that is not a mistake.** The
+reader picks the underline colour from `rule.category.id` through a fixed table — `TYPOS`
+and `orth` red, `STYLE` blue, anything else orange — and there is no way to send a colour.
+`GRAMMAR` is what makes a style suggestion the same orange it is in LibreOffice. Likewise
+`rephrase` is sent as `STYLE` to get blue. `test_protocol.py` pins all three.
+
+**Both `message` and `shortMessage` must be sent.** The reader loads `shortMessage` into
+`aShortComment` and then overwrites it from `message`; sending only the former gives an
+empty tooltip.
+
+**`Checker` takes its model callable as a constructor argument (`ask=`).** `Engine` binds
+the callable it is handed, so assigning `checker._ask_the_model` afterwards changes nothing
+and a test doing that silently exercises the real Ollama instead of the fake. This was a
+real bug in the first draft of `test_server.py`.
+
+**An unknown key in the config file is fatal.** The extension degrades to defaults on
+purpose — raising inside LibreOffice becomes a modal dialog on every keystroke — but a
+server silently ignoring `chunkMaxChar` costs an afternoon. Settings that need a cursor are
+refused with a message saying why.
+
 ## Design invariants — breaking these causes silent corruption
 
 **A transform captures the selection as text offsets before its panel opens.** Focusing the

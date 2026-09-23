@@ -609,7 +609,11 @@ paused.
 ## 7. Development
 
 This repository is a monorepo: [`browser/`](browser/) holds the Firefox and Chrome
-extension, [`vscode/`](vscode/) the editor one. Nothing is compiled anywhere in this
+extension, [`vscode/`](vscode/) the editor one, [`libreoffice/`](libreoffice/) the `.oxt`,
+and [`languagetool/`](languagetool/) a server that speaks the LanguageTool API so that
+Collabora Online — which cannot install extensions — can use LAITA too, for every user at
+once and with nothing installed by anybody; deploying that one is
+[`languagetool/DEPLOY.md`](languagetool/DEPLOY.md). Nothing is compiled anywhere in this
 project.
 
 **Everything about running, building, packaging or signing LAITA yourself is in
