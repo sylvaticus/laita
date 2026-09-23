@@ -259,28 +259,36 @@ class Checker:
 
         raw = self.engine.lookup(text)
         source = "cache"
-        if raw is None:
+        if raw is not None:
+            self.hits += 1
+        else:
             self.debouncer.note(text, lang, s)
-            # Hold the request open for the answer. The budget covers the debounce AND the
-            # model, so it has to exceed debounceMs or nothing will ever be waited for.
-            budget = float(s["waitMs"]) / 1000.0
-            if budget > 0:
-                self._wait_for(text, budget)
-                raw = self.engine.lookup(text)
-                source = "waited"
+            # Answer NOW if there is anything at all to answer with, and only wait when
+            # there is not. Order matters, and it is the whole of this method.
+            #
+            # Waiting unconditionally was measured and was worse than not waiting: every
+            # answer arrived about three seconds after the keystroke that asked for it,
+            # by which time the paragraph had moved on, and not one underline appeared -
+            # although the log showed matches going out on every request. Answering in
+            # 0 ms from the previous answer put them back. A result that describes text
+            # the user has already edited is no result at all.
+            #
+            # Anchoring below is against the CURRENT text, so whatever the edit
+            # invalidated falls out by itself. That is why the cache holds the model's
+            # raw answer and not ranges.
+            raw = self.engine.provisional(text)
+            source = "provisional"
             if raw is None:
-                # Show the previous answer for this paragraph rather than dropping every
-                # underline. Anchoring below is against the CURRENT text, so anything the
-                # edit invalidated falls out by itself - which is why the cache holds raw
-                # answers and not ranges.
-                raw = self.engine.provisional(text)
-                source = "provisional"
+                # Nothing to show. Now waiting is strictly better than an empty answer:
+                # a cold paragraph would otherwise never be underlined at all, because
+                # the client stops asking the moment the user stops typing.
+                budget = float(s["waitMs"]) / 1000.0
+                if budget > 0:
+                    self._wait_for(text, budget)
+                    raw = self.engine.lookup(text)
+                    source = "waited"
                 if raw is None:
                     return [], "queued"
-            else:
-                self.hits += 1
-        else:
-            self.hits += 1
         issues = anchor.anchor_issues(text, raw, categories=s["categories"],
                                       ignored=s["ignored"])
         # A quote from an older snapshot of this paragraph can still be found in the

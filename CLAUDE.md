@@ -57,7 +57,15 @@ by PID instead.
 overrides it. A second copy of `anchor.py`'s four guards would be a third place for them to
 be wrong, which `doc/roadmap.md` already flags as this project's main risk.
 
-**A check must wait for the model, within a budget — the opposite of the extension.** The
+**Answer immediately if there is anything to answer with; wait only when there is not.**
+The order in `Checker.check` is the whole design and both halves were measured against a
+real Collabora. Waiting only when the cache missed but a previous answer existed made every
+answer arrive ~3 s after the keystroke that asked for it; by then the paragraph had moved
+on and **no underline appeared at all**, though the log showed matches going out on every
+request. A result describing text the user has already edited is no result. Answering in
+0 ms from `provisional()` put them back. Do not reorder these.
+
+**A check must wait for the model when it has nothing at all, within a budget.** The
 first version did not wait, reasoning as the extension does: answer empty, fill the cache,
 let the next keystroke collect it. Measured against a real Collabora that is worthless — 75
 checks, 25 answered `queued`, **not one match ever delivered** — because the client stops

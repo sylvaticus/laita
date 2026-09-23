@@ -171,6 +171,23 @@ def main():
     check("an edit keeps the previous underlines", len(issues), 1)
     check("...from the provisional answer", why.startswith("provisional"), True)
 
+    # --- having something to show beats having the right thing ---------------------------
+    # Waiting whenever the cache missed was measured against a real Collabora and was
+    # worse than not waiting at all: every answer arrived ~3s after the keystroke that
+    # asked for it, the paragraph had moved on, and NO underline appeared - though the
+    # log showed matches going out on every request. A result about text the user has
+    # already edited is no result. So once there is a previous answer to show, a check
+    # must answer from it immediately and never hold the request open.
+    FakeTimer.reset()
+    edited = para + " It was raining."
+    started = time.time()
+    issues, why = c.check(edited, "en")
+    check("with a provisional to hand, a check does not wait",
+          time.time() - started < 0.2, True)
+    check("...and still underlines something", len(issues) >= 1, True)
+    check("...from the provisional answer", why.startswith("provisional"), True)
+    check("...having still queued the real one", FakeTimer.pending != [], True)
+
     # --- the budget is a promise: never past it, whatever the model does ----------------
     # LibreOffice gives up at 10s. Overrunning the budget is the one failure this design
     # exists to prevent, so it is asserted against a model that never answers at all.

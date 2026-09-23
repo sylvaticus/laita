@@ -116,8 +116,10 @@ server out of this checkout. It does not copy the code: the service reuses
 configurable (`lingucomponent/source/spellcheck/languagetool/languagetoolimp.cxx`). A
 paragraph takes this model 8–50 seconds.
 
-So a check waits for the answer, but only up to `waitMs` (7 s by default), then falls back
-to the cache, to the nearest previous answer, or to nothing.
+So a check answers from the cache, or from the nearest previous answer, **immediately** —
+and only when it has neither does it wait, for up to `waitMs` (7 s by default).
+
+That order is the whole design, and both halves of it were measured rather than reasoned.
 
 **The first version did not wait at all**, on the extension's reasoning: answer empty, fill
 the cache behind, let the next keystroke collect it. It was measured against a real
@@ -138,6 +140,17 @@ ceiling of 10.
 `waitMs` has to cover the debounce *and* the model, so a value below `debounceMs` is refused
 at startup rather than left to be discovered: every check would wait, time out and answer
 empty, which is the exact failure the wait was added to fix.
+
+**And waiting when there was something to show was worse than not waiting.** The second
+draft waited on every cache miss. Every answer then arrived about three seconds after the
+keystroke that asked for it, by which time the paragraph had moved on — and not one
+underline appeared, although the log showed matches going out on every request. A result
+that describes text the user has already edited is no result at all. Answering in 0 ms from
+the previous answer put them back, and the model's fresh answer is collected by the next
+keystroke, which is exactly what `provisional()` is for.
+
+So the wait is now only for a **cold** paragraph, where the alternative is not a stale
+underline but no underline ever.
 
 **What is still lost against the extension.** A paragraph slower than the budget — a long
 one, or one queued behind other people's — still answers empty, and its answer then sits in
