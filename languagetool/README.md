@@ -154,11 +154,42 @@ characters shared at **both** ends, which is why editing the *start* of a paragr
 recognised as the same stream; a shared-prefix key would have called every keystroke there a
 new person and fired a request for each.
 
+## The word being typed
+
+This is the only LAITA surface asked about text on every keystroke, so it sees half-written
+words constantly, and one measured session shows why that matters:
+
+```
+08:41:43  model: 69 chars  'Sorry, I don't speak very good English. I would wish that  I can spea'
+```
+
+The model did as it was told and reported *"Missing letter 'k' and incomplete word"*. Two
+things then went wrong. It underlined the word the user was in the middle of typing — which
+no spell checker does. And the answer was cached, reused while the next one computed, and
+the fragment matched inside a correctly spelled `speak` **earlier in the sentence**, offering
+to replace a good word with itself.
+
+`laita_lt_typing.py` holds both guards: the part-typed word is not sent to the model, and an
+anchored range that is only part of a longer word is dropped. The second is the load-bearing
+one — it is what makes any stale cached answer safe against edited text — and it is
+script-aware, because in Japanese, Chinese and Korean every character abuts another and a
+naive test would reject every suggestion in those languages.
+
+The cost is stated rather than hidden: a paragraph that ends without punctuation has its
+last word unchecked until a space or full stop follows it. That is the bargain every spell
+checker makes.
+
+Neither guard is in `laita_anchor.py`, on purpose: that file is a transcription of
+`anchor.js` and the two are tested against each other. If these prove right they belong in
+the JavaScript first and in the port after — the browser and VS Code reuse cached answers
+the same way and have the same latent bug.
+
 ## How it is put together
 
 | | |
 | --- | --- |
 | `src/laita_lt_server.py` | the debounce, the cache, the HTTP, and `main()` |
+| `src/laita_lt_typing.py` | the part-typed word, at both ends |
 | `src/laita_lt_protocol.py` | LAITA issues as LanguageTool matches. No I/O, no clock |
 | `src/laita_lt_config.py` | the JSON file, the environment, and what is refused |
 | `src/laita_lt_shared.py` | the one place that says where the ported modules live |

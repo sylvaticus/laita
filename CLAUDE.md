@@ -94,6 +94,28 @@ and `orth` red, `STYLE` blue, anything else orange — and there is no way to se
 `aShortComment` and then overwrites it from `message`; sending only the former gives an
 empty tooltip.
 
+**Never ask the model about the word being typed, and never let a quote match inside a
+word.** `laita_lt_typing.py`, and both halves were paid for by one measured session: the
+model was asked about `...I would wish that  I can spea`, reported "Missing letter 'k' and
+incomplete word" quoting the fragment, and that answer - cached and reused while the next
+computed - matched inside a correctly spelled `speak` EARLIER in the same sentence, offering
+to replace a good word with itself. `anchor.py`'s `already_there` covers the shapes where
+the replacement contains the quote; `I can spea -> speak` is not one of them. The word
+guard is the load-bearing one, because it is what makes a stale cached answer safe against
+edited text. It must stay script-aware: in Japanese, Chinese and Korean every character
+abuts another, and a naive test would reject every suggestion in those languages.
+
+**The guards are in `languagetool/`, not in `laita_anchor.py`, deliberately.** That file is
+a transcription of `browser/src/background/anchor.js` and the two are tested against each
+other. A guard added to one and not the other breaks the parity. If this proves right, it
+belongs in the JavaScript first and in the port after — the browser and VS Code have the
+same latent bug through their own `provisional`.
+
+**`install.sh` must `systemctl restart`, not `enable --now`.** `--now` starts a stopped
+service and does nothing at all to one already running, so a reinstall left the old process
+serving the old code while every file on disk said the fix was deployed. That cost a whole
+debugging round: the symptom was the fix "not working".
+
 **`Checker` takes its model callable as a constructor argument (`ask=`).** `Engine` binds
 the callable it is handed, so assigning `checker._ask_the_model` afterwards changes nothing
 and a test doing that silently exercises the real Ollama instead of the fake. This was a

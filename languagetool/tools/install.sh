@@ -189,14 +189,20 @@ if [ "$DRY" = "1" ]; then
 fi
 
 systemctl daemon-reload
-systemctl enable --now laita-languagetool.service
+systemctl enable laita-languagetool.service
+# restart, not "enable --now": --now starts a stopped service and does NOTHING to one
+# already running, so reinstalling over a running service left the old process serving
+# the old code while every file on disk said otherwise.
+systemctl restart laita-languagetool.service
 sleep 3
 systemctl --no-pager --lines=20 status laita-languagetool.service || true
 
+# Prove the RUNNING process is the one just installed, rather than trusting the file dates.
+STARTED=$(systemctl show laita-languagetool -p ExecMainStartTimestamp --value)
 cat <<NOTE
 
 ------------------------------------------------------------------------
-Bound to ${HOST}:${PORT}.  Check it answers:
+Bound to ${HOST}:${PORT}, running since ${STARTED}.  Check it answers:
 
     curl -s http://${HOST}:${PORT}/status
 

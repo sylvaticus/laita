@@ -57,6 +57,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import laita_lt_config                                      # noqa: E402
 import laita_lt_protocol as protocol                        # noqa: E402
+import laita_lt_typing as typing_                            # noqa: E402
 import laita_lt_shared                                      # noqa: E402
 
 laita_lt_shared.install()
@@ -200,7 +201,11 @@ class Checker:
         # One request per chunk. The chunks' answers are simply concatenated: the model
         # answers with quotes rather than offsets, so a quote from chunk three is still a
         # quote from the paragraph and anchoring finds it. No offset arithmetic is needed.
-        chunks = segment.chunk_text(text, s["chunkMaxChars"])
+        # Never ask about the word the user is still typing. The model answers "missing
+        # letter, incomplete word" - correctly, and uselessly - and that answer then
+        # outlives the keystroke in the cache. See laita_lt_typing.
+        asked = typing_.without_part_typed_word(text)
+        chunks = segment.chunk_text(asked, s["chunkMaxChars"])
         raw = []
         for _, chunk in chunks:
             raw.extend(ollama.request_issues(chunk, lang, s, timeout=timeout))
@@ -278,7 +283,15 @@ class Checker:
             self.hits += 1
         issues = anchor.anchor_issues(text, raw, categories=s["categories"],
                                       ignored=s["ignored"])
-        return issues, "%s, %d raw -> %d anchored" % (source, len(raw), len(issues))
+        # A quote from an older snapshot of this paragraph can still be found in the
+        # current one, as a fragment of a longer word - `spea` inside a correctly spelled
+        # `speak`, and not even the same one. Anchoring locates substrings; it is this
+        # that requires them to be whole words.
+        kept = [i for i in issues if not typing_.inside_a_word(text, i["start"], i["end"])]
+        dropped = len(issues) - len(kept)
+        return kept, "%s, %d raw -> %d anchored%s" % (
+            source, len(raw), len(kept),
+            (" (%d part-word dropped)" % dropped) if dropped else "")
 
     def status(self):
         return {
