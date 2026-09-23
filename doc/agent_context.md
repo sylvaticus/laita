@@ -6,6 +6,7 @@ assistant that remembers nothing. Three files carry what it needs:
 | File | Holds | Changes |
 | --- | --- | --- |
 | `CLAUDE.md` | design invariants — why the code is shaped as it is, and what breaks if you "tidy" it | rarely |
+| `NEWS.md` | what changed for users, per release | each release |
 | `doc/dev_doc.md` | how to build, test, sign and release | rarely |
 | **this file** | the volatile state: versions, store submissions, what is verified, what is not, and the quirks of this machine | **every session** |
 

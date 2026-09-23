@@ -17,6 +17,8 @@ Available as a [Chrome extension](https://chromewebstore.google.com/detail/laita
 
 \* *The default model (`qwen3.5:9b`) requires 8 GB of GPU RAM, but syntax and grammar errors can be reliably spotted by smaller models like `qwen3.5:4b`.* 
 
+**What changed recently: [NEWS.md](NEWS.md)**
+
 **[What it does](#1-what-it-does) · [Install](#2-install) · [Using it](#3-using-it) · [Options](#4-options) · [Troubleshooting](#5-troubleshooting) · [Privacy](#6-privacy) · [Development](#7-development) · [Licence](#8-licence) · [Acknowledgements](#9-acknowledgements)**
 
 ---
