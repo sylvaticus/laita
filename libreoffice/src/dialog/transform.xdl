@@ -22,14 +22,19 @@
 
   <dlg:text dlg:id="Status" dlg:tab-index="5" dlg:left="6" dlg:top="72" dlg:width="268" dlg:height="10" dlg:value=""/>
 
-  <dlg:text dlg:id="tOut" dlg:tab-index="6" dlg:left="6" dlg:top="86" dlg:width="268" dlg:height="10" dlg:value="Result"/>
-  <dlg:textfield dlg:id="Result" dlg:tab-index="7" dlg:left="6" dlg:top="98" dlg:width="268" dlg:height="60" dlg:multiline="true" dlg:vscroll="true"/>
+  <dlg:text dlg:id="tOut" dlg:tab-index="6" dlg:left="6" dlg:top="86" dlg:width="200" dlg:height="10" dlg:value="Result (edit it before applying, if you like)"/>
+  <!-- Beside the label rather than in the row of verdicts below: Copy does not close the
+       dialog, and putting it with the buttons that do would say it did. -->
+  <dlg:button dlg:id="btnCopy" dlg:tab-index="7" dlg:left="230" dlg:top="84" dlg:width="44" dlg:height="12" dlg:value="Copy">
+   <script:event script:event-name="on-performaction" script:macro-name="vnd.sun.star.UNO:onCopy" script:language="UNO"/>
+  </dlg:button>
+  <dlg:textfield dlg:id="Result" dlg:tab-index="8" dlg:left="6" dlg:top="98" dlg:width="268" dlg:height="60" dlg:multiline="true" dlg:vscroll="true"/>
 
-  <dlg:button dlg:id="btnReplace" dlg:tab-index="8" dlg:left="6" dlg:top="166" dlg:width="90" dlg:height="14" dlg:value="Accept &amp; replace" dlg:button-type="ok"/>
-  <dlg:button dlg:id="btnAppend" dlg:tab-index="9" dlg:left="102" dlg:top="166" dlg:width="90" dlg:height="14" dlg:value="Accept &amp; append">
+  <dlg:button dlg:id="btnReplace" dlg:tab-index="9" dlg:left="6" dlg:top="166" dlg:width="90" dlg:height="14" dlg:value="Accept &amp; replace" dlg:button-type="ok"/>
+  <dlg:button dlg:id="btnAppend" dlg:tab-index="10" dlg:left="102" dlg:top="166" dlg:width="90" dlg:height="14" dlg:value="Accept &amp; append">
    <script:event script:event-name="on-performaction" script:macro-name="vnd.sun.star.UNO:onAppend" script:language="UNO"/>
   </dlg:button>
-  <dlg:button dlg:id="btnReject" dlg:tab-index="10" dlg:left="198" dlg:top="166" dlg:width="76" dlg:height="14" dlg:value="Reject" dlg:button-type="cancel"/>
+  <dlg:button dlg:id="btnReject" dlg:tab-index="11" dlg:left="198" dlg:top="166" dlg:width="76" dlg:height="14" dlg:value="Reject" dlg:button-type="cancel"/>
 
  </dlg:bulletinboard>
 </dlg:window>

@@ -32,8 +32,8 @@ export const DEFAULTS = {
   maxChars: 12000,
   chunkMaxChars: 700,      // a paragraph longer than this is split into sentence groups
   // Paragraphs of model output kept. Measured at ~2.2 KB each for typical prose with
-  // three issues, so this is roughly 45 MB. A hit costs no model call at all.
-  cacheMax: 20000,
+  // three issues, so this is about 10 MB. A hit costs no model call at all.
+  cacheMax: 4500,
   // "caret"  - only the paragraph the caret is in, leaving the rest of a long document
   //            alone until you work on it. Opening a 2000-word post should not queue up
   //            twenty requests before you have typed anything.

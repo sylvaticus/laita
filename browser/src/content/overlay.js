@@ -128,7 +128,13 @@ button.act.primary:hover { background: #374151; }
   white-space: pre-wrap; word-break: break-word;
   background: #f7f8f9; border-radius: 6px; padding: 8px 10px;
   max-height: 40vh; overflow: auto;
+  /* It is a <textarea> so the answer can be tidied before it is applied. A textarea
+     inherits none of this from the panel, hence the font and colour being named. */
+  display: block; box-sizing: border-box; width: 100%; min-height: 84px;
+  font: inherit; color: inherit; resize: vertical;
+  border: 1px solid #e5e7eb;
 }
+.out:focus-visible { outline: 2px solid #3b82f6; outline-offset: 1px; }
 .was {
   white-space: pre-wrap; word-break: break-word; color: #9ca3af;
   max-height: 12vh; overflow: auto; margin-bottom: 8px;
@@ -139,7 +145,7 @@ button.act:focus-visible { outline: 2px solid #3b82f6; outline-offset: 1px; }
 @media (prefers-color-scheme: dark) {
   .card, .panel { background: #1f2430; color: #e5e7eb; border-color: #374151; }
   .ask { background: #151922; color: #e5e7eb; border-color: #3b4354; }
-  .out { background: #151922; }
+  .out { background: #151922; border-color: #374151; }
   .was { color: #6b7280; border-left-color: #374151; }
   .busy { color: #9ca3af; }
   .busy .spinner { border-color: rgba(255,255,255,.2); border-top-color: #9ca3af; }

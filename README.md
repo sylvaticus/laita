@@ -407,6 +407,17 @@ fences inside them are never sent.
 
 - You can use the right-click contextual menu for the same operations
 
+Right-click a suggestion to accept it, ignore it, or add the word to LAITA's dictionary.
+The same menu offers _Transform selection_ on any selected text, which opens a dialog
+where you give an instruction, see the rewrite, edit it if you want, and then replace,
+append or copy it.
+
+<img src="assets/imgs/sceenshot_laita_lo1.png" alt="A grammar suggestion in LibreOffice Writer: &quot;me&quot; is underlined and the context menu offers &quot;I&quot;, Ignore, Ignore All, LAITA: Transform selection, and LAITA: add &quot;me&quot; to the dictionary" width="400">\
+<img src="assets/imgs/sceenshot_laita_lo2.png" alt="A capitalisation suggestion: &quot;english&quot; underlined, the menu offering &quot;English&quot; with the message &quot;Language names must be capitalized&quot;" width="400">\
+<img src="assets/imgs/sceenshot_laita_lo3.png" alt="The right-click menu on a selection, with LAITA: Transform selection at the bottom" width="400">\
+<img src="assets/imgs/sceenshot_laita_lo4.png" alt="The Transform selection dialog: the selected text, an instruction box set to polish, the rewritten result, and the buttons Accept &amp; replace, Accept &amp; append and Reject" width="400">\
+<img src="assets/imgs/sceenshot_laita_lo5.png" alt="The LAITA options dialog for LibreOffice, with the Ollama endpoint and model, when to check, and what to suggest" width="400">
+
 **Collabora online** (and possible other consumers of the LanguageTools/DeepL API):
 
 - Settings are defined during installation; see the [doc](languagetool/README.md). There are no settings on the user interface.

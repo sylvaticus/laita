@@ -6,7 +6,7 @@
      dialog we open ourselves is one less thing that can fail silently. -->
 <dlg:window xmlns:dlg="http://openoffice.org/2000/dialog"
             xmlns:script="http://openoffice.org/2000/script"
-            dlg:id="optionsdialog" dlg:left="80" dlg:top="40" dlg:width="260" dlg:height="248"
+            dlg:id="optionsdialog" dlg:left="80" dlg:top="40" dlg:width="260" dlg:height="263"
             dlg:closeable="true" dlg:moveable="true" dlg:withtitlebar="true"
             dlg:title="LAITA - Local AI Text Assistant">
  <dlg:bulletinboard>
@@ -25,7 +25,7 @@
         event as the cause - bisected against a live LibreOffice to find it. -->
    <script:event script:event-name="on-performaction" script:macro-name="vnd.sun.star.UNO:onTest" script:language="UNO"/>
   </dlg:button>
-  <dlg:text dlg:id="Status" dlg:tab-index="26" dlg:left="8" dlg:top="45" dlg:width="244" dlg:height="10" dlg:value=""/>
+  <dlg:text dlg:id="Status" dlg:tab-index="28" dlg:left="8" dlg:top="45" dlg:width="244" dlg:height="10" dlg:value=""/>
   <dlg:text dlg:id="tKeep" dlg:tab-index="5" dlg:left="8" dlg:top="59" dlg:width="70" dlg:height="10" dlg:value="Keep loaded for"/>
   <dlg:textfield dlg:id="KeepAlive" dlg:tab-index="6" dlg:left="80" dlg:top="57" dlg:width="60" dlg:height="12"/>
   <dlg:checkbox dlg:id="Think" dlg:tab-index="7" dlg:left="146" dlg:top="58" dlg:width="106" dlg:height="10" dlg:value="Let the model think" dlg:checked="false"/>
@@ -39,16 +39,18 @@
   <dlg:textfield dlg:id="MinChars" dlg:tab-index="14" dlg:left="192" dlg:top="117" dlg:width="60" dlg:height="12"/>
   <dlg:text dlg:id="tMax" dlg:tab-index="15" dlg:left="8" dlg:top="134" dlg:width="110" dlg:height="10" dlg:value="Maximum characters per check"/>
   <dlg:textfield dlg:id="MaxChars" dlg:tab-index="16" dlg:left="192" dlg:top="132" dlg:width="60" dlg:height="12"/>
+  <dlg:text dlg:id="tCache" dlg:tab-index="17" dlg:left="8" dlg:top="149" dlg:width="110" dlg:height="10" dlg:value="Paragraphs to remember"/>
+  <dlg:textfield dlg:id="CacheMax" dlg:tab-index="18" dlg:left="192" dlg:top="147" dlg:width="60" dlg:height="12"/>
 
-  <dlg:fixedline dlg:id="l3" dlg:tab-index="17" dlg:left="4" dlg:top="150" dlg:width="252" dlg:height="10" dlg:value="What to suggest"/>
-  <dlg:checkbox dlg:id="CatError" dlg:tab-index="18" dlg:left="8" dlg:top="164" dlg:width="76" dlg:height="10" dlg:value="Errors" dlg:checked="true"/>
-  <dlg:checkbox dlg:id="CatStyle" dlg:tab-index="19" dlg:left="88" dlg:top="164" dlg:width="76" dlg:height="10" dlg:value="Style" dlg:checked="true"/>
-  <dlg:checkbox dlg:id="CatRephrase" dlg:tab-index="20" dlg:left="168" dlg:top="164" dlg:width="84" dlg:height="10" dlg:value="Rephrasings" dlg:checked="true"/>
-  <dlg:text dlg:id="tExtra" dlg:tab-index="21" dlg:left="8" dlg:top="181" dlg:width="244" dlg:height="10" dlg:value="Extra instructions for the model"/>
-  <dlg:textfield dlg:id="ExtraInstructions" dlg:tab-index="22" dlg:left="8" dlg:top="193" dlg:width="244" dlg:height="26" dlg:multiline="true"/>
+  <dlg:fixedline dlg:id="l3" dlg:tab-index="19" dlg:left="4" dlg:top="165" dlg:width="252" dlg:height="10" dlg:value="What to suggest"/>
+  <dlg:checkbox dlg:id="CatError" dlg:tab-index="20" dlg:left="8" dlg:top="179" dlg:width="76" dlg:height="10" dlg:value="Errors" dlg:checked="true"/>
+  <dlg:checkbox dlg:id="CatStyle" dlg:tab-index="21" dlg:left="88" dlg:top="179" dlg:width="76" dlg:height="10" dlg:value="Style" dlg:checked="true"/>
+  <dlg:checkbox dlg:id="CatRephrase" dlg:tab-index="22" dlg:left="168" dlg:top="179" dlg:width="84" dlg:height="10" dlg:value="Rephrasings" dlg:checked="true"/>
+  <dlg:text dlg:id="tExtra" dlg:tab-index="23" dlg:left="8" dlg:top="196" dlg:width="244" dlg:height="10" dlg:value="Extra instructions for the model"/>
+  <dlg:textfield dlg:id="ExtraInstructions" dlg:tab-index="24" dlg:left="8" dlg:top="208" dlg:width="244" dlg:height="26" dlg:multiline="true"/>
 
-  <dlg:button dlg:id="btnOk" dlg:tab-index="23" dlg:left="146" dlg:top="228" dlg:width="52" dlg:height="14" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
-  <dlg:button dlg:id="btnCancel" dlg:tab-index="24" dlg:left="202" dlg:top="228" dlg:width="52" dlg:height="14" dlg:value="Cancel" dlg:button-type="cancel"/>
+  <dlg:button dlg:id="btnOk" dlg:tab-index="25" dlg:left="146" dlg:top="243" dlg:width="52" dlg:height="14" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
+  <dlg:button dlg:id="btnCancel" dlg:tab-index="26" dlg:left="202" dlg:top="243" dlg:width="52" dlg:height="14" dlg:value="Cancel" dlg:button-type="cancel"/>
 
  </dlg:bulletinboard>
 </dlg:window>

@@ -22,7 +22,7 @@ import { anchorIssues, hash } from "./anchor.js";
 
 // Superseded by the cacheMax setting; kept as the fallback for a cache write that
 // happens before settings have loaded.
-const CACHE_MAX = 20000;
+const CACHE_MAX = 4500;
 /** key -> raw model issues. Raw, so that changing the ignore list needs no invalidation. */
 const cache = new Map();
 let cacheLimit = 0;            // set from settings; 0 means "use CACHE_MAX"

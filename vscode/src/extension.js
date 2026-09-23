@@ -35,8 +35,8 @@ const lastSent = new Map();
  * category needs no invalidation: only the prompt inputs are part of the key.
  */
 // Fallback only; the laita.cacheMax setting is what decides. ~2 KB a paragraph, so the
-// default of 20000 is roughly 45 MB.
-const CACHE_MAX = 20000;
+// default of 4500 is about 10 MB.
+const CACHE_MAX = 4500;
 const cache = new Map();
 
 function cacheKey(text, lang, s) {
@@ -349,6 +349,13 @@ const reviewProvider = {
  * on purpose: a modal one would block scrolling the diff, which is the one thing the user
  * needs to do before deciding. The diff tab is closed by identity afterwards, not with
  * closeActiveEditor, so a stray click cannot make us close the wrong editor.
+ *
+ * The rewrite cannot be edited here, unlike the browser panel and the LibreOffice dialog.
+ * Both sides of the diff are served by a TextDocumentContentProvider, and those documents
+ * are read-only by construction - there is no flag for it. Making the right-hand side
+ * writable needs a FileSystemProvider on its own scheme, which is a bigger change than it
+ * looks and wants testing in a real editor. Until then, Copy is the way out: take the
+ * text, tidy it wherever you like, paste it back.
  */
 async function showTransformResult(original, output, instruction) {
   const id = Date.now();
@@ -362,10 +369,19 @@ async function showTransformResult(original, output, instruction) {
   try {
     await vscode.commands.executeCommand(
       "vscode.diff", left, right, `LAITA: ${instruction} — original ↔ transformed`);
-    const choice = await vscode.window.showInformationMessage(
-      "Apply this transform to the document?",
-      "Replace", "Insert after");
-    return choice === "Replace" ? "replace" : choice === "Insert after" ? "insert" : null;
+    // Copy does not end the review: the usual reason to copy a rewrite is to keep it
+    // while deciding, or to paste it somewhere else and leave the document alone. So the
+    // prompt comes back until a verdict is given or it is dismissed.
+    for (;;) {
+      const choice = await vscode.window.showInformationMessage(
+        "Apply this transform to the document?",
+        "Replace", "Insert after", "Copy");
+      if (choice === "Replace") return "replace";
+      if (choice === "Insert after") return "insert";
+      if (choice !== "Copy") return null;
+      await vscode.env.clipboard.writeText(output);
+      vscode.window.setStatusBarMessage("LAITA: rewrite copied to the clipboard", 3000);
+    }
   } finally {
     // Close our diff tab by matching its two URIs, and drop the backing content.
     for (const group of vscode.window.tabGroups.all) {

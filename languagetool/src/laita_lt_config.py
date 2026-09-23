@@ -67,6 +67,10 @@ SERVER_DEFAULTS = {
     # The translation endpoint, which Collabora reaches by having deepl.api_url point at
     # it. false makes it hand every fragment back untranslated - never an error, because
     # an error deletes the user's selection. See laita_lt_translate.
+    # Deliberately larger than the extensions' 4500. They run beside a person's own work
+    # and 10 MB is a polite share of it; this has a machine to itself and serves everyone,
+    # so ~45 MB buys a hit rate the others cannot.
+    "cacheMax": 20000,
     "translate": True,
     # Translation has no ceiling to respect: core sets no timeout at all on that call,
     # unlike the ten seconds it allows a grammar check. This is only a backstop against a

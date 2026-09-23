@@ -202,7 +202,22 @@ function renderResult() {
 
   const body = el("div", "body");
   if (state.output !== state.selected) body.appendChild(el("div", "was", state.selected));
-  body.appendChild(el("div", "out", state.output));
+
+  // A textarea, not a div: the model's answer is a draft, and the cheapest moment to fix
+  // a stray word or drop a sentence is before it lands in the page - afterwards it is an
+  // edit to undo. Everything downstream reads state.output, so tidying here is carried
+  // through by replace, append and copy alike.
+  const st = state;
+  const out = el("textarea", "out");
+  out.value = state.output;
+  out.spellcheck = false;
+  out.setAttribute("aria-label", "The rewritten text. Edit it before applying.");
+  out.addEventListener("input", () => {
+    // Guarded: a second transform may have replaced `state` while this panel was open,
+    // and writing into the new one would corrupt an unrelated result.
+    if (state === st) st.output = out.value;
+  });
+  body.appendChild(out);
 
   const actions = el("div", "actions");
   let focusMe;
@@ -211,7 +226,8 @@ function renderResult() {
     actions.append(
       focusMe,
       button("Reject", "", () => close()),
-      button("Accept & append", "", () => accept("append"))
+      button("Accept & append", "", () => accept("append")),
+      button("Copy", "", copyOutput)
     );
     p.append(head(state.instruction), body, actions);
   } else {

@@ -27,7 +27,7 @@ DEFAULTS = {
     "minChars": 25,
     "maxChars": 12000,
     "chunkMaxChars": 700,
-    "cacheMax": 20000,
+    "cacheMax": 4500,
     "scope": "caret",
     "categories": {"error": True, "style": True, "rephrase": True},
     "dictionary": [],

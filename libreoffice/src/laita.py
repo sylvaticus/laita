@@ -31,6 +31,7 @@ from com.sun.star.linguistic2.LinguServiceEventFlags import PROOFREAD_AGAIN
 from com.sun.star.lang import XServiceInfo, XServiceName, XServiceDisplayName, Locale
 from com.sun.star.frame import XDispatchProvider, XDispatch
 from com.sun.star.task import XJob
+from com.sun.star.datatransfer import XTransferable
 from com.sun.star.ui import XContextMenuInterceptor
 from com.sun.star.awt import XContainerWindowEventHandler, XDialogEventHandler, XCallback
 from com.sun.star.datatransfer import XTransferable, DataFlavor
@@ -912,12 +913,24 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             state["append"] = dialog.getControl("Result").getText()
             dialog.endExecute()
 
+        def copy(dialog):
+            # Does NOT close the dialog: the point of copying is often to keep the result
+            # while trying another instruction.
+            text = dialog.getControl("Result").getText()
+            if not text.strip():
+                dialog.getControl("Status").setText("There is nothing to copy yet.")
+                return
+            ok = copy_to_clipboard(self.ctx, text)
+            dialog.getControl("Status").setText(
+                "Copied %d characters." % len(text) if ok
+                else "Could not reach the clipboard. See ~/laita-libreoffice.log")
+
         try:
             provider = self.ctx.ServiceManager.createInstanceWithContext(
                 "com.sun.star.awt.DialogProvider", self.ctx)
             dialog = provider.createDialogWithHandler(
                 "vnd.sun.star.extension://org.lobianco.laita/dialog/transform.xdl",
-                DialogHandler(self.ctx, on_run=run, on_append=append))
+                DialogHandler(self.ctx, on_run=run, on_append=append, on_copy=copy))
             dialog.getControl("Selected").setText(selected)
             combo = dialog.getControl("Instruction")
             offered = list(dict.fromkeys(list(s["transformHistory"]) +
@@ -925,6 +938,11 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             combo.addItems(tuple(offered), 0)
             combo.setText(offered[0] if offered else s["transformDefault"])
             verdict = dialog.execute()
+            # The Result field is editable, so what gets written is whatever is in it NOW,
+            # not the model's answer. Read it BEFORE dispose() - a disposed dialog has no
+            # controls. Accept & append already did this in its own handler; Accept &
+            # replace did not, and silently threw away every edit the user had made.
+            state["output"] = dialog.getControl("Result").getText()
             log("transform dialog closed with %r, %d characters of output"
                 % (verdict, len(state["output"])))
             self._survey("at close")
@@ -1019,6 +1037,7 @@ FIELDS = [
         ("debounceMs", "DebounceMs", "Text"),
         ("minChars", "MinChars", "Text"),
         ("maxChars", "MaxChars", "Text"),
+        ("cacheMax", "CacheMax", "Text"),
         ("keepAlive", "KeepAlive", "Text"),
     ("extraInstructions", "ExtraInstructions", "Text"),
 ]
@@ -1208,13 +1227,52 @@ class MainThreadCall(unohelper.Base, XCallback):
             log("main-thread callback failed\n%s" % traceback.format_exc())
 
 
+class TextTransferable(unohelper.Base, XTransferable):
+    """The clipboard takes a transferable, not a string, and there is no ready-made one.
+
+    text/plain;charset=utf-16 is the flavour LibreOffice itself puts plain text on the
+    clipboard as, and the DataType must be the UNO string type rather than Python's -
+    getTypeByName is the only way to say so from here.
+    """
+
+    def __init__(self, text):
+        self.text = text
+        self.flavor = uno.createUnoStruct("com.sun.star.datatransfer.DataFlavor")
+        self.flavor.MimeType = "text/plain;charset=utf-16"
+        self.flavor.HumanPresentableName = "Unicode text"
+        self.flavor.DataType = uno.getTypeByName("string")
+
+    def getTransferData(self, flavor):
+        return self.text
+
+    def getTransferDataFlavors(self):
+        return (self.flavor,)
+
+    def isDataFlavorSupported(self, flavor):
+        return flavor.MimeType == self.flavor.MimeType
+
+
+def copy_to_clipboard(ctx, text):
+    """True if the text reached the clipboard. Never raises: a failed copy is a message,
+    not a broken dialog."""
+    try:
+        clip = ctx.ServiceManager.createInstanceWithContext(
+            "com.sun.star.datatransfer.clipboard.SystemClipboard", ctx)
+        clip.setContents(TextTransferable(text), None)
+        return True
+    except Exception:
+        log("copy to clipboard failed\n%s" % traceback.format_exc())
+        return False
+
+
 class DialogHandler(unohelper.Base, XDialogEventHandler):
     """Button clicks inside our dialogs."""
 
-    def __init__(self, ctx, on_run=None, on_append=None):
+    def __init__(self, ctx, on_run=None, on_append=None, on_copy=None):
         self.ctx = ctx
         self._on_run = on_run
         self._on_append = on_append
+        self._on_copy = on_copy
 
     def callHandlerMethod(self, dialog, event, method):
         try:
@@ -1227,12 +1285,15 @@ class DialogHandler(unohelper.Base, XDialogEventHandler):
             if method == "onAppend" and self._on_append:
                 self._on_append(dialog)
                 return True
+            if method == "onCopy" and self._on_copy:
+                self._on_copy(dialog)
+                return True
         except Exception:
             log("dialog handler failed\n%s" % traceback.format_exc())
         return False
 
     def getSupportedMethodNames(self):
-        return ("onTest", "onRun", "onAppend")
+        return ("onTest", "onRun", "onAppend", "onCopy")
 
 
 def selected_word(ctx):

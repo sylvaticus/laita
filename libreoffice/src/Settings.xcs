@@ -36,7 +36,7 @@
            twelve-issue-per-request cap on a long paragraph. 0 disables it, sending whole
            paragraphs and living with the cap. -->
       <prop oor:name="ChunkMaxChars" oor:type="xs:int"><value>700</value></prop>
-      <prop oor:name="CacheMax" oor:type="xs:int"><value>20000</value></prop>
+      <prop oor:name="CacheMax" oor:type="xs:int"><value>4500</value></prop>
       <!-- "caret": only the paragraph the cursor is in, which is what you are editing.
            "document": every paragraph LibreOffice asks about, which on opening a long
            file means the whole visible document at once. Check this document overrides

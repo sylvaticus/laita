@@ -38,7 +38,7 @@
              xmlns:lo="http://libreoffice.org/extensions/description/2011"
              xmlns:xlink="http://www.w3.org/1999/xlink">
   <identifier value="org.lobianco.laita" />
-  <version value="0.4.1" />
+  <version value="0.4.3" />
 
   <display-name>
     <name lang="en">LAITA - Local AI Text Assistant</name>

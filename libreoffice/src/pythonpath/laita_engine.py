@@ -30,12 +30,12 @@ Nothing here imports uno, which is what lets it be tested without LibreOffice.
 import threading
 import time
 
-# Paragraphs kept. Measured with tracemalloc against realistic content: 2.2 KB for a
-# typical prose paragraph of ~550 characters with three issues, 4.3 KB for a long one,
-# 0.7 KB for a short one. So this is roughly 45 MB of typical prose, and about twice that
-# if every paragraph is long. It was 200 - a quarter of a megabyte - which threw away
-# answers that were still worth having.
-CACHE_MAX = 20000
+# Paragraphs kept, when the caller does not say. Measured with tracemalloc against
+# realistic content: 2.2 KB for a typical prose paragraph of ~550 characters with three
+# issues, 4.3 KB for a long one, 0.7 KB for a short one. So this is about 10 MB, and
+# roughly twice that if every paragraph is long. It was 200 - a quarter of a megabyte -
+# which threw away answers still worth having. A server sets its own, much larger.
+CACHE_MAX = 4500
 
 # How much of a paragraph must match before a previous answer is reused while the new one
 # is computed. Below this, two short paragraphs starting "The " would borrow each other's

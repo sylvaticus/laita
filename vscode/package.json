@@ -2,7 +2,7 @@
   "name": "laita",
   "displayName": "LAITA - Local AI Text Assistant",
   "description": "Proofread and rewrite text with a language model running locally in Ollama. Nothing leaves your machine.",
-  "version": "0.4.1",
+  "version": "0.4.3",
   "publisher": "sylvaticus",
   "license": "MIT",
   "repository": {
@@ -197,10 +197,10 @@
           },
           "laita.cacheMax": {
             "type": "number",
-            "default": 20000,
+            "default": 4500,
             "minimum": 100,
             "maximum": 200000,
-            "description": "Paragraphs of model output to remember, so the same paragraph is never sent twice. About 2 KB each, so the default of 20000 is roughly 45 MB."
+            "description": "Paragraphs of model output to remember, so the same paragraph is never sent twice. About 2 KB each, so the default of 4500 is about 10 MB."
           }
         }
       },
