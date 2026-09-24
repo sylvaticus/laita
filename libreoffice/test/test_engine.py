@@ -13,7 +13,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "src", "pythonpath"))
 
-from laita_engine import Engine, _shared_ends  # noqa: E402
+from laita_engine import Engine, EditTracker, _shared_ends  # noqa: E402
 
 fails, passes = [], 0
 
@@ -265,6 +265,49 @@ def main():
     _time.sleep(0.3)
     check("stop abandons the rest of the sweep", len(asked11) < 20, True)
     check("...and nothing new starts after it", len(asked11) <= settled + 1, True)
+
+    # --- EditTracker: an edited paragraph, not wherever the caret landed ---------------
+    # The rule is the LanguageTool server's, learned from a real bug: a text that CHANGES
+    # a paragraph already seen is an edit; one that repeats it exactly is a re-display.
+    t = EditTracker()
+    doc = [
+        "The paper applies several models to estimate the value of forest land use.",
+        "Please explain how you have eight years and twenty treatment plants here.",
+        "I need to admit to the editor that when I accepted the paper to review it.",
+    ]
+    check("opening: every paragraph is a first sighting",
+          [t.note(p) for p in doc], [EditTracker.NEW] * 3)
+    check("reopening offers them again unchanged - a re-display, not an edit",
+          [t.note(p) for p in doc], [EditTracker.SAME] * 3)
+
+    para = doc[2]
+    typed = [para + " And more"[:i] for i in range(1, 10)]
+    check("typing at the end of a paragraph is an edit on every keystroke",
+          [t.note(x) for x in typed], [EditTracker.CHANGED] * 9)
+    check("the re-check after an answer offers the latest text again: not an edit",
+          t.note(typed[-1]), EditTracker.SAME)
+    check("...and the paragraphs nobody touched are still just re-displays",
+          [t.note(p) for p in doc[:2]], [EditTracker.SAME] * 2)
+
+    middle = doc[0].replace("several", "many")
+    check("an edit in the middle is recognised (shared prefix AND suffix)",
+          t.note(middle), EditTracker.CHANGED)
+    check("the paragraph is remembered where it is now, not where it was",
+          t.note(middle), EditTracker.SAME)
+    check("going back to the old text (undo) is an edit too, not a re-display",
+          t.note(doc[0]), EditTracker.CHANGED)
+
+    check("a genuinely different paragraph is not mistaken for an edit of another",
+          t.note("Why does the table in the appendix leave out half of the models?"),
+          EditTracker.NEW)
+
+    small = EditTracker(max_paragraphs=2)
+    for p in doc:
+        small.note(p)
+    check("the cap forgets the stalest paragraph first",
+          small.note(doc[0]), EditTracker.NEW)
+    check("...and keeps the recent ones",
+          small.note(doc[2]), EditTracker.SAME)
 
     print("%d passed, %d failed" % (passes, len(fails)))
     for f in fails:

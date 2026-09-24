@@ -32,7 +32,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "src", "pythonpath"))
 
-from laita_segment import chunk_text, MIN_LIMIT  # noqa: E402
+from laita_segment import chunk_text, MIN_LIMIT, sentence_slice, from_utf16_index  # noqa: E402
 
 fails, passes = [], 0
 
@@ -108,6 +108,36 @@ def main():
     check("a real limit still splits", len(chunk_text(long_text, 200)) > 1, True)
     check("nothing at all gives nothing", chunk_text("", 0), [])
     check("blank gives nothing", chunk_text("    ", 0), [])
+
+    # --- answering LibreOffice one sentence at a time -----------------------------------
+    # LibreOffice asks per sentence and ignores a claim that the first sentence runs to
+    # the end of the paragraph; each sentence's answer REPLACES that range. Every error
+    # must therefore come back with the sentence it starts in, and with no other.
+    para = "One is fine. Two has an errror. Three also has won."
+    at = lambda q: {"start": para.index(q), "end": para.index(q) + len(q), "q": q}
+    issues = [at("errror"), at("won")]
+    s1, s2, s3 = 0, para.index("Two"), para.index("Three")
+    check("sentence 1 gets no error of sentence 2 or 3",
+          sentence_slice(para, issues, s1, para.index(" Two")), [])
+    check("sentence 2 gets exactly its own error",
+          [i["q"] for i in sentence_slice(para, issues, s2, para.index(" Three"))], ["errror"])
+    check("the last sentence gets its own error",
+          [i["q"] for i in sentence_slice(para, issues, s3, len(para))], ["won"])
+    check("every error lands in exactly one sentence",
+          sorted(i["q"] for st, en in ((s1, para.index(" Two")), (s2, para.index(" Three")),
+                                       (s3, len(para)))
+                 for i in sentence_slice(para, issues, st, en)), ["errror", "won"])
+    ws = "Ends here.   Next one."
+    ws_issue = [{"start": ws.index("  ") + 1, "end": ws.index("Next"), "q": "gap"}]
+    check("an error in the whitespace between sentences goes with the one before",
+          len(sentence_slice(ws, ws_issue, 0, ws.index(".") + 1)), 1)
+    check("a suggested end past the text is treated as the end",
+          [i["q"] for i in sentence_slice(para, issues, s3, 10 ** 6)], ["won"])
+    emoji = "Hi \U0001F600 there. Bad grammer here."
+    check("UTF-16 offsets become code points past an emoji",
+          from_utf16_index(emoji, emoji.index("there") + 1), emoji.index("there"))
+    check("...and are unchanged before it", from_utf16_index(emoji, 2), 2)
+    check("...and clamp at the end", from_utf16_index(emoji, 10 ** 6), len(emoji))
 
     print("%d passed, %d failed" % (passes, len(fails)))
     for f in fails:

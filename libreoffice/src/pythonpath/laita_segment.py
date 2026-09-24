@@ -101,3 +101,44 @@ def chunk_text(text, max_chars=0):
     if buf:
         push(buf_start, buf)
     return chunks
+
+
+# --- answering LibreOffice one sentence at a time ------------------------------------------
+# No JavaScript twin: this exists only because of how LibreOffice's grammar-checking
+# iterator (linguistic/source/gciterator.cxx) consumes a proofreader's answer.
+
+def from_utf16_index(text, u16):
+    """Code-point index for a UTF-16 index into `text`. LibreOffice counts UTF-16 units,
+    Python counts code points; they differ once a character outside the BMP appears."""
+    units = 0
+    for i, ch in enumerate(text):
+        if units >= u16:
+            return i
+        units += 2 if ord(ch) > 0xFFFF else 1
+    return len(text)
+
+
+def sentence_slice(text, issues, start, suggested_end):
+    """The part of a paragraph's answer that belongs to the sentence LibreOffice asked about.
+
+    LibreOffice does not take a proofreader's word for where a sentence ends. After every
+    doProofreading call it recomputes nStartOfNextSentencePosition from
+    nBehindEndOfSentencePosition - substituting its own suggested end when that is unset -
+    and then asks again for the next sentence. So the old trick of answering the whole
+    paragraph on the first call and claiming the sentence ran to the end of the text did
+    nothing, and worse: each later sentence was answered with no errors, and LibreOffice's
+    ClearGrammarList() for that sentence wiped the errors just committed there. Only
+    errors in a paragraph's FIRST sentence ever survived - which is why short or split
+    paragraphs worked and long ones never did.
+
+    `start` and `suggested_end` are code-point indexes. Returns the issues that begin
+    inside this sentence: from `start` up to where LibreOffice will begin the next one,
+    i.e. after the whitespace that follows the sentence end.
+    """
+    n = len(text)
+    end = suggested_end if start < suggested_end <= n else n
+    nxt = end
+    while nxt < n and text[nxt].isspace():
+        nxt += 1
+    upto = nxt if nxt < n else n + 1
+    return [i for i in issues if start <= i["start"] < upto]

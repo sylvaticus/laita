@@ -40,7 +40,7 @@ import laita_anchor as anchor
 import laita_ollama as ollama
 import laita_segment as segment
 import laita_settings as settings_store
-from laita_engine import Engine
+from laita_engine import Engine, EditTracker, same_stream
 
 PROOFREADER_IMPL = "org.lobianco.laita.Proofreader"
 DISPATCHER_IMPL = "org.lobianco.laita.Dispatcher"
@@ -81,6 +81,9 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
         self.locales = tuple(Locale(l, c, "") for l, c in LOCALES)
         self.listeners = []
         self.engine = Engine(self._ask_the_model, on_ready=self._answer_ready, log=log)
+        self.edits = EditTracker()
+        # (text, issues) for the paragraph whose sentences LibreOffice is walking.
+        self._answer = None
         # Set by the Check this document button, for one sweep. Opening a long file
         # otherwise means LibreOffice asks about every visible paragraph at once, and
         # each of those is a request to a local model that answers in seconds.
@@ -164,9 +167,8 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
     def caret_paragraph(self):
         """The text of the paragraph the cursor is in, or None.
 
-        This is how "only what I am editing" is decided. LibreOffice offers every
-        paragraph it feels like checking; comparing against this one is the only way to
-        tell which of them the user is actually working on.
+        No longer how "only what I am editing" is decided - EditTracker does that from
+        the text. Used only by _pasted_here, for the one case text cannot settle.
         """
         try:
             desktop = self.ctx.ServiceManager.createInstanceWithContext(
@@ -177,6 +179,25 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
             return para.getString() if para is not None else None
         except Exception:
             return None
+
+    def _pasted_here(self, text):
+        """Is a paragraph never seen before an edit? True if it was pasted or typed here.
+
+        Text alone cannot tell pasting a whole paragraph from opening a document: both are
+        paragraphs never seen before. Two facts can. After opening, the document is
+        unmodified; and a paste lands where the cursor is. Both are required - the cursor
+        alone would bring back checking whatever paragraph a file opens on.
+        """
+        try:
+            desktop = self.ctx.ServiceManager.createInstanceWithContext(
+                "com.sun.star.frame.Desktop", self.ctx)
+            doc = desktop.getCurrentComponent()
+            if doc is None or not doc.isModified():
+                return False
+        except Exception:
+            return False
+        caret = self.caret_paragraph()
+        return caret is not None and (text == caret or same_stream(text, caret) > 0)
 
     def start_sweep(self):
         """Allow every paragraph to be checked, until the work stops arriving."""
@@ -248,75 +269,133 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
 
     # --- the hot path -----------------------------------------------------------------------
     def doProofreading(self, docId, text, locale, startOfSentence, suggestedEnd, properties):
+        """Answer for ONE sentence of the paragraph, the way LibreOffice asks.
+
+        LibreOffice's iterator calls this once per sentence, and it ignores any claim that
+        a sentence runs further than it thinks: it recomputes where the next sentence
+        starts from nBehindEndOfSentencePosition, substituting its own suggested end when
+        that is unset (gciterator.cxx, the "work-around to prevent looping"). This used to
+        answer the whole paragraph on the first call and return nothing for the rest -
+        and each empty answer made LibreOffice clear that sentence's range, wiping the
+        errors just reported there. Only a paragraph's first sentence ever kept its
+        underlines, which is why short or split paragraphs worked and long ones did not.
+
+        So the model is still asked about the whole paragraph, once (it needs the context),
+        but each call returns only the errors that begin inside the sentence asked about.
+        """
         res = uno.createUnoStruct("com.sun.star.linguistic2.ProofreadingResult")
         res.aDocumentIdentifier = docId
         res.aText = text
         res.aLocale = locale
         res.nStartOfSentencePosition = startOfSentence
+        # Set it, so LibreOffice's fallback never has to guess. Its own suggestion is the
+        # right boundary: the errors below are filtered to exactly this range.
+        res.nBehindEndOfSentencePosition = suggestedEnd
         res.nStartOfNextSentencePosition = suggestedEnd
         res.aProperties = ()
         res.xProofreader = self
         res.aErrors = ()
 
         try:
-            # LibreOffice asks sentence by sentence. Answer once for the whole paragraph:
-            # the model needs the surrounding sentences to judge any of them, and one
-            # request per sentence would multiply an already expensive call.
-            if startOfSentence != 0:
-                return res
-            res.nStartOfNextSentencePosition = len(text)
-
-            s = settings_store.read(self.ctx)
-            self.engine.cache_max = s["cacheMax"]
-            if not s["enabled"] or self.engine.stopped:
-                return res
-            stripped = text.strip()
-            if len(stripped) < s["minChars"] or len(text) > s["maxChars"]:
-                return res
-
-            lang = locale.Language or None
-            raw = self.engine.lookup(text)
-            source = "cache"
-            if raw is None:
-                # Only ask about the paragraph being edited, unless the whole document
-                # was asked for. Opening a long file makes LibreOffice offer every
-                # visible paragraph at once, and each one is a request to a local model
-                # that takes seconds - so the default is the paragraph under the cursor.
-                if self.sweep:
-                    # A sweep queues every paragraph. Debouncing here would cancel each
-                    # one as the next arrived and only the last would be asked about.
-                    self.engine.enqueue(text, lang, s)
-                    log("check: %d chars, queued for the sweep" % len(text))
-                    return res
-                if s["scope"] == "document" or text == self.caret_paragraph():
-                    if s["checkAsYouType"]:
-                        self.engine.request(text, lang, s)
-                else:
-                    log("check: %d chars, not the paragraph being edited, skipped  %r"
-                        % (len(text), text[:40]))
-                    return res
-                # Show the previous answer for this paragraph while the new one is
-                # computed, rather than blanking every underline on each keystroke.
-                # Anchoring below is against the CURRENT text, so anything the edit
-                # invalidated drops out by itself.
-                raw = self.engine.provisional(text)
-                source = "provisional"
-                if raw is None:
-                    log("check: %d chars, nothing yet, queued  %r" % (len(text), text[:50]))
-                    return res
-            issues = anchor.anchor_issues(text, raw, categories=s["categories"],
-                                          ignored=s["ignored"])
-            # The interesting line. A raw answer that anchors to nothing is the
-            # difference between "the model said nothing" and "the model quoted text
-            # that is no longer there" - and only the second explains a vanishing
-            # underline.
-            log("check: %d chars, %s, %d raw -> %d anchored  %r"
-                % (len(text), source, len(raw), len(issues), text[:50]))
-            res.aErrors = tuple(self._to_uno(text, i) for i in issues)
+            if startOfSentence == 0:
+                # The first sentence of a pass: decide about the whole paragraph (cache,
+                # model, provisional) and remember the answer for the sentences that follow.
+                self._answer = (text, self._paragraph_issues(text, locale))
+            elif self._answer is None or self._answer[0] != text:
+                # A pass that did not start at sentence 0 - LibreOffice resumes mid
+                # paragraph sometimes. Show what is known; never ask the model from here.
+                self._answer = (text, self._known_issues(text))
+            issues = self._answer[1]
+            if issues:
+                start = segment.from_utf16_index(text, startOfSentence)
+                end = segment.from_utf16_index(text, suggestedEnd)
+                mine = segment.sentence_slice(text, issues, start, end)
+                res.aErrors = tuple(self._to_uno(text, i) for i in mine)
         except Exception:
             # Never let this escape: LibreOffice turns it into a modal dialog.
             log("doProofreading failed\n%s" % traceback.format_exc())
         return res
+
+    def _known_issues(self, text):
+        """Anchored issues for `text` from the cache or the nearest edit, without asking."""
+        s = settings_store.read(self.ctx)
+        raw = self.engine.lookup(text)
+        if raw is None:
+            raw = self.engine.provisional(text)
+        if not raw:
+            return []
+        return anchor.anchor_issues(text, raw, categories=s["categories"],
+                                    ignored=s["ignored"])
+
+    def _paragraph_issues(self, text, locale):
+        """Every anchored issue for the whole paragraph, deciding whether to ask the model.
+
+        Called once per pass, on sentence 0. Returns [] whenever there is nothing to show.
+        """
+        s = settings_store.read(self.ctx)
+        self.engine.cache_max = s["cacheMax"]
+        if not s["enabled"] or self.engine.stopped:
+            return []
+        stripped = text.strip()
+        if len(stripped) < s["minChars"] or len(text) > s["maxChars"]:
+            return []
+
+        lang = locale.Language or None
+        change = self.edits.note(text)
+        raw = self.engine.lookup(text)
+        source = "cache"
+        if raw is None:
+            # Only ask about the paragraph being edited, unless the whole document
+            # was asked for. Opening a long file makes LibreOffice offer every
+            # visible paragraph at once, and each one is a request to a local model
+            # that takes seconds.
+            if self.sweep:
+                # A sweep queues every paragraph. Debouncing here would cancel each
+                # one as the next arrived and only the last would be asked about.
+                self.engine.enqueue(text, lang, s)
+                log("check: %d chars, queued for the sweep" % len(text))
+                return []
+            # Ask the model only about a paragraph somebody EDITED. The evidence is
+            # the text, not the caret: the caret lands on paragraphs nobody touches -
+            # opening a file, clicking to read - and checking those was reported as
+            # "it proofreads text I never touched". EditTracker says whether this text
+            # changes a paragraph already seen (an edit) or repeats one exactly (a
+            # re-display: reopening, scrolling, the re-check after each answer).
+            if s["scope"] == "document":
+                edited, why = True, "document scope"
+            elif change == EditTracker.CHANGED:
+                edited, why = True, "edited"
+            elif change == EditTracker.NEW and self._pasted_here(text):
+                edited, why = True, "new, typed or pasted here"
+            else:
+                edited, why = False, "%s, not edited" % change
+            if edited:
+                if s["checkAsYouType"]:
+                    self.engine.request(text, lang, s)
+                source = "provisional (%s)" % why
+            else:
+                # Never ask the model about it. But do NOT return nothing: LibreOffice
+                # reads an empty answer as "no errors" and clears the underlines, so an
+                # already-checked paragraph's marks would blink out on every re-check.
+                source = why
+            # Show the previous answer for this paragraph (cached, or the nearest edit
+            # of it) rather than blanking every underline on each keystroke or sweep.
+            # Anchoring below is against the CURRENT text, so anything the edit
+            # invalidated drops out by itself.
+            raw = self.engine.provisional(text)
+            if raw is None:
+                log("check: %d chars, %s, nothing yet  %r"
+                    % (len(text), source, text[:50]))
+                return []
+        issues = anchor.anchor_issues(text, raw, categories=s["categories"],
+                                      ignored=s["ignored"])
+        # The interesting line. A raw answer that anchors to nothing is the
+        # difference between "the model said nothing" and "the model quoted text
+        # that is no longer there" - and only the second explains a vanishing
+        # underline.
+        log("check: %d chars, %s, %d raw -> %d anchored  %r"
+            % (len(text), source, len(raw), len(issues), text[:50]))
+        return issues
 
     def _to_uno(self, text, issue):
         err = uno.createUnoStruct("com.sun.star.linguistic2.SingleProofreadingError")

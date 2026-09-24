@@ -167,6 +167,31 @@ purpose — raising inside LibreOffice becomes a modal dialog on every keystroke
 server silently ignoring `chunkMaxChar` costs an afternoon. Settings that need a cursor are
 refused with a message saying why.
 
+## The LibreOffice extension (`libreoffice/`)
+
+**LibreOffice asks one sentence at a time, and decides itself where a sentence ends.**
+`linguistic/source/gciterator.cxx` calls `doProofreading` once per sentence. After each
+call it overwrites `nStartOfNextSentencePosition`, recomputing it from
+`nBehindEndOfSentencePosition`, and substitutes its own suggested end when that is unset.
+Each answer then *replaces* the errors in that sentence's range (`ClearGrammarList` in
+Writer). The extension used to answer the whole paragraph on the first call and return
+nothing for the rest. Every later sentence's empty answer wiped the errors just reported
+in it, so only a paragraph's first sentence was ever underlined. It looked like "long
+paragraphs don't work" and "the first paragraph I edit never works", and splitting a
+paragraph "fixed" it. Now the model is asked about the whole paragraph once, on the
+sentence-0 call, and each call returns only the errors that *begin* in the sentence asked
+about (`laita_segment.sentence_slice`), with `nBehindEndOfSentencePosition` set. Never
+return an error outside the sentence asked about, and never answer a sentence that has
+errors with an empty result. Found by reading gciterator.cxx and confirmed on screen in
+an isolated LibreOffice (recipe in `doc/agent_context.md`). Offsets from LibreOffice are
+UTF-16; convert with `from_utf16_index` before comparing with Python's.
+
+**Writer repaints the paragraph under the cursor 2 s late, on purpose.** Its
+`sw::GrammarContact` holds that paragraph's grammar results in a proxy list and applies
+them on a 2-second timer, so a grammar checker does not flicker while you type. Every
+other paragraph is repainted at once. That delay belongs to LibreOffice, not LAITA; don't
+try to optimise it away from our side.
+
 ## Design invariants — breaking these causes silent corruption
 
 **A transform captures the selection as text offsets before its panel opens.** Focusing the

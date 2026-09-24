@@ -29,6 +29,7 @@ Nothing here imports uno, which is what lets it be tested without LibreOffice.
 """
 import threading
 import time
+from collections import OrderedDict
 
 # Paragraphs kept, when the caller does not say. Measured with tracemalloc against
 # realistic content: 2.2 KB for a typical prose paragraph of ~550 characters with three
@@ -85,6 +86,80 @@ def same_stream(a, b):
     if shared >= floor and shared >= shortest * 0.6:
         return shared
     return 0
+
+
+# Paragraphs remembered by EditTracker. One entry per paragraph, not per keystroke - an
+# edit replaces the text it came from - so this is a document's worth, not a history.
+EDIT_TRACKER_MAX = 5000
+
+
+class EditTracker:
+    """Tells a paragraph somebody edited from one LibreOffice is only showing again.
+
+    LibreOffice offers a paragraph for proofreading when a document opens, when it scrolls
+    into view, after every answer (PROOFREAD_AGAIN) and when it is edited - and only the
+    last is worth a model call. The caret is the wrong evidence for that: it lands on
+    paragraphs nobody touches (opening a file, clicking to read), and the user saw exactly
+    that as "it proofreads text I never touched". The text is the right evidence. A
+    paragraph being typed arrives again SIMILAR but DIFFERENT; a re-display arrives
+    IDENTICAL.
+
+    The LanguageTool server made the same distinction first - StreamDebouncer.note, and
+    the reopen-swept-the-whole-document bug that taught it "changed" rather than
+    "matched". This is that classification without the timers, because Engine.request
+    already debounces.
+
+    note() answers:
+      SAME     offered before, unchanged - a re-display, not an edit
+      CHANGED  a remembered paragraph, one edit apart - somebody is editing it
+      NEW      nothing similar remembered - a first sighting (opening, scrolling, or a
+               paragraph pasted in whole); the caller decides, because text alone cannot
+               tell a paste from an open
+    """
+    SAME, CHANGED, NEW = "same", "changed", "new"
+
+    def __init__(self, max_paragraphs=EDIT_TRACKER_MAX):
+        self.max_paragraphs = max_paragraphs
+        self._lock = threading.Lock()
+        # OrderedDict, not dict: eviction needs the oldest, and plain dicts only keep
+        # order from Python 3.7 - older than the LibreOffice this still claims to run on.
+        self._texts = OrderedDict()   # id -> the paragraph's latest text, oldest first
+        self._ids = {}          # text -> id, so a re-display is found without a scan
+        self._next = 0
+
+    def note(self, text):
+        with self._lock:
+            sid = self._ids.get(text)
+            if sid is not None:
+                self._touch(sid)
+                return self.SAME
+            best, best_shared = None, 0
+            for sid, seen in self._texts.items():
+                shared = same_stream(seen, text)
+                if shared > best_shared:
+                    best, best_shared = sid, shared
+            if best is not None:
+                # The paragraph moved on: remember where it is now, not where it was,
+                # so the next keystroke compares against this text and the stale one
+                # cannot be mistaken for a second paragraph.
+                old = self._texts.pop(best)
+                if self._ids.get(old) == best:
+                    del self._ids[old]
+                self._texts[best] = text
+                self._ids[text] = best
+                return self.CHANGED
+            self._next += 1
+            self._texts[self._next] = text
+            self._ids[text] = self._next
+            while len(self._texts) > self.max_paragraphs:
+                oldest, gone = self._texts.popitem(last=False)
+                if self._ids.get(gone) == oldest:
+                    del self._ids[gone]
+            return self.NEW
+
+    def _touch(self, sid):
+        """Caller holds the lock. Move to the young end, so the cap drops the stalest."""
+        self._texts.move_to_end(sid)
 
 
 class Engine:
