@@ -249,6 +249,20 @@ async function main() {
   process.stdout.write("\nwarming up... ");
   console.log(secs((await ask(prefix(DENSE, 300))).ms));
 
+  // --warm N: N seconds of continuous generation before measuring, so every row starts
+  // from a GPU that has been working, not one that has just cooled down. On this laptop a
+  // cool card is the FAST state (~30 tok/s) and sustained load is what throttles it -
+  // measured down to 6 tok/s at 210 MHz after a couple of minutes - so a run without this
+  // starts fast and slows as it goes, and its first rows are not comparable to its last.
+  const warm = Number(arg("warm", 0));
+  if (warm > 0) {
+    const until = Date.now() + warm * 1000;
+    let n = 0, last = null;
+    while (Date.now() < until) { last = await ask(prefix(SPARSE, 700)); n++; }
+    console.log("warmed for %ds (%d requests); now %s MHz, %s °C", warm, n,
+      last ? last.mhz : "?", last ? last.degC : "?");
+  }
+
   const only = ["curve", "sweep", "keystroke"].filter(flag);
   const want = (name) => only.length === 0 || only.includes(name);
 

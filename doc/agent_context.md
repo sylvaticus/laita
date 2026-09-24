@@ -173,11 +173,24 @@ threw; and `vscode/.vscode/launch.json` was never tracked, so a fresh clone stil
   must be run once or `git push` hangs — and each failed attempt leaves `gcr-ssh-agent`
   forking an `ssh-add` that spins at 97% CPU indefinitely. Two such processes once ran for
   39 hours.
-- **The power profile silently costs 17×.** `power-saver` pins the dGPU to 210 MHz of
-  3105; `performance` gives ~30 tok/s against ~1.8. It does not present as slowness, it
-  presents as an extension that hangs and times out. Check `powerprofilesctl get` before
-  believing any performance measurement.
-- GPU: RTX 2000 Ada Laptop, 8 GB. `qwen3.5:9b` is 5.7 GB at 16384 context.
+- **`nvidia-powerd` comes up at every boot starving the dGPU.** It pins the clock to its
+  210 MHz floor (pstate P4/P8, `SW Power Cap` active, drawing ~19 W of a 50 W max), giving
+  ~2–9 tok/s instead of ~30, and `nvidia-smi -pl` is refused ("not supported in current
+  scope") because the Dynamic Boost daemon owns the power budget. **The fix is
+  `sudo systemctl restart nvidia-powerd`** — reproducibly takes the clock to ~1140–1470 MHz
+  and 30 tok/s under load. It does NOT survive a reboot; it must be rerun each boot until
+  made permanent. Confirmed 2026-09-23 across two reboots. This is not a persisted setting
+  the user made (systemd, rc.local, cron, autostart, shell rc all checked — nothing locks
+  the GPU) and it is *not* the same lever as the power profile below.
+- **The power profile is a *second*, independent throttle.** `power-saver` can also pin the
+  dGPU to 210 MHz; `performance` gives ~30 tok/s. But the two are separate: the machine has
+  been seen clamped on `performance` (nvidia-powerd) and fast on `power-saver`. Rapid
+  profile toggling appears to be one way to knock nvidia-powerd into the starved state.
+  Both present as an extension that hangs and times out, never as visible slowness. Check
+  `nvidia-smi --query-gpu=clocks.sm,power.draw,utilization.gpu --format=csv,noheader` under
+  load (210 MHz = clamped) before believing any performance measurement.
+- GPU: RTX 2000 Ada Laptop, 8 GB. `qwen3.5:9b` is 5.7 GB at 16384 context. Only one of
+  `qwen3.5:9b` / `qwen3.5:4b` fits at a time — loading both thrashes VRAM.
 - Ollama: `OLLAMA_CONTEXT_LENGTH=16384`, `OLLAMA_NUM_PARALLEL=1`,
   `OLLAMA_ORIGINS=moz-extension://*`, keep-alive pinned.
 
@@ -200,6 +213,17 @@ threw; and `vscode/.vscode/launch.json` was never tracked, so a fresh clone stil
   still on a thermally throttled laptop GPU (measured 22→4 tok/s under sustained load).
   **Time comparisons on this machine are only valid run ABBA or normalised to tokens** -
   a plain A-then-B charges the cooling curve to B.
+- **A cool GPU is the fast state; sustained load is the slow one** (2026-09-24, healthy
+  boot, `performance` profile). The extension's prompt on a 240-char paragraph, sent after
+  90 s idle: 30.5 / 30.7 / 30.6 tok/s, clock already at 1455 MHz when the request arrived,
+  no load time. Straight after 30 s of continuous work: 25.9 / 28.1 / **6.0 tok/s** - the
+  last at a median of 210 MHz, 37 s for a 7 s answer - and after a 40 s warm-up the
+  chunking sweep ran at 5-7 tok/s at 76 °C. Nothing is stuck: the next request after idle
+  is fast again. The quiet fan is the symptom, not a cold GPU. Scripts: `coldwarm.py`
+  (not committed) and `browser/tools/measure-chunking.mjs --warm N`.
+- **LAITA's own cost is ~2 ms per paragraph** (28 paragraphs re-checked in 55 ms after an
+  answer, LibreOffice included). Last keystroke to answer = the 1.5 s debounce + model
+  time, then Writer adds its fixed 2 s repaint delay for the paragraph under the cursor.
 - A 10269-character transform took **205 s** and returned all 65 paragraphs intact.
 - Ollama keys a loaded model by model **plus runtime options**: changing `num_ctx` evicts
   the runner and reloads the weights (~7 s warm, far worse under memory pressure). This is
@@ -331,10 +355,24 @@ times *slower* and it was turned off; that was a throttling laptop GPU measured
 whole-then-split, not the splitting. Re-measured by tokens and run ABBA, splitting is a
 proportional trade that also gets past the 12-issue-per-request cap. See `roadmap.md`.
 
-**Not verified:** anything requiring a real window. `Xvfb`, `openbox` and `xdotool` are
-installed, but LibreOffice maps no window on the virtual display, so the transform
-dialog could never be driven end to end here - every fix to it was confirmed by the
-user.
+**A real LibreOffice window CAN be driven here** - the old note that "LibreOffice maps no
+window on the virtual display" was wrong for the `gen` VCL plugin. The recipe that found
+the per-sentence bug (2026-09-24), fully isolated from the user's LibreOffice:
+
+- `Xvfb :77 -screen 0 1400x1000x24`, then `DISPLAY=:77 openbox`.
+- `unopkg add -f -env:UserInstallation=file://$P libreoffice/laita.oxt` into a throwaway
+  profile `$P`, then start `soffice` with `SAL_USE_VCLPLUGIN=gen`, `DISPLAY=:77`, the same
+  `-env:UserInstallation`, `--accept=socket,...port=2095`, a *copy* of the document, and
+  **a separate `HOME`** so its `~/laita-libreoffice.log` does not mix with the user's.
+- Type with `xdotool` (`End` goes to the end of the *line*, not the paragraph); see the
+  result with Pillow, `ImageGrab.grab(xdisplay=":77")` - no screenshot tool is installed.
+- A fresh profile configures LAITA as the en-GB grammar checker by itself (it is the only
+  one), but has **no Hunspell dictionary**, so any wavy line on screen is LAITA's.
+- `desktop.terminate()` blocks on the "Save Document?" dialog; click *Don't Save*.
+
+`tools/uno-run.sh` (headless) still cannot reach anything that reads the cursor or the
+document state - `getCurrentComponent()` is `None` without a window - so use this for
+those.
 
 ### The LanguageTool server (new since 2026-09-22)
 
@@ -357,11 +395,19 @@ Everything about it is in `languagetool/README.md` (design) and `languagetool/DE
 
 ### Open items
 
-- **LibreOffice desktop 0.4.3 has reported issues, not yet diagnosed.** The user found
-  them after the 0.4.3 artefacts were built and will continue from a desktop machine.
-  Nothing is known about them beyond that, and nothing has been attempted. Start by asking
-  what the symptoms are rather than guessing; `~/laita-libreoffice.log` is the first place
-  to look.
+- ~~LibreOffice: long paragraphs never get underlines.~~ **Fixed 2026-09-24, verified on
+  screen in the isolated instance above; not yet tried by the user.** LibreOffice asks per
+  sentence and ignores the extension's claim that the first sentence runs to the end of
+  the paragraph; the empty answers for the later sentences wiped their errors, so only the
+  first sentence ever kept underlines. Full account in `CLAUDE.md` (LibreOffice section).
+  The user's "the first paragraph I edit never works" was the same bug: what mattered was
+  *where in the paragraph* the errors were, not which paragraph was edited first.
+- **Also done 2026-09-24, not yet tried by the user:** the desktop extension now asks the
+  model only about paragraphs whose text changed (`EditTracker` in `laita_engine.py`,
+  the server's `StreamDebouncer` rule without the timers), not wherever the cursor lands;
+  a first sighting counts only if the document is modified and the cursor is in it (a
+  paste). And a paragraph that is not being edited keeps its existing underlines instead
+  of being answered with an empty result, which LibreOffice treats as "clear them".
 - **Two screenshots are out of date.** `assets/imgs/sceenshot_laita_lo4.png` shows the
   transform dialog without its Copy button, and `sceenshot_laita_lo5.png` the options
   dialog without "Paragraphs to remember". Both changed in 0.4.3 and want retaking.
