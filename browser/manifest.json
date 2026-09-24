@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LAITA - Local AI Text Assistant",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "default_locale": "en",
   "description": "Local AI proofreading and rewriting for any web form, powered by your own Ollama models. Nothing leaves your machine.",
   "author": "Antonello Lobianco",
@@ -79,7 +79,7 @@
       "suggested_key": {
         "default": "Alt+Shift+C"
       },
-      "description": "Proofread the focused field now"
+      "description": "Check the whole focused field, or stop checking it"
     },
     "toggle-site": {
       "suggested_key": {

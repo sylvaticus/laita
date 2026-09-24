@@ -172,7 +172,14 @@ function piecesFor(doc, paras, s, caret = null) {
   return pieces;
 }
 
-async function run(doc, paras, label, caret = null) {
+/**
+ * The whole-document check in progress, if any: { controller, uri }. Stopping it aborts
+ * only that; checking as you type is a separate switch (laita.checkOnType) and neither
+ * touches the other - the same model as the LibreOffice extension.
+ */
+let sweep = null;
+
+async function run(doc, paras, label, caret = null, { whole = false } = {}) {
   if (!core) return;
   const s = settings();
   const pieces = piecesFor(doc, paras, s, caret);
@@ -194,35 +201,60 @@ async function run(doc, paras, label, caret = null) {
     async (progress, cancel) => {
       const controller = new AbortController();
       cancel.onCancellationRequested(() => controller.abort());
-      const timer = setTimeout(() => controller.abort(), s.requestTimeoutMs);
+      if (whole) {
+        sweep = { controller, uri: doc.uri.toString() };
+        vscode.commands.executeCommand("setContext", "laita.checkingDocument", true);
+      }
 
-      // Keep what is already known outside the spans being rechecked.
-      const covered = pieces.map((p) => [p.offset, p.offset + p.text.length]);
-      const kept = (diagnostics.get(doc.uri) || []).filter((d) => {
+      // The spans rechecked so far. Everything outside them keeps what it had until its
+      // own turn comes: dropping every suggestion up front, as this used to, meant that
+      // stopping a whole-document check halfway lost the suggestions of every paragraph
+      // it had not reached yet.
+      const done = [];
+      const outsideDone = (d) => {
         const a = doc.offsetAt(d.range.start), b = doc.offsetAt(d.range.end);
-        return !covered.some(([x, y]) => a < y && b > x);
-      });
-
+        return !done.some(([x, y]) => a < y && b > x);
+      };
       const found = [];
+      const failed = [];
       try {
         for (const [i, piece] of pieces.entries()) {
           if (controller.signal.aborted) break;
           progress.report({ message: pieces.length > 1 ? `${i + 1}/${pieces.length}` : undefined });
-          found.push(...await checkSpan(doc, piece.text, piece.offset, s, controller.signal));
-          diagnostics.set(doc.uri, [...kept, ...found]);   // paint as they arrive
+          // A timeout per request, not per run. One timer for the whole run silently
+          // ended a whole-document check after requestTimeoutMs - 90 s - however long
+          // the document, because an abort is not reported as an error.
+          const one = new AbortController();
+          const stop = () => one.abort();
+          controller.signal.addEventListener("abort", stop);
+          const timer = setTimeout(stop, s.requestTimeoutMs);
+          try {
+            const got = await checkSpan(doc, piece.text, piece.offset, s, one.signal);
+            done.push([piece.offset, piece.offset + piece.text.length]);
+            found.push(...got);
+            diagnostics.set(doc.uri, [...(diagnostics.get(doc.uri) || []).filter(outsideDone),
+                                      ...found]);   // paint as they arrive
+          } catch (err) {
+            if (controller.signal.aborted) break;
+            failed.push(err);                       // one slow paragraph must not end a sweep
+          } finally {
+            clearTimeout(timer);
+            controller.signal.removeEventListener("abort", stop);
+          }
         }
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          vscode.window.showErrorMessage("LAITA: " + core.describeError(err).error);
+        if (failed.length && !controller.signal.aborted) {
+          const extra = failed.length > 1 ? ` (${failed.length} paragraphs were not checked)` : "";
+          vscode.window.showErrorMessage("LAITA: " + core.describeError(failed[0]).error + extra);
         }
       } finally {
-        clearTimeout(timer);
+        if (whole) {
+          sweep = null;
+          vscode.commands.executeCommand("setContext", "laita.checkingDocument", false);
+        }
       }
       refreshStatus(doc);
     });
 }
-
-// ---------------------------------------------------------------- commands
 
 async function checkParagraph() {
   const ed = vscode.window.activeTextEditor;
@@ -233,11 +265,54 @@ async function checkParagraph() {
   await run(ed.document, [p], "checking this paragraph", ed.document.offsetAt(ed.selection.active));
 }
 
-async function checkDocument() {
-  const ed = vscode.window.activeTextEditor;
-  if (!ed) return;
-  const lines = ed.document.getText().split(/\r?\n/);
-  await run(ed.document, paragraphs(lines), "checking the document");
+async function checkDocument(doc) {
+  doc = doc || vscode.window.activeTextEditor?.document;
+  if (!doc) return;
+  if (sweep) {
+    vscode.window.setStatusBarMessage("LAITA: already checking the whole document", 2500);
+    return;
+  }
+  await run(doc, paragraphs(doc.getText().split(/\r?\n/)), "checking the whole document",
+            null, { whole: true });
+}
+
+function stopDocument() {
+  if (sweep) sweep.controller.abort();
+}
+
+// --- checking as you type: on / off -------------------------------------------------------
+
+/** uri -> line of the last edit made while checking as you type was off. */
+const missed = new Map();
+
+function typingIsOn() {
+  return !!vscode.workspace.getConfiguration("laita").get("checkOnType");
+}
+
+async function setTyping(on) {
+  const c = vscode.workspace.getConfiguration("laita");
+  // Write where it is set: a workspace value would otherwise override a global write and
+  // the button would appear to do nothing.
+  const target = c.inspect("checkOnType")?.workspaceValue !== undefined
+    ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+  await c.update("checkOnType", on, target);
+}
+
+/** The setting changed - by a command, the status menu or the Settings editor. */
+function typingChanged() {
+  if (typingIsOn()) {
+    // Check what was edited meanwhile: nothing else would, since only an edit schedules
+    // a check. The suggestions already shown were kept all along.
+    for (const [uri, line] of missed) {
+      const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri);
+      if (doc) scheduleCheck(doc, line);
+    }
+    missed.clear();
+  } else {
+    for (const t of pending.values()) clearTimeout(t);
+    pending.clear();
+  }
+  if (vscode.window.activeTextEditor) refreshStatus(vscode.window.activeTextEditor.document);
 }
 
 async function transform() {
@@ -478,12 +553,16 @@ function rangeForIssue(doc, offset, issue) {
   return locateIssue(doc, naive, issue.original);
 }
 
-/** Is this a document the user wants proofread without asking? */
-function watched(doc) {
+/** Is this a document LAITA proofreads without asking, when checking as you type is on? */
+function eligible(doc) {
   const c = vscode.workspace.getConfiguration("laita");
-  if (!c.get("checkOnType")) return false;
   return (c.get("languages") || []).includes(doc.languageId) ||
          optedIn.has(doc.uri.toString());
+}
+
+/** Is this a document the user wants proofread without asking? */
+function watched(doc) {
+  return typingIsOn() && eligible(doc);
 }
 
 /**
@@ -666,8 +745,11 @@ async function showDictionary() {
 
 function refreshStatus(doc) {
   const n = (diagnostics.get(doc.uri) || []).length;
-  status.text = n ? `$(pencil) LAITA: ${n}` : "$(pencil) LAITA";
-  status.tooltip = n ? `${n} suggestion${n === 1 ? "" : "s"} in this file` : "No suggestions";
+  // Off is a setting that survives a restart, so it has to be visible or it is forgotten.
+  const off = typingIsOn() ? "" : " $(debug-pause)";
+  status.text = (n ? `$(pencil) LAITA: ${n}` : "$(pencil) LAITA") + off;
+  status.tooltip = (n ? `${n} suggestion${n === 1 ? "" : "s"} in this file` : "No suggestions") +
+    (off ? " - not checking as you type" : "");
   status.show();
 }
 
@@ -694,7 +776,10 @@ async function activate(context) {
     diagnostics, status,
     vscode.workspace.registerTextDocumentContentProvider(REVIEW_SCHEME, reviewProvider),
     vscode.commands.registerCommand("laita.checkParagraph", checkParagraph),
-    vscode.commands.registerCommand("laita.checkDocument", checkDocument),
+    vscode.commands.registerCommand("laita.checkDocument", () => checkDocument()),
+    vscode.commands.registerCommand("laita.stopDocument", stopDocument),
+    vscode.commands.registerCommand("laita.typingOn", () => setTyping(true)),
+    vscode.commands.registerCommand("laita.typingOff", () => setTyping(false)),
     vscode.commands.registerCommand("laita.transform", transform),
     vscode.commands.registerCommand("laita.clearDiagnostics", () => {
       diagnostics.clear();
@@ -715,9 +800,16 @@ async function activate(context) {
     vscode.commands.registerCommand("laita.showMenu", async () => {
       // The status bar item is the only part of LAITA always on screen, so it is the
       // natural place to reach everything else from.
+      // One of each pair, whichever applies now - as the LibreOffice toolbar does.
       const items = [
         { label: "$(check) Proofread this paragraph", cmd: "laita.checkParagraph" },
-        { label: "$(checklist) Proofread the whole document", cmd: "laita.checkDocument" },
+        sweep
+          ? { label: "$(debug-stop) Stop checking the whole document", cmd: "laita.stopDocument" }
+          : { label: "$(checklist) Check the whole document (may take a while…)",
+              cmd: "laita.checkDocument" },
+        typingIsOn()
+          ? { label: "$(debug-pause) Stop checking as you type", cmd: "laita.typingOff" }
+          : { label: "$(play) Check as you type", cmd: "laita.typingOn" },
         { label: "$(wand) Transform the selection…", cmd: "laita.transform" },
         { label: "$(book) Personal dictionary…", cmd: "laita.showDictionary" },
         { label: "$(clear-all) Clear suggestions", cmd: "laita.clearDiagnostics" },
@@ -767,7 +859,14 @@ async function activate(context) {
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (!e.contentChanges.length) return;
       shiftDiagnostics(e.document, e.contentChanges);
-      scheduleCheck(e.document, e.contentChanges[e.contentChanges.length - 1].range.start.line);
+      const line = e.contentChanges[e.contentChanges.length - 1].range.start.line;
+      if (!typingIsOn() && vscode.workspace.isTrusted && eligible(e.document)) {
+        missed.set(e.document.uri.toString(), line);
+      }
+      scheduleCheck(e.document, line);
+    }),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("laita.checkOnType")) typingChanged();
     }),
     vscode.window.onDidChangeActiveTextEditor((ed) => {
       if (ed) {
@@ -777,7 +876,7 @@ async function activate(context) {
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (vscode.workspace.getConfiguration("laita").get("checkOnSave")) {
-        run(doc, paragraphs(doc.getText().split(/\r?\n/)), "checking the document");
+        checkDocument(doc);      // a whole-document check like any other: stoppable
       }
     }),
     vscode.workspace.onDidCloseTextDocument((doc) => {
@@ -803,4 +902,7 @@ function deactivate() {
 }
 
 module.exports = { activate, deactivate,
-  __test: { codeActions, fixes, locateIssue, rangeForIssue } };
+  __test: { codeActions, fixes, locateIssue, rangeForIssue, checkDocument, stopDocument,
+            // a test swaps the model out; the anchoring and the rest stay real
+            useModel: (requestIssues) => { core = { ...core, requestIssues }; },
+            isChecking: () => sweep !== null } };

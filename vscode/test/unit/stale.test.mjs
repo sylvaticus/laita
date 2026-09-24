@@ -45,6 +45,8 @@ const vscodeStub = {
                onDidChangeTextDocument: () => ({ dispose() {} }),
                onDidSaveTextDocument: () => ({ dispose() {} }),
                onDidCloseTextDocument: () => ({ dispose() {} }),
+               onDidChangeConfiguration: () => ({ dispose() {} }),
+               textDocuments: [],
                registerTextDocumentContentProvider: () => ({ dispose() {} }) },
   languages: { createDiagnosticCollection: () => ({ set() {}, get: () => [], delete() {}, clear() {}, dispose() {} }),
                registerCodeActionsProvider: () => ({ dispose() {} }) },

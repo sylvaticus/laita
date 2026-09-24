@@ -74,8 +74,8 @@ const boot = async ({ firefox }) => await bootInChild(firefox);
 
 const chromeCalls = await boot({ firefox: false });
 eq("chrome: boots without throwing", true, true);
-eq("chrome: both menu items created", chromeCalls.created.sort(),
-   ["laita-toggle-site", "laita-transform"]);
+eq("chrome: all three menu items created", chromeCalls.created.sort(),
+   ["laita-toggle-site", "laita-toggle-typing", "laita-transform"]);
 eq("chrome: never registers menus.onShown", chromeCalls.listeners.includes("menus.onShown"), false);
 eq("chrome: keeps the title fresh from tab events",
    ["tabs.onActivated", "tabs.onUpdated"].every((l) => chromeCalls.listeners.includes(l)), true);
@@ -84,8 +84,8 @@ eq("chrome: still handles messages", chromeCalls.listeners.includes("runtime.onM
 eq("chrome: still handles commands", chromeCalls.listeners.includes("commands.onCommand"), true);
 
 const ffCalls = await boot({ firefox: true });
-eq("firefox: both menu items created", ffCalls.created.sort(),
-   ["laita-toggle-site", "laita-transform"]);
+eq("firefox: all three menu items created", ffCalls.created.sort(),
+   ["laita-toggle-site", "laita-toggle-typing", "laita-transform"]);
 eq("firefox: uses onShown for exact titles", ffCalls.listeners.includes("menus.onShown"), true);
 eq("firefox: pairs it with onHidden", ffCalls.listeners.includes("menus.onHidden"), true);
 eq("firefox: does not need tab events for titles",

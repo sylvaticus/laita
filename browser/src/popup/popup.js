@@ -9,6 +9,13 @@ import {
 
 const $ = (id) => document.getElementById(id);
 let hostname = "";
+/** Whether the focused field's whole-field check is running, as last reported. */
+let wholeRunning = false;
+
+const WHOLE_START = "Check the whole field (may take a while…)";
+const WHOLE_STOP = "Stop checking the whole field";
+const TYPING_ON = "Check as you type";
+const TYPING_OFF = "Stop checking as you type";
 
 async function activeTab() {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -28,6 +35,8 @@ async function refreshField(tab) {
     $("field").textContent = "Click into a text field, then press Check.";
     return false;
   }
+  wholeRunning = !!res.whole;
+  $("checkLabel").textContent = wholeRunning ? WHOLE_STOP : WHOLE_START;
   if (res.error) $("field").textContent = res.error;
   else if (res.busy) $("field").textContent = "Checking…";
   else {
@@ -124,8 +133,20 @@ async function init() {
   });
 
   $("check").addEventListener("click", async () => {
-    await browser.tabs.sendMessage(tab.id, { cmd: "checkNow" }).catch(() => null);
+    // Stop only the whole-field check; checking as you type is the other button.
+    const cmd = wholeRunning ? "stopWholeCheck" : "checkNow";
+    await browser.tabs.sendMessage(tab.id, { cmd }).catch(() => null);
     setTimeout(() => refreshField(tab), 400);
+  });
+
+  // The same setting as Trigger in the options; the tabs hear of it like any other change.
+  const typingBtn = $("typing");
+  const showTyping = (auto) => { typingBtn.textContent = auto ? TYPING_OFF : TYPING_ON; };
+  showTyping(settings.triggerMode === "auto");
+  typingBtn.addEventListener("click", async () => {
+    const auto = (await getSettings()).triggerMode === "auto";
+    await setSettings({ triggerMode: auto ? "manual" : "auto" });
+    showTyping(!auto);
   });
 
   $("options").addEventListener("click", () => {

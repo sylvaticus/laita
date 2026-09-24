@@ -133,7 +133,7 @@ async function step(name, fn) {
     const opened = !!panel();
     const acts = buttons();
     await ask("polish");
-    const shown = panel()?.querySelector(".out")?.textContent;
+    const shown = panel()?.querySelector(".out")?.value;
     const resultActs = buttons();
     clickAct("Accept & replace");
     await sleep(400);
@@ -173,7 +173,7 @@ async function step(name, fn) {
     await sleep(300);
     const opened = !!panel();
     await ask("polish");
-    const shown = panel()?.querySelector(".out")?.textContent;
+    const shown = panel()?.querySelector(".out")?.value;
     clickAct("Accept & replace");
     await sleep(400);
     await beacon("contenteditable-replace", {

@@ -450,6 +450,7 @@ async function tellActiveTab(payload) {
 
 const MENU_ID = "laita-transform";
 const TOGGLE_ID = "laita-toggle-site";
+const TYPING_ID = "laita-toggle-typing";
 
 /** See resolveHostname in common/settings.js; the messaging is the only part that needs
  *  the extension APIs, so it is the only part that lives here. */
@@ -474,7 +475,24 @@ async function installMenus() {
     title: "Pause spell check here",
     contexts: ["page", "editable", "selection"]
   });
+  // One entry whose title is whichever action applies: the setting is global, so unlike
+  // the per-site item it can be kept right on Chrome too, from storage changes alone.
+  menus.create({
+    id: TYPING_ID,
+    title: typingTitle(await getSettings()),
+    contexts: ["page", "editable", "selection"]
+  });
 }
+
+/** Check as you type, or stop - the same switch as Trigger in the options. */
+function typingTitle(settings) {
+  return settings.triggerMode === "auto" ? "Stop checking as you type" : "Check as you type";
+}
+
+browser.storage.onChanged.addListener(async (changes) => {
+  if (!changes.triggerMode) return;
+  await menus.update(TYPING_ID, { title: typingTitle(await getSettings()) }).catch(() => {});
+});
 
 installMenus();
 browser.runtime.onInstalled.addListener(installMenus);
@@ -540,6 +558,11 @@ menus.onClicked.addListener(async (info, tab) => {
       .catch(() => {});
     return;
   }
+  if (info.menuItemId === TYPING_ID) {
+    const auto = (await getSettings()).triggerMode === "auto";
+    await setSettings({ triggerMode: auto ? "manual" : "auto" });
+    return;
+  }
   if (info.menuItemId === TOGGLE_ID) {
     const hostname = await hostnameForTab(tab);
     if (!hostname) return;
@@ -550,7 +573,8 @@ menus.onClicked.addListener(async (info, tab) => {
 
 browser.commands.onCommand.addListener(async (name) => {
   if (name === "check-now") {
-    await tellActiveTab({ cmd: "checkNow" });
+    // Starts a whole-field check, or stops the one running - never touches as-you-type.
+    await tellActiveTab({ cmd: "toggleWholeCheck" });
   } else if (name === "transform-selection") {
     await tellActiveTab({ cmd: "transformSelection" });
   } else if (name === "toggle-site") {

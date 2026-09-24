@@ -2,7 +2,7 @@
   "name": "laita",
   "displayName": "LAITA - Local AI Text Assistant",
   "description": "Proofread and rewrite text with a language model running locally in Ollama. Nothing leaves your machine.",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "publisher": "sylvaticus",
   "license": "MIT",
   "repository": {
@@ -37,7 +37,19 @@
       },
       {
         "command": "laita.checkDocument",
-        "title": "LAITA: Proofread the whole document"
+        "title": "LAITA: Check the whole document (may take a while…)"
+      },
+      {
+        "command": "laita.stopDocument",
+        "title": "LAITA: Stop checking the whole document"
+      },
+      {
+        "command": "laita.typingOn",
+        "title": "LAITA: Check as you type"
+      },
+      {
+        "command": "laita.typingOff",
+        "title": "LAITA: Stop checking as you type"
       },
       {
         "command": "laita.transform",
@@ -91,6 +103,24 @@
           "command": "laita.checkParagraph",
           "when": "editorTextFocus",
           "group": "1_modification@101"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "laita.checkDocument",
+          "when": "!laita.checkingDocument"
+        },
+        {
+          "command": "laita.stopDocument",
+          "when": "laita.checkingDocument"
+        },
+        {
+          "command": "laita.typingOn",
+          "when": "!config.laita.checkOnType"
+        },
+        {
+          "command": "laita.typingOff",
+          "when": "config.laita.checkOnType"
         }
       ]
     },

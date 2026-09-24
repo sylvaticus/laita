@@ -25,7 +25,10 @@
 <p id="selection" class="field"></p>
 
 <div class="buttons">
-  <button id="check" class="btn primary">Check this field <kbd>Alt+Shift+C</kbd></button>
+  <!-- Two independent switches, each showing only the action that applies now - the
+       same model as the LibreOffice toolbar and the VS Code menu. -->
+  <button id="check" class="btn primary"><span id="checkLabel">Check the whole field (may take a while…)</span> <kbd>Alt+Shift+C</kbd></button>
+  <button id="typing" class="btn">Stop checking as you type</button>
   <button id="transform" class="btn">Transform selection <kbd>Alt+Shift+T</kbd></button>
   <button id="options" class="btn">Options</button>
 </div>

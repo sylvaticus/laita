@@ -171,7 +171,9 @@ Every beacon must report `true`:
 - **Firefox is a snap.** It cannot read anything under `/tmp`, so the profile, the extension
   copy and the page must all live under `$HOME`, or Firefox exits with "Could not find
   profile folder".
-- **Snap AppArmor blocks signals from outside the snap**, so leftover headless Firefox
-  processes cannot be killed by scripts. Clear them yourself with `pkill -f testrun`.
+- **Snap AppArmor blocks signals from outside the snap**, even from root (`sudo pkill`
+  says "Permission denied"). A shell inside the snap can send them:
+  `snap run --shell firefox -c "kill <pid>"`. `run-harness.sh` does this before and after
+  every run.
 - Never `pkill -f` a pattern that also appears in the command you are typing — it matches
   your own shell and kills it.

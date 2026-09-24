@@ -43,8 +43,9 @@ back to a GET; it would report a healthy connection while every real check faile
 
 **Firefox here is a snap.** It cannot read anything under `/tmp`, so test profiles and
 extension copies must be staged under `$HOME`. Snap AppArmor also blocks signals from
-outside the snap, so scripts cannot kill leftover headless Firefox processes — the user has
-to run `pkill -f testrun` themselves.
+outside the snap — even `sudo pkill` gets "Permission denied" — but a shell started inside
+the snap may send them: `snap run --shell firefox -c "kill <pid>"`. `run-harness.sh` does
+that before and after each run.
 
 **Never `pkill -f <pattern>` when the pattern also appears in the command being typed** —
 it matches the shell running it and kills the session. Kill by port (`fuser -k -n tcp N`) or
@@ -307,6 +308,20 @@ inside or make the whole pill clickable.
 `generation` (which aborts the in-flight fetch in the background) and sets
 `lastCheckedText` to the current text, so the next keystroke does not immediately restart
 the work the user just stopped.
+
+**Stopping a whole check keeps what it had not reached yet, on every surface.** A forced
+check in the browser and `checkDocument` in VS Code start from the issues already shown and
+retire them one chunk at a time as each chunk is answered (`issuesOutside` / the `done`
+ranges), rather than clearing everything up front. Clearing first meant that stopping
+halfway wiped the suggestions of the rest of the field or document. The whole check and
+checking as you type are independent switches, as in LibreOffice: stopping one must not
+touch the other, and switching as-you-type off keeps every suggestion applicable.
+
+**In VS Code the request timeout is per request, not per run.** `run()` gives each piece
+its own `AbortController` and timer. One timer for the run ended a long document's sweep
+after `requestTimeoutMs`, and silently, because an abort is not reported as an error.
+`sweep.test.mjs` fails on both of these; its fake model must reject on abort, as `fetch`
+does, or the timeout half passes against the broken code.
 
 **Context menu titles must not repeat the extension name.** Firefox groups an extension's
 items under a submenu named after the extension, so a title of "LAITA transform…"

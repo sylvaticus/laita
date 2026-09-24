@@ -63,6 +63,8 @@ const vscodeStub = {
     onDidChangeTextDocument: event("onDidChangeTextDocument"),
     onDidSaveTextDocument: event("onDidSaveTextDocument"),
     onDidCloseTextDocument: event("onDidCloseTextDocument"),
+    onDidChangeConfiguration: event("onDidChangeConfiguration"),
+    textDocuments: [],
     registerTextDocumentContentProvider: (scheme, provider) => {
       contentProviders.push({ scheme, provider });
       return disposable();
@@ -132,6 +134,22 @@ ok("the transform review diff has a content provider",
    contentProviders.some((p) => p.scheme === "laita-review" &&
      typeof p.provider.provideTextDocumentContent === "function"));
 ok("it watches document changes", listeners.includes("onDidChangeTextDocument"));
+ok("it follows the check-as-you-type setting when it changes elsewhere",
+   listeners.includes("onDidChangeConfiguration"));
+
+// The two pairs: only one command of each is offered at a time, as in the LibreOffice
+// toolbar. A condition written the same way twice would offer both, or neither.
+const palette = (pkg.contributes.menus || {}).commandPalette || [];
+const when = Object.fromEntries(palette.map((m) => [m.command, m.when]));
+for (const [a, b] of [["laita.checkDocument", "laita.stopDocument"],
+                      ["laita.typingOn", "laita.typingOff"]]) {
+  ok(`${a} and ${b} have palette conditions`, !!when[a] && !!when[b]);
+  ok(`...which are exact opposites (${when[a]} / ${when[b]})`,
+     when[a] === "!" + when[b] || when[b] === "!" + when[a]);
+}
+for (const m of palette) {
+  ok(`palette entry ${m.command} is a registered command`, registered.has(m.command));
+}
 ok("the status bar leads somewhere real", registered.has("laita.showMenu"));
 ok("the shared core exposes the hash the cache key needs",
    typeof (await import("../../core/anchor.js")).hash === "function");

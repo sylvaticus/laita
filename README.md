@@ -271,6 +271,9 @@ Open the VSCode extensions panel ⇒ look for "LAITA" ⇒ install
 
 ## 3. Using it
 
+> [!IMPORTANT]
+> 
+> To avoid long delays, unless you explicitly use the option _Check the whole document_ in the desktop version or `--scope=document` in the LanguageTool server version, the document is NOT automatically proofread on loading. Only the paragraphs that you are working on are proofread.
 
 ### 3.1. In Firefox and Chrome
 
@@ -280,16 +283,23 @@ Click into any text box and type. Roughly 1.5 seconds after you stop, **the para
 are working in** is checked and problems get a coloured wavy underline. Paragraphs you
 visit later are checked as you reach them, and each one keeps its highlights once found —
 so opening a long post does not set off a request per paragraph before you have typed
-anything. Press **Alt+Shift+C** to check the whole field at once, or change *How much to
-check* in the options. A small translucent pill just below the field
-shows progress; click its **×** to hide it and abandon the check that is running.
+anything. Press **Alt+Shift+C** to check the whole field at once (press it again to stop),
+or change *How much to check* in the options. A small translucent pill just below the
+field shows progress; click its **×** to hide it and abandon the check that is running.
+
+Checking the whole field and checking as you type are **two independent switches**, both on
+the toolbar button, each showing only the action that applies: *Check the whole field (may
+take a while…)* / *Stop checking the whole field*, and *Check as you type* / *Stop checking
+as you type* (also in the right-click menu). Stopping the whole-field check keeps what it
+had already found and does not stop checking as you type; switching as-you-type off keeps
+every highlight, and they can still be applied.
 
 - **Click a highlight** to open a card with the explanation and the suggested text.
   - **Apply** — replaces just that span. Your undo history (`Ctrl+Z`) still works.
   - **Dismiss** — hides this one for now.
   - **Never suggest** — remembers the suggestion and never offers it again.
   - **Add to dictionary** — for a single word, adds it to your personal dictionary.
-- **Alt+Shift+C** — check the focused field immediately.
+- **Alt+Shift+C** — check the whole focused field now, or stop that check if it is running.
 - **Alt+Shift+X** — pause (or resume) proofreading on the current site. The same thing is
   in the right-click menu as **LAITA: pause / resume spell check on …**, and on the
   toolbar button. See [pausing on a site](#313-pausing-on-a-site).
@@ -376,7 +386,6 @@ never sent anywhere. Fields shorter than 12 characters are ignored too.
 To exclude anything else, add `data-laita="off"` to it or to any ancestor. The older
 `data-locaispell="off"` still works, so pages that already use it keep their exclusion.
 
----
 
 ### 3.2. In VS Code
 
@@ -392,17 +401,17 @@ Just write. Prose files are checked **as you type**, a paragraph at a time:
   browser; the result can replace the selection or be inserted after it.
 - **`Alt+Shift+C`** checks the paragraph at the cursor on demand.
 - The **status bar** item opens everything: proofread, transform, the dictionary,
-  settings.
+  settings. Like the other surfaces it has two independent switches, each showing only
+  the action that applies: *Check the whole document (may take a while…)* / *Stop checking
+  the whole document*, and *Check as you type* / *Stop checking as you type* (the
+  `laita.checkOnType` setting; the status bar shows a pause mark while it is off). The same
+  four are in the Command Palette, which offers only the applicable one of each pair.
 
 Which file types are checked automatically is `laita.languages` — Markdown, Quarto,
 LaTeX, AsciiDoc, reStructuredText, HTML, plain text and commit messages by default. Code
 fences inside them are never sent.
 
 ### 3.3. In LibreOffice/Collabora online
-
-> [!IMPORTANT]
-> 
-> To avoid long delays, unless you explicitly use the option _Check the whole document (may take a while...)_ in the desktop version or `--scope=document` in the LanguageTool server version, the document is NOT automatically proofread on loading. Only the paragraphs that you are working on are proofread.
 
 **LibreOffice desktop**:
 - Settings are under `Tools` ⇒ `Options` ⇒ `LAITA`. The toolbar and the `LAITA` menu have _Transform selection_, _LAITA options_ and two independent switches, each showing only the action that applies right now:
@@ -450,7 +459,7 @@ _Note: not all options are available on all versions of LAITA. The list above co
 | Request timeout | `90 s` | The floor. A transform is allowed longer in proportion to the selection, because a rewrite emits about as much text as it consumes: a paragraph takes seconds, ten pages took over three minutes on the machine this was developed on. |
 | Keep model loaded for | `10m` | Avoids a slow reload on every check. Needs a unit (`30m`, `8h`); `-1m` — or any negative value — keeps it loaded indefinitely, while a bare `-1` is rejected by Ollama. Sent with every request, so it overrides the server's `OLLAMA_KEEP_ALIVE`. |
 | Allow the model to "think" | off | Reasoning traces make checks several times slower. |
-| Trigger | automatic | Or manual only, via `Alt+Shift+C`. |
+| Trigger | automatic | Or manual only, via `Alt+Shift+C`. The same switch as *Check as you type* / *Stop checking as you type* on the toolbar button and in the right-click menu. |
 | How much to check | the paragraph I am working in | `The whole field` checks every paragraph as soon as you focus it — one request each, which is slow on a long document. `Alt+Shift+C` and the toolbar button sweep everything either way. |
 | Typing pause | `1500 ms` | |
 | Ignore fields shorter than | `12` characters | |
@@ -583,7 +592,6 @@ Turn on **Log debug output to the page console** in the options to see what Loca
 doing, then open the web console on the page (`Ctrl+Shift+K`). When the pill shows an
 error, its **?** button opens the full message.
 
----
 ---
 
 ## 6. Privacy

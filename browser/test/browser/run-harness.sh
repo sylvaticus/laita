@@ -16,6 +16,21 @@ RUN=${RUN:-$HOME/laita-testrun}
 PORT=${PORT:-11499}
 LOG=$RUN/requests.json
 
+# Firefox is a snap, and its AppArmor profile refuses signals from outside the snap - even
+# from root: `sudo pkill` answers "Permission denied". A shell started INSIDE the snap is
+# allowed to signal it, so that is where the kill has to come from. The bracket keeps
+# pgrep from matching this script's own command line. Run before a harness as well as
+# after one: a Firefox left over from the last run would otherwise beacon into this one.
+kill_leftovers() {
+  local pids
+  pids=$(pgrep -f "[l]aita-testrun/prof" | tr '\n' ' ')
+  [ -n "$pids" ] && snap run --shell firefox -c "kill $pids" 2>/dev/null
+  sleep 1
+  pgrep -f "[l]aita-testrun/prof" >/dev/null && echo "leftover Firefox still running: $pids"
+  return 0
+}
+kill_leftovers
+
 rm -rf "$RUN"; mkdir -p "$RUN/prof"
 cp -r "$SRC" "$RUN/ext"
 rm -rf "$RUN/ext/web-ext-artifacts" "$RUN/ext/dist-chrome"
@@ -72,6 +87,4 @@ print("total /api/chat:", chat)
 print("VERDICT num_ctx absent from every request:", not withctx)
 PY
 
-echo
-echo "Firefox is a snap: leftover headless processes cannot be killed from a script."
-echo "Clear them yourself with:  pkill -f laita-testrun"
+kill_leftovers

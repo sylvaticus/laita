@@ -81,20 +81,25 @@ from Node and carry no `Origin` header, so Ollama does not refuse them.
 | Command | Keybinding |
 | --- | --- |
 | Proofread the paragraph at the cursor | `Alt+Shift+C` |
-| Proofread the whole document | — |
+| Check the whole document (may take a while…) / Stop checking the whole document | — |
+| Check as you type / Stop checking as you type | — |
 | Transform the selection… | `Alt+Shift+T` |
 | Clear suggestions | — |
 
 **Checking is automatic**, shortly after you stop typing, for the file types in
 `laita.languages` — Markdown, LaTeX, AsciiDoc, reStructuredText, plain text. It looks at the part of the paragraph you are working in, not the whole file. A
 paragraph longer than `laita.chunkMaxChars` is split on sentence boundaries and only the
-piece holding the cursor is sent, because the model's latency grows faster than the text
-it is given - 419 characters took 4.4 seconds on the development machine, 1119 took
-19.4. Opening a document checks its first real paragraph, skipping the
-title.
+piece holding the cursor is sent: the model's time goes on writing its answer, roughly in
+proportion to the problems it finds, so a smaller piece answers sooner - and one request
+stops at twelve suggestions, so splitting a long paragraph also finds more. Opening a
+document checks its first real paragraph, skipping the title.
 
-Turn that off with `laita.checkOnType` and use the commands instead, or set
-`laita.checkOnSave` to sweep the whole document when you save.
+Turn that off with **Stop checking as you type** (or `laita.checkOnType`) and use the
+commands instead, or set `laita.checkOnSave` to sweep the whole document when you save.
+Each pair of commands offers only the action that applies, in the Command Palette and in
+the status-bar menu. Stopping a whole-document check keeps the suggestions of the
+paragraphs it had not reached yet; with checking as you type off, every suggestion already
+shown stays, and its quick fix still works.
 
 ### Which file types, and what those names are
 

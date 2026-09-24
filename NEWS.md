@@ -7,7 +7,11 @@ User-facing changes, newest first. Design decisions live in
 
 ---
 
-## Unreleased
+## 0.4.4 — 24 September 2026
+
+0.4.3 was never published to the browser, VS Code or LibreOffice stores, so if you are
+updating from an earlier version, everything under 0.4.3 below arrives with this release
+too.
 
 ### LibreOffice: long paragraphs are underlined in full
 
@@ -32,6 +36,22 @@ LAITA menu, each showing only the action that applies:
 With checking as you type off, the underlines already shown stay and their suggestions
 can still be applied. Paragraphs you edit meanwhile are checked as soon as you switch it
 back on.
+
+### Browser and VS Code: the same two switches
+
+- **Browser:** the toolbar button has *Check the whole field (may take a while…)* / *Stop
+  checking the whole field* and *Check as you type* / *Stop checking as you type*, each
+  showing only the action that applies; the as-you-type switch is also in the right-click
+  menu, and **Alt+Shift+C** now starts or stops the whole-field check. Stopping it keeps
+  the highlights it had not re-checked yet - it used to wipe them.
+- **VS Code:** *Check the whole document (may take a while…)* / *Stop checking the whole
+  document* and *Check as you type* / *Stop checking as you type*, in the Command Palette
+  and the status-bar menu, each offering only the applicable one. The status bar shows a
+  pause mark while checking as you type is off.
+- **VS Code: a whole-document check no longer stops by itself after 90 seconds.** The
+  request timeout was applied to the whole run instead of to each request, so a long
+  document was silently left half-checked. Stopping it on purpose now keeps the
+  suggestions of the paragraphs it had not reached.
 
 ---
 

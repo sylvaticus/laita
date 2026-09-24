@@ -35,6 +35,11 @@
   let lastCheckedRange = null;
   const ALL = "*";
   let busyChunks = 0;
+  /** The generation of the whole-field check running now, or null. It is what the popup's
+   *  Check / Stop the whole field button and Alt+Shift+C read: a whole-field check and
+   *  checking as you type are separate switches, as in the other LAITA surfaces. */
+  let wholeGen = null;
+  const wholeRunning = () => wholeGen !== null && wholeGen === generation && busyChunks > 0;
   let lastError = null;
   let currentLang = null;
   let repositionQueued = false;
@@ -174,13 +179,18 @@
     lastCheckedRange = force ? ALL : rangeKey;
     lastError = null;
     const gen = ++generation;
+    wholeGen = force ? gen : null;      // any newer check supersedes a whole-field one
 
     LAITA.log(
       "checking", todo.length, "of", chunks.length, "chunk(s), language:", currentLang,
       "field:", adapter.kind, "scope:", force ? "forced" : LAITA.settings.checkScope
     );
     busyChunks = todo.length;
-    const collected = [...keep];
+    // What each chunk shows until its own answer arrives. For a whole-field check that is
+    // everything already there: starting from nothing, as this used to, meant stopping
+    // it halfway wiped the highlights of every chunk it had not reached yet.
+    let kept = force ? issues.slice() : keep;
+    const collected = [];
     showPill();
 
     await Promise.all(
@@ -201,11 +211,12 @@
           showPill();
           return;
         }
+        kept = LAITA.issuesOutside(kept, chunk.start, chunk.start + chunk.text.length);
         for (const issue of res.issues) {
           collected.push({ ...issue, start: issue.start + chunk.start, end: issue.end + chunk.start });
         }
         // Paint progressively: the first paragraph should not wait for the last.
-        issues = LAITA.reconcile(collected.slice(), adapter.getText());
+        issues = LAITA.reconcile([...kept, ...collected], adapter.getText());
         paint();
         showPill();
       })
@@ -213,6 +224,7 @@
 
     if (gen !== generation) return;
     busyChunks = 0;
+    wholeGen = null;
     showPill();
     reportStatus();
   }
@@ -233,6 +245,7 @@
   function cancelCheck() {
     clearTimeout(debounceTimer);
     generation++;
+    wholeGen = null;
     LAITA.send({ cmd: "cancel", clientId: LAITA.clientId, gen: generation });
     busyChunks = 0;
     lastError = null;
@@ -420,7 +433,14 @@
 
 
   browser.runtime.onMessage.addListener(async (msg) => {
-    if (msg.cmd === "checkNow") {
+    // Stopping a whole-field check is the pill's ×: it abandons that check and nothing
+    // else, so checking as you type carries on with the next edit.
+    if (msg.cmd === "stopWholeCheck" ||
+        (msg.cmd === "toggleWholeCheck" && wholeRunning())) {
+      if (wholeRunning()) cancelCheck();
+      return { ok: true, stopped: true };
+    }
+    if (msg.cmd === "checkNow" || msg.cmd === "toggleWholeCheck") {
       const el = document.activeElement;
       if (el && (!adapter || adapter.el !== el)) attach(el);
       if (!adapter) return { ok: false, reason: "no-field" };
@@ -443,12 +463,17 @@
     }
     if (msg.cmd === "settingsChanged") {
       const wasActive = LAITA.active;
+      const wasTyping = LAITA.settings?.triggerMode === "auto";
       await loadSettings();
       if (!LAITA.active) detach();
       else if (!wasActive && document.activeElement) attach(document.activeElement);
       else if (adapter) {
         lastCheckedText = null;
         paint();
+        // Checking as you type just came back on: look at what was typed while it was
+        // off, since only an edit would otherwise start a check. The highlights already
+        // there were kept all along - switching it off never clears them.
+        if (!wasTyping && LAITA.settings.triggerMode === "auto") schedule(0);
       }
       return { ok: true };
     }
@@ -459,6 +484,7 @@
         count: issues.length,
         lang: currentLang,
         busy: busyChunks > 0,
+        whole: wholeRunning(),
         error: lastError
       };
     }

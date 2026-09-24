@@ -52,7 +52,7 @@ Design invariants go in `CLAUDE.md` instead, not here; procedures go in `dev_doc
   published, and the README gives it as the value for `OLLAMA_ORIGINS`. An unpacked
   `dist-chrome/` load gets a different local id, which is why development needs the
   wildcard.
-- All packages are at **0.4.3** and the release workflow refuses to publish unless the
+- All packages are at **0.4.4** and the release workflow refuses to publish unless the
   manifests match the tag. There are now **four** things to keep in step:
   `browser/manifest.json`, `browser/manifest.chrome.json`, `vscode/package.json` and
   `libreoffice/src/description.xml`.
@@ -156,9 +156,10 @@ threw; and `vscode/.vscode/launch.json` was never tracked, so a fresh clone stil
   was dropped. **Run it for any change to `overlay.js`, `textmap.js`, `transform.js` or
   the event handling in `content/main.js`.** It is not in CI: it needs a browser and
   several minutes.
-- **Firefox is a snap, so the harness leaks processes.** Leftover headless instances
-  cannot be killed by a script; they accumulate at ~550 MB each. Run `pkill -f
-  laita-testrun` yourself afterwards — five had built up over four days at one point.
+- **Firefox is a snap, so the harness used to leak processes**, ~550 MB each; five had
+  built up over four days at one point. Not even `sudo pkill` can signal them. A shell
+  inside the snap can: `snap run --shell firefox -c "kill <pid>"`, which `run-harness.sh`
+  now does before and after every run.
 - **No automated coverage at all** for `content/main.js` orchestration, `textmap.js`
   geometry, `overlay.js`/`card.js` rendering, or the options and popup round-trips beyond
   "they load on Chrome".
@@ -166,9 +167,8 @@ threw; and `vscode/.vscode/launch.json` was never tracked, so a fresh clone stil
 ### This machine
 
 - **Firefox is a snap.** It cannot read `/tmp`, so test profiles and extension copies must
-  live under `$HOME`. Snap AppArmor also blocks signals from outside the snap: leftover
-  headless Firefox processes cannot be killed by a script and the user must run
-  `pkill -f laita-testrun`.
+  live under `$HOME`. Snap AppArmor also blocks signals from outside the snap, even
+  root's; kill leftovers from inside it: `snap run --shell firefox -c "kill <pid>"`.
 - **The ssh key is passphrase-protected.** After every reboot, `ssh-add ~/.ssh/id_rsa`
   must be run once or `git push` hangs — and each failed attempt leaves `gcr-ssh-agent`
   forking an `ssh-add` that spins at 97% CPU indefinitely. Two such processes once ran for
@@ -415,8 +415,9 @@ Everything about it is in `languagetool/README.md` (design) and `languagetool/DE
   LibreOffice. Both sides of its review diff are served by a `TextDocumentContentProvider`
   and are read-only by construction; making the right-hand side writable needs a
   `FileSystemProvider` on its own scheme. Copy is offered instead. Deliberate, not missed.
-- **0.4.3 is built but not tested by a human on any surface**, and not uploaded anywhere.
-  The artefacts are in `browser/web-ext-artifacts/`, `vscode/` and `libreoffice/dist/`.
+- **0.4.3 was built but never uploaded; 0.4.4 supersedes it** and is the first version
+  since 0.4.1 to reach the stores. The artefacts are in `browser/web-ext-artifacts/`,
+  `vscode/` and `libreoffice/dist/`.
 
 - **Firefox has no installable build.** See Store status above. This is the one thing a
   user can currently not do.
