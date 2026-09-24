@@ -8,8 +8,20 @@
 
   Context decides which applications each command appears in. Proofreading only ever
   happens in Writer - Calc, Impress and Draw never call a grammar checker, measured - so
-  Check this document and Stop checking are Writer-only. Transform works on a selection
-  and is offered everywhere.
+  the four checking commands are Writer-only. Transform works on a selection and is
+  offered everywhere.
+
+  The checking commands come in two pairs, and only one of each pair is visible at a
+  time: the dispatcher reports a frame.status.Visibility state for each, which both the
+  toolbar (GenericToolbarController) and the menu (MenuBarManager) honour by showing or
+  hiding the entry. So the toolbar is always four buttons wide:
+
+    Check the whole document (may take a while...) / Stop checking the whole document   - one whole-document sweep
+    Check as you type   / Stop checking as you type     - the CheckAsYouType setting
+
+  The two are independent: stopping a sweep never switches checking as you type off,
+  and turning it on or off never starts a sweep. Generated from one list - keep the menu,
+  the toolbar and the images in the same order.
 -->
 <oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
                     xmlns:xs="http://www.w3.org/2001/XMLSchema"
@@ -32,17 +44,29 @@
         </node>
         <node oor:name="n2" oor:op="replace">
           <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:checkdocument</value></prop>
-          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Check this document</value></prop>
+          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Check the whole document (may take a while...)</value></prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
           <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
         </node>
         <node oor:name="n3" oor:op="replace">
-          <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:stop</value></prop>
-          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Stop checking</value></prop>
+          <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:stopdocument</value></prop>
+          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Stop checking the whole document</value></prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
           <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
         </node>
         <node oor:name="n4" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:typingon</value></prop>
+          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Check as you type</value></prop>
+          <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="n5" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:typingoff</value></prop>
+          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Stop checking as you type</value></prop>
+          <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="n6" oor:op="replace">
           <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:options</value></prop>
           <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Options...</value></prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
@@ -65,17 +89,29 @@
         </node>
         <node oor:name="m2" oor:op="replace">
           <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:checkdocument</value></prop>
-          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Check this document</value></prop>
+          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Check the whole document (may take a while...)</value></prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
           <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
         </node>
         <node oor:name="m3" oor:op="replace">
-          <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:stop</value></prop>
-          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Stop checking</value></prop>
+          <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:stopdocument</value></prop>
+          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Stop checking the whole document</value></prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
           <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
         </node>
         <node oor:name="m4" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:typingon</value></prop>
+          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Check as you type</value></prop>
+          <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="m5" oor:op="replace">
+          <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:typingoff</value></prop>
+          <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">Stop checking as you type</value></prop>
+          <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
+          <prop oor:name="Context" oor:type="xs:string"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="m6" oor:op="replace">
           <prop oor:name="URL" oor:type="xs:string"><value>org.lobianco.laita.command:options</value></prop>
           <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en">LAITA Options...</value></prop>
           <prop oor:name="Target" oor:type="xs:string"><value>_self</value></prop>
@@ -86,8 +122,9 @@
 
     <!-- One icon per command, 16px for the small toolbar and 26px for the large one.
          Each is a pencil, a red proofreading squiggle along the bottom, and one mark
-         that says which command it is - so the set reads as one tool and only the mark
-         has to be told apart. Drawn by tools/make-icons.py. -->
+         that says which command it is. The whole-document pair draws its play/stop mark
+         inside a thin square frame - the document - and the as-you-type pair without
+         one. Drawn by tools/make-icons.py. -->
     <node oor:name="Images">
       <node oor:name="org.lobianco.laita.image.transform" oor:op="replace">
         <prop oor:name="URL" oor:type="xs:string">
@@ -115,16 +152,42 @@
           </prop>
         </node>
       </node>
-      <node oor:name="org.lobianco.laita.image.stop" oor:op="replace">
+      <node oor:name="org.lobianco.laita.image.stopdocument" oor:op="replace">
         <prop oor:name="URL" oor:type="xs:string">
-          <value>org.lobianco.laita.command:stop</value>
+          <value>org.lobianco.laita.command:stopdocument</value>
         </prop>
         <node oor:name="UserDefinedImages">
           <prop oor:name="ImageSmallURL" oor:type="xs:string">
-            <value>%origin%/icons/stop_16.png</value>
+            <value>%origin%/icons/stopdocument_16.png</value>
           </prop>
           <prop oor:name="ImageBigURL" oor:type="xs:string">
-            <value>%origin%/icons/stop_26.png</value>
+            <value>%origin%/icons/stopdocument_26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="org.lobianco.laita.image.typingon" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>org.lobianco.laita.command:typingon</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>%origin%/icons/typingon_16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>%origin%/icons/typingon_26.png</value>
+          </prop>
+        </node>
+      </node>
+      <node oor:name="org.lobianco.laita.image.typingoff" oor:op="replace">
+        <prop oor:name="URL" oor:type="xs:string">
+          <value>org.lobianco.laita.command:typingoff</value>
+        </prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL" oor:type="xs:string">
+            <value>%origin%/icons/typingoff_16.png</value>
+          </prop>
+          <prop oor:name="ImageBigURL" oor:type="xs:string">
+            <value>%origin%/icons/typingoff_26.png</value>
           </prop>
         </node>
       </node>

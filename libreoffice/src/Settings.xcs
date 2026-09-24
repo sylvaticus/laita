@@ -42,7 +42,7 @@
            or clicking into a paragraph to read it asks the model nothing. The value
            keeps its old name so settings already saved still mean the same thing.
            "document": every paragraph LibreOffice asks about, which on opening a long
-           file means the whole visible document at once. Check this document overrides
+           file means the whole visible document at once. Check the whole document overrides
            this for one sweep either way. -->
       <prop oor:name="Scope" oor:type="xs:string"><value>caret</value></prop>
     </group>

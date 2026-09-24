@@ -309,6 +309,46 @@ def main():
     check("...and keeps the recent ones",
           small.note(doc[2]), EditTracker.SAME)
 
+    # --- stopping one kind of checking must not stop the other ---------------------
+    # "Stop" used to be Engine.stop(): as-you-type died with the sweep, and the only way
+    # back was a whole new sweep. The two cancels exist so each leaves the other alone.
+    e, asked, ready = engine()
+    e.request("Typed paragraph that is waiting on its debounce.", "en", SETTINGS)
+    e.cancel_pending()
+    FakeTimer.run_all()
+    check("switching as-you-type off drops the check waiting on its debounce", asked, [])
+    check("...and the engine still accepts work afterwards", e.stopped, False)
+    e.request("Typed again after it was switched back on.", "en", SETTINGS)
+    FakeTimer.run_all()
+    check("...so the next edit is checked normally",
+          asked, ["Typed again after it was switched back on."])
+
+    import threading as _th
+    gate, asked12 = _th.Event(), []
+
+    def held(text, lang):
+        asked12.append(text)
+        gate.wait(2)
+        return []
+
+    e12 = Engine(held, timer_factory=FakeTimer)
+    for i in range(5):
+        e12.enqueue("Sweep paragraph number %d here." % i, "en", SETTINGS)
+    for _ in range(200):                       # wait until the first is in flight
+        if asked12:
+            break
+        _time.sleep(0.005)
+    e12.request("A paragraph being typed during the sweep.", "en", SETTINGS)
+    e12.cancel_queue()
+    gate.set()
+    _time.sleep(0.2)
+    check("stopping the sweep drops the paragraphs still waiting",
+          [t for t in asked12 if t.startswith("Sweep")], ["Sweep paragraph number 0 here."])
+    FakeTimer.run_all()
+    _time.sleep(0.2)
+    check("...but a paragraph being typed is still checked",
+          "A paragraph being typed during the sweep." in asked12, True)
+
     print("%d passed, %d failed" % (passes, len(fails)))
     for f in fails:
         print("  FAIL " + f)

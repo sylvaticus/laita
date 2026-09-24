@@ -7,6 +7,34 @@ User-facing changes, newest first. Design decisions live in
 
 ---
 
+## Unreleased
+
+### LibreOffice: long paragraphs are underlined in full
+
+Only the first sentence of a paragraph ever got underlines, so long paragraphs looked
+unchecked, and splitting them "fixed" it. Every sentence is underlined now.
+
+### LibreOffice: only what you edit is checked
+
+Opening a document, or clicking into a paragraph to read it, no longer sends anything to
+the model. A paragraph is checked when you change it.
+
+### LibreOffice: separate controls for the whole document and for as-you-type
+
+*Stop checking* used to switch everything off, and the only way back was another check of
+the whole document. There are now two independent switches, on the toolbar and in the
+LAITA menu, each showing only the action that applies:
+
+- **Check the whole document (may take a while...) / Stop checking the whole document** (framed ▶ / ■): one sweep.
+- **Check as you type / Stop checking as you type** (plain ▶ / ■): the same setting as in
+  the options.
+
+With checking as you type off, the underlines already shown stay and their suggestions
+can still be applied. Paragraphs you edit meanwhile are checked as soon as you switch it
+back on.
+
+---
+
 ## 0.4.3 — 23 September 2026
 
 ### LAITA now works in Collabora Online

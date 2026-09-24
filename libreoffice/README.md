@@ -15,8 +15,10 @@ in the LibreOffice section of [`../doc/roadmap.md`](../doc/roadmap.md).
 > Tools ▸ Options ▸ Languages and Locales ▸ Writing Aids ▸ *Available Language Modules*
 > ▸ **Edit…** ▸ choose your language ▸ tick **LAITA**
 
-Settings are under Tools ▸ Options ▸ **LAITA - Local AI Text Assistant**, and the toolbar
-has *Check this document*, *Stop checking*, *Transform selection* and *LAITA options*.
+Settings are under Tools ▸ Options ▸ **LAITA - Local AI Text Assistant**. The toolbar and
+the LAITA menu have *Transform selection*, *LAITA options* and two independent switches,
+each showing only the action that applies right now: *Check the whole document (may take a while...)* / *Stop checking the whole document* (a framed ▶ / ■) and *Check as you type* / *Stop checking as you
+type* (a plain ▶ / ■). How the buttons show and hide is described in `src/Addons.xcu`.
 
 The log is `~/laita-libreoffice.log`.
 

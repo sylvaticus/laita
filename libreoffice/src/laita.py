@@ -21,6 +21,7 @@ import os
 import threading
 import time
 import traceback
+from collections import OrderedDict
 
 import uno
 import unohelper
@@ -84,7 +85,9 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
         self.edits = EditTracker()
         # (text, issues) for the paragraph whose sentences LibreOffice is walking.
         self._answer = None
-        # Set by the Check this document button, for one sweep. Opening a long file
+        # Paragraph texts edited while checking as you type was off, oldest first.
+        self._missed = OrderedDict()
+        # Set by the Check the whole document button, for one sweep. Opening a long file
         # otherwise means LibreOffice asks about every visible paragraph at once, and
         # each of those is a request to a local model that answers in seconds.
         self.sweep = False
@@ -205,6 +208,30 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
         self.engine.start()
         self.engine.forget()
         self._answer_ready("")
+        state_changed(self.ctx)
+
+    def stop_sweep(self):
+        """End the whole-document check. Checking as you type carries on untouched."""
+        self.sweep = False
+        if self._sweep_timer is not None:
+            self._sweep_timer.cancel()
+            self._sweep_timer = None
+        self.engine.cancel_queue()
+        state_changed(self.ctx)
+
+    def typing_changed(self, on):
+        """Checking as you type was switched. The setting is already written.
+
+        Off keeps every underline already shown, and applying them keeps working:
+        a right-click makes LibreOffice ask this checker again, which answers from the
+        cache and never needs the model. On asks LibreOffice to look again, so the
+        paragraphs edited while it was off (remembered in _missed) are checked now.
+        """
+        if on:
+            self.engine.start()
+            self._answer_ready("")
+        else:
+            self.engine.cancel_pending()
 
     def _maybe_end_sweep(self):
         """A sweep is over when the engine has been idle for a moment.
@@ -222,6 +249,7 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
             if self.sweep and not self.engine.busy:
                 self.sweep = False
                 log("sweep finished; back to checking only the current paragraph")
+                state_changed(self.ctx)
         # Pure Python state, no UNO, so a plain timer is safe here - noted because
         # every other timer in this file must not be one.
         self._sweep_timer = threading.Timer(4.0, check)
@@ -367,11 +395,21 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
                 edited, why = True, "edited"
             elif change == EditTracker.NEW and self._pasted_here(text):
                 edited, why = True, "new, typed or pasted here"
+            elif text in self._missed:
+                edited, why = True, "edited while checking as you type was off"
             else:
                 edited, why = False, "%s, not edited" % change
             if edited:
                 if s["checkAsYouType"]:
+                    self._missed.pop(text, None)
                     self.engine.request(text, lang, s)
+                else:
+                    # Remembered, so switching checking back on checks what was typed
+                    # meanwhile - EditTracker will call it a re-display by then.
+                    self._missed[text] = True
+                    while len(self._missed) > 200:
+                        self._missed.popitem(last=False)
+                    why += ", not asked: checking as you type is off"
                 source = "provisional (%s)" % why
             else:
                 # Never ask the model about it. But do NOT return nothing: LibreOffice
@@ -425,6 +463,62 @@ class Proofreader(unohelper.Base, XProofreader, XServiceInfo, XServiceName,
 Proofreader.instance = None
 
 
+# --- which command of each pair is showing ---------------------------------------------
+# The checking commands come in two pairs and only one of each is visible at a time. The
+# toolbar (GenericToolbarController) and the menu (MenuBarManager) both honour a
+# frame.status.Visibility state by showing or hiding the entry, so all it takes is to
+# answer LibreOffice's status listeners - which the dispatcher used to ignore, which is
+# why the buttons never changed. LibreOffice registers one listener per command per
+# window; the state is global (one Proofreader), so every registration is told.
+PAIRED = ("checkdocument", "stopdocument", "typingon", "typingoff")
+_status_listeners = []            # [(listener, url.Complete, url)]
+_status_lock = threading.Lock()
+
+
+def _visible(ctx):
+    """{command: shown?} for the paired commands, from the state right now."""
+    pr = Proofreader.instance
+    sweeping = bool(pr and pr.sweep)
+    typing = bool(settings_store.read(ctx)["checkAsYouType"])
+    return {"checkdocument": not sweeping, "stopdocument": sweeping,
+            "typingon": not typing, "typingoff": typing}
+
+
+def _tell(listener, url, shown, source=None):
+    ev = uno.createUnoStruct("com.sun.star.frame.FeatureStateEvent")
+    ev.FeatureURL = url
+    ev.IsEnabled = True
+    ev.Requery = False
+    vis = uno.createUnoStruct("com.sun.star.frame.status.Visibility")
+    vis.bVisible = bool(shown)
+    ev.State = vis
+    if source is not None:
+        ev.Source = source
+    listener.statusChanged(ev)
+
+
+def broadcast_state(ctx):
+    """Tell every registered button and menu entry which of its pair is showing.
+    Main thread only: the listeners are VCL toolbars and menus. Use state_changed()."""
+    shown = _visible(ctx)
+    with _status_lock:
+        registered = list(_status_listeners)
+    for listener, complete, url in registered:
+        try:
+            _tell(listener, url, shown[url.Path])
+        except Exception:
+            # Its window closed without unregistering; do not try it again.
+            with _status_lock:
+                _status_listeners[:] = [e for e in _status_listeners
+                                        if not (e[1] == complete and e[0] == listener)]
+
+
+def state_changed(ctx):
+    """Safe from any thread - the sweep ends on a timer - so it always goes through
+    the main thread, the same route every other UI touch in this file takes."""
+    later_on_main(ctx, 0.0, lambda: broadcast_state(ctx), "toolbar state")
+
+
 class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
     """The toolbar buttons. Each is a URL in our own protocol, routed here by
     ProtocolHandler.xcu."""
@@ -449,10 +543,21 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
                      for r in requests)
 
     def addStatusListener(self, listener, url):
-        pass
+        if url.Path not in PAIRED:
+            return
+        with _status_lock:
+            _status_listeners.append((listener, url.Complete, url))
+        try:
+            # Called on the main thread by the toolbar or menu being built, so it can be
+            # answered at once - otherwise all four entries show until the first change.
+            _tell(listener, url, _visible(self.ctx)[url.Path], self)
+        except Exception:
+            log("status for %s failed\n%s" % (url.Path, traceback.format_exc()))
 
     def removeStatusListener(self, listener, url):
-        pass
+        with _status_lock:
+            _status_listeners[:] = [e for e in _status_listeners
+                                    if not (e[1] == url.Complete and e[0] == listener)]
 
     def dispatch(self, url, args):
         try:
@@ -468,12 +573,25 @@ class Dispatcher(unohelper.Base, XDispatchProvider, XDispatch, XServiceInfo):
             # walk the document again - which makes it call us for each of them.
             if pr:
                 pr.start_sweep()
-            self._say("LAITA is checking the document.")
-        elif command == "stop":
+            self._say("LAITA is checking the whole document.")
+        elif command in ("stopdocument", "stop"):     # "stop" was its name before 0.4.4
+            # Stops the sweep and nothing else. It used to stop the engine outright, so
+            # checking as you type died with it and the only way back was another
+            # whole-document sweep.
             if pr:
-                pr.sweep = False
-                pr.engine.stop()
-            self._say("LAITA has stopped checking. Use Check document to resume.")
+                pr.stop_sweep()
+            self._say("LAITA stopped checking the document. Checking as you type is unchanged.")
+        elif command in ("typingon", "typingoff"):
+            on = command == "typingon"
+            # The same setting as the Check as you type box in the options, so the two
+            # can never disagree - and it survives a restart, like the box does.
+            settings_store.write(self.ctx, checkAsYouType=on)
+            if pr:
+                pr.typing_changed(on)
+            state_changed(self.ctx)
+            self._say("LAITA is checking as you type." if on else
+                      "LAITA stopped checking as you type. Suggestions already shown stay "
+                      "and can still be applied.")
         elif command == "transform":
             self._transform()
         elif command == "adddictionary":
@@ -1197,6 +1315,8 @@ def save_from(ctx, window):
     # Anything that changes what the model is asked makes every cached answer wrong.
     if Proofreader.instance:
         Proofreader.instance.engine.forget()
+    # Check as you type may have changed here; the toolbar pair must follow the box.
+    state_changed(ctx)
     log("settings saved: %s" % sorted(changes))
 
 

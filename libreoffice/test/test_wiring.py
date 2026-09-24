@@ -99,10 +99,11 @@ def main():
         return found
 
     urls = urls_under("OfficeMenuBar") + urls_under("OfficeToolBar")
-    # Four commands, offered in two places: a menu that is always there and a toolbar
-    # the user can switch off in View > Toolbars without losing anything.
-    check("every command appears in both the menu and the toolbar", len(urls), 8)
-    check("...which is four distinct commands", len(set(urls)), 4)
+    # Six commands, offered in two places: a menu that is always there and a toolbar
+    # the user can switch off in View > Toolbars without losing anything. Four of them
+    # are two pairs of which only one is ever visible, so the toolbar shows four.
+    check("every command appears in both the menu and the toolbar", len(urls), 12)
+    check("...which is six distinct commands", len(set(urls)), 6)
     for section in ("OfficeMenuBar", "OfficeToolBar"):
         check("Addons.xcu declares an %s" % section, section in read("Addons.xcu"), True)
 
@@ -122,7 +123,7 @@ def main():
                 ctx_prop = values[0]
         if url_prop and ctx_prop:
             contexts.setdefault(url_prop.split(":", 1)[1], set()).add(ctx_prop)
-    for command in ("checkdocument", "stop"):
+    for command in ("checkdocument", "stopdocument", "typingon", "typingoff"):
         for ctx_value in contexts.get(command, ()):
             check("%r is offered in Writer only" % command,
                   ctx_value, "com.sun.star.text.TextDocument")
@@ -131,6 +132,8 @@ def main():
             check("%r is offered in every application" % command,
                   ctx_value.count(",") + 1, 4)
     handled = set(re.findall(r'command == "(\w+)"', py))
+    for group in re.findall(r'command in \(([^)]*)\)', py):
+        handled |= set(re.findall(r'"(\w+)"', group))
     for url in urls:
         check("Addons.xcu URL %r uses our protocol" % url,
               url.startswith("org.lobianco.laita.command:"), True)
@@ -145,7 +148,21 @@ def main():
         node = 'org.lobianco.laita.image.%s' % command
         check("Addons.xcu declares an image for %r" % command, node in addons_text, True)
     images = re.findall(r"%origin%/([\w/.]+\.png)", addons_text)
-    check("both sizes are declared for all four commands", len(images), 8)
+    check("both sizes are declared for all six commands", len(images), 12)
+
+    # --- the paired commands: exactly the four that show one of each pair -----------
+    # The dispatcher answers LibreOffice's status listeners only for PAIRED; a command
+    # left out would show both halves of its pair, one added by mistake would be hidden.
+    paired = re.search(r'PAIRED = \(([^)]*)\)', py)
+    paired = set(re.findall(r'"(\w+)"', paired.group(1))) if paired else set()
+    check("PAIRED is the four checking commands",
+          paired, {"checkdocument", "stopdocument", "typingon", "typingoff"})
+    check("...all of them in the menu and the toolbar",
+          paired <= set(u.split(":", 1)[1] for u in urls), True)
+    visible = py[py.index("def _visible("):py.index("def _tell(")]
+    for command in sorted(paired):
+        check("_visible() decides whether %r shows" % command,
+              '"%s":' % command in visible, True)
     for rel in images:
         check("the icon file %s exists" % rel,
               os.path.exists(os.path.join(SRC, *rel.split("/"))), True)

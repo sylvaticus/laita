@@ -186,6 +186,24 @@ errors with an empty result. Found by reading gciterator.cxx and confirmed on sc
 an isolated LibreOffice (recipe in `doc/agent_context.md`). Offsets from LibreOffice are
 UTF-16; convert with `from_utf16_index` before comparing with Python's.
 
+**The whole-document check and checking as you type are independent, and neither stops
+the engine.** *Stop checking* used to call `Engine.stop()`, which refused all work, so
+checking as you type died with the sweep, and the only way back was another full sweep.
+Now `stopdocument` only drops the sweep queue (`Engine.cancel_queue`), and `typingoff`
+only writes `CheckAsYouType` and drops the pending debounce (`cancel_pending`). Don't
+route either back through `stop()`. Turning checking off must also keep the underlines and
+their right-click fixes, which LibreOffice re-asks the checker for; that works because
+`checkAsYouType` only gates `engine.request`, never the cache. Paragraphs edited while it
+is off are remembered in `_missed` and checked when it comes back on: by then
+`EditTracker` sees them as re-displays, so nothing else would ever ask about them.
+
+**Only one command of each pair is visible, and the dispatcher decides which.** Both
+toolbar buttons and menu entries honour a `frame.status.Visibility` state
+(`GenericToolbarController`, `MenuBarManager`), so `Dispatcher.addStatusListener` answers
+it for the four `PAIRED` commands, and `state_changed()` re-broadcasts on every change,
+through the main thread, because the sweep ends on a timer. `test_wiring.py` checks that
+`PAIRED` matches the checking commands in `Addons.xcu`.
+
 **Writer repaints the paragraph under the cursor 2 s late, on purpose.** Its
 `sw::GrammarContact` holds that paragraph's grammar results in a proxy list and applies
 them on a 2-second timer, so a grammar checker does not flicker while you type. Every

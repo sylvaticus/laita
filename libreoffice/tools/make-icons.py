@@ -125,18 +125,55 @@ def right_box(w, h):
     return int(w * 0.47), int(h * 0.12), int(w * 0.97), int(h * 0.64)
 
 
-def draw_play(d, w, h):
+def framed_box(w, h):
+    """right_box shrunk to leave room for the frame drawn around it.
+
+    The frame is the document: a framed mark acts on the whole document, an unframed one
+    on what you are typing. The inset leaves a clear pixel between mark and frame even
+    at 16px - without it the two merge into one blob and the distinction is lost.
+    """
     x0, y0, x1, y1 = right_box(w, h)
+    ix, iy = int((x1 - x0) * 0.27), int((y1 - y0) * 0.27)
+    return x0 + ix, y0 + iy, x1 - ix, y1 - iy
+
+
+def _play(d, box):
+    x0, y0, x1, y1 = box
     d.polygon([(x0 + int((x1 - x0) * 0.12), y0),
                (x1, (y0 + y1) // 2),
                (x0 + int((x1 - x0) * 0.12), y1)], fill=PLAY)
 
 
-def draw_stop(d, w, h):
-    x0, y0, x1, y1 = right_box(w, h)
+def _stop(d, box, h):
+    x0, y0, x1, y1 = box
     pad = int((x1 - x0) * 0.1)
     d.rounded_rectangle([x0 + pad, y0 + pad, x1 - pad, y1 - pad],
                         radius=max(2, int(h * 0.05)), fill=STOP)
+
+
+def draw_play(d, w, h):
+    _play(d, right_box(w, h))
+
+
+def draw_stop(d, w, h):
+    _stop(d, right_box(w, h), h)
+
+
+def draw_play_framed(d, w, h):
+    _play(d, framed_box(w, h))
+
+
+def draw_stop_framed(d, w, h):
+    _stop(d, framed_box(w, h), h)
+
+
+def frame_at_size(img, size):
+    """The thin square frame, drawn AT THE FINAL SIZE for the same reason as the
+    squiggle: a one-pixel line drawn on the 8x master and reduced becomes a grey blur."""
+    x0, y0, x1, y1 = right_box(size, size)
+    # One pixel at both sizes: it is meant to be thin, and two pixels at 26px read as a
+    # heavy box competing with the mark inside it.
+    ImageDraw.Draw(img).rectangle([x0, y0, x1 - 1, y1 - 1], outline=MARK, width=1)
 
 
 def draw_gear(d, w, h):
@@ -214,17 +251,23 @@ def draw_transform(d, w, h):
           start=195, end=340, fill=MARK, width=max(2, int(h * 0.026)))
 
 
+# command -> (mark drawer, framed?). The framed pair acts on the whole document, the
+# unframed pair on checking as you type - see Addons.xcu.
 COMMANDS = {
-    "checkdocument": draw_play,
-    "stop": draw_stop,
-    "options": draw_gear,
-    "transform": draw_transform,
+    "checkdocument": (draw_play_framed, True),
+    "stopdocument": (draw_stop_framed, True),
+    # The same small mark as the framed pair, just without the frame, so the two pairs
+    # differ only in what the frame means - not in how big the mark is.
+    "typingon": (draw_play_framed, False),
+    "typingoff": (draw_stop_framed, False),
+    "options": (draw_gear, False),
+    "transform": (draw_transform, False),
 }
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for name, drawer in COMMANDS.items():
+    for name, (drawer, framed) in COMMANDS.items():
         for size in SIZES:
             big = size * SCALE
             img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
@@ -237,6 +280,8 @@ def main():
                 Image.new("RGBA", img.size, (255, 255, 255, 0)), img)
             small = img.resize((size, size), Image.LANCZOS)
             squiggle_at_size(small, size)
+            if framed:
+                frame_at_size(small, size)
             path = os.path.join(OUT, "%s_%d.png" % (name, size))
             small.save(path)
             print("  %s" % os.path.relpath(path, os.path.join(HERE, "..")))

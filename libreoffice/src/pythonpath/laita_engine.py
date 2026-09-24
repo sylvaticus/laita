@@ -326,6 +326,27 @@ class Engine:
         with self._lock:
             self.stopped = False
 
+    def cancel_queue(self):
+        """End a whole-document sweep: drop the paragraphs still waiting their turn.
+
+        Checking as you type is untouched - its pending timer stays - which is the whole
+        point of having this apart from stop(). The one request already in flight
+        finishes and is cached; there is no interrupting a blocking urlopen.
+        """
+        with self._lock:
+            self._queue = []
+
+    def cancel_pending(self):
+        """Checking as you type was switched off: drop the check waiting on its debounce.
+
+        The sweep queue is untouched, for the same reason cancel_queue leaves this alone.
+        """
+        with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+            self._pending_text = None
+
     def forget(self):
         """Drop every cached answer, so the next look at a paragraph asks again."""
         with self._lock:

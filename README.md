@@ -402,10 +402,14 @@ fences inside them are never sent.
 
 > [!IMPORTANT]
 > 
-> To avoid long delays, unless you explicitly use the option _Check this document_ in the desktop version or `--scope=document` in the LanguageTool server version, the document is NOT automatically proofread on loading. Only the paragraphs that you are working on are proofread.
+> To avoid long delays, unless you explicitly use the option _Check the whole document (may take a while...)_ in the desktop version or `--scope=document` in the LanguageTool server version, the document is NOT automatically proofread on loading. Only the paragraphs that you are working on are proofread.
 
 **LibreOffice desktop**:
-- Settings are under `Tools` ⇒ `Options` ⇒ `LAITA` and the Toolbar has _Check this document_, _Stop checking_, _Transform selection_ (only Writer) and _LAITA options_
+- Settings are under `Tools` ⇒ `Options` ⇒ `LAITA`. The toolbar and the `LAITA` menu have _Transform selection_, _LAITA options_ and two independent switches, each showing only the action that applies right now:
+  - _Check the whole document (may take a while...)_ / _Stop checking the whole document_ (a framed ▶ / ■): one sweep through the whole document.
+  - _Check as you type_ / _Stop checking as you type_ (a plain ▶ / ■): the same setting as in the options. With it off, the underlines already shown stay, and their suggestions can still be applied.
+
+  The checking commands are in Writer only; _Transform selection_ also works in Calc, Impress and Draw.
 
 - You can use the right-click contextual menu for the same operations
 
